@@ -63,7 +63,16 @@
 - [x] Simplify 实现
 - [x] rmnext 实现
 - [x] 基础单元测试 (31 测试通过)
-- [ ] 测试框架迁移 (待定)
+- [x] 日志系统集成 (spdlog)
+- [x] 所有测试添加日志输出
+
+### Benchmark 数据
+
+`benchmarks/` 目录包含 LTLf synthesis 标准测试数据：
+
+- **benchmarks/sm1000/**: SMv2 benchmark set (1000 个测试用例)
+  - `bench1/`, `bench2/`: 包含 `.ltlf` (公式) 和 `.part` (变量定义) 文件
+  - `results.csv`: 标准答案 (Realizable/Unrealizable)
 
 ## 构建命令
 
@@ -89,7 +98,8 @@ git commit -m "feat: implement FormulaPool with hash consing"
 
 ## 待办事项
 
-1. 确定并集成测试框架 (Catch2 vs GoogleTest)
-2. 扩展测试覆盖率
-3. 添加性能基准测试
-4. 文档生成 (Doxygen)
+1. 实现 LTLf synthesis 算法
+2. 集成 benchmark 测试 (使用 `benchmarks/sm1000/` 数据)
+3. 实现 Synthesis 结果与 `results.csv` 标准答案对比
+4. 扩展测试覆盖率
+5. 文档生成 (Doxygen)
