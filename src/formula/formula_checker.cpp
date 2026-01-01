@@ -90,7 +90,8 @@ bool FormulaChecker::likely_equivalent(FormulaPool& pool, Formula* f1,
 
 std::optional<bool> FormulaChecker::are_equivalent_z3(Formula* f1, Formula* f2,
                                                          unsigned timeout_ms) {
-    return FormulaZ3::are_equivalent(f1, f2, timeout_ms);
+    // Use auto-detected bound (0), pass timeout_ms
+    return FormulaZ3::are_equivalent(f1, f2, 0, timeout_ms);
 }
 
 std::optional<bool> FormulaChecker::are_equivalent_smart(Formula* f1, Formula* f2,
@@ -106,8 +107,8 @@ std::optional<bool> FormulaChecker::are_equivalent_smart(Formula* f1, Formula* f
         return are_equivalent(pool, f1, f2);
     }
 
-    // For larger formulas, use Z3
-    auto z3_result = FormulaZ3::are_equivalent(f1, f2, timeout_ms);
+    // For larger formulas, use Z3 with auto-detected bound
+    auto z3_result = FormulaZ3::are_equivalent(f1, f2, 0, timeout_ms);
 
     if (z3_result.has_value()) {
         return z3_result;
