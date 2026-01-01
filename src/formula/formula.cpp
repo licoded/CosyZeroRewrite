@@ -81,10 +81,10 @@ std::string Formula::to_verbose_string(const FormulaPool& pool) const {
 
     switch (op_) {
         case OpType::True:
-            return "True";
+            return "true";
 
         case OpType::False:
-            return "False";
+            return "false";
 
         case OpType::End:
             return "End";
