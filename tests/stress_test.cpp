@@ -27,6 +27,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include <optional>
 
 using namespace formula;
 using namespace std::chrono;
@@ -146,7 +147,7 @@ struct TestCase {
     std::string name;
     std::string f1;
     std::string f2;
-    bool expected_equiv;
+    std::optional<bool> expected_equiv;  // nullopt = no expectation check
     int max_bound;
     unsigned timeout_ms;
 };
@@ -219,7 +220,7 @@ std::vector<TestCase> generate_complex_tests() {
         // Negation handling
         {"Neg: Double negation chain",
          "!(!(!(!(!p1))))",
-         "p1", true, -1, 5000},
+         "p1", false, -1, 5000},  // 5 negations = !p1, not p1
 
         {"Neg: De Morgan complex",
          "!((p1 & p2) | (p3 & p4))",
@@ -302,21 +303,32 @@ void run_test(FormulaPool&, FormulaParser& parser, const TestCase& test) {
         stats.total_time_ms += elapsed;
 
         if (result.has_value()) {
-            if (result.value() == test.expected_equiv) {
-                stats.passed++;
-                std::cout << "  PASS: " << test.name << " (" << elapsed << "ms)\n";
-                LOG_DEBUG("PASS: {} ({}ms)", test.name, elapsed);
+            // Check against expectation if provided
+            if (test.expected_equiv.has_value()) {
+                if (result.value() == test.expected_equiv.value()) {
+                    stats.passed++;
+                    std::cout << "  PASS: " << test.name << " (" << elapsed << "ms)\n";
+                    LOG_DEBUG("PASS: {} ({}ms)", test.name, elapsed);
+                } else {
+                    stats.failed++;
+                    std::cout << "  FAIL: " << test.name << " - expected "
+                              << (test.expected_equiv.value() ? "equiv" : "not-equiv")
+                              << ", got " << (result.value() ? "equiv" : "not-equiv")
+                              << " (" << elapsed << "ms)\n";
+                    LOG_WARN("FAIL: {} - expected {}, got {} ({}ms)",
+                             test.name, test.expected_equiv.value(), result.value(), elapsed);
+                    // Log detailed failure info
+                    log_failure(test.name, test.f1, test.f2,
+                              test.expected_equiv.value(), result.value(), elapsed);
+                }
             } else {
-                stats.failed++;
-                std::cout << "  FAIL: " << test.name << " - expected "
-                          << (test.expected_equiv ? "equiv" : "not-equiv")
-                          << ", got " << (result.value() ? "equiv" : "not-equiv")
+                // No expectation - just record the result
+                stats.passed++;
+                std::cout << "  INFO: " << test.name << " - "
+                          << (result.value() ? "equiv" : "not-equiv")
                           << " (" << elapsed << "ms)\n";
-                LOG_WARN("FAIL: {} - expected {}, got {} ({}ms)",
-                         test.name, test.expected_equiv, result.value(), elapsed);
-                // Log detailed failure info
-                log_failure(test.name, test.f1, test.f2,
-                          test.expected_equiv, result.value(), elapsed);
+                LOG_DEBUG("INFO: {} - {} ({}ms)", test.name,
+                         result.value() ? "equiv" : "not-equiv", elapsed);
             }
         } else {
             stats.timeouts++;
@@ -346,7 +358,8 @@ void run_random_tests(FormulaPool& pool, FormulaParser& parser, int count) {
         std::string f2 = gen.generate(5 + (i % 8));
 
         // Make 30% of tests equivalent (same formula)
-        if (rng() % 10 < 3) {
+        bool make_equiv = (rng() % 10 < 3);
+        if (make_equiv) {
             f2 = f1;
         }
 
@@ -354,7 +367,9 @@ void run_random_tests(FormulaPool& pool, FormulaParser& parser, int count) {
         test.name = "Random_" + std::to_string(i);
         test.f1 = f1;
         test.f2 = f2;
-        test.expected_equiv = (f1 == f2);
+        // Only set expectation when formulas are identical (definitely equivalent)
+        // When formulas differ, we don't have a reliable expectation without running Z3
+        test.expected_equiv = make_equiv ? std::optional<bool>(true) : std::nullopt;
         test.max_bound = -1;
         test.timeout_ms = 10000 + (rng() % 20000);
 
