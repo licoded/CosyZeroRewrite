@@ -156,6 +156,23 @@ public:
         return var_id >= num_outputs_ && var_id < num_variables();
     }
 
+    /**
+     * @brief Check if variable exists
+     * @param name Variable name
+     * @return true if variable is declared
+     */
+    bool has_variable(const std::string& name) const;
+
+    /**
+     * @brief Get or auto-declare a variable (for parser convenience)
+     * @param name Variable name
+     * @return Variable ID (auto-declared as output if not exists)
+     *
+     * This method is primarily for the parser to auto-declare variables.
+     * Variables are auto-declared as outputs.
+     */
+    int get_or_create_variable(const std::string& name);
+
     // ========== Formula Creation (Canonicalized) ==========
 
     /**

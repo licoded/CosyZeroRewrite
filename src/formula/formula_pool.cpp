@@ -310,6 +310,25 @@ std::string FormulaPool::get_variable_name(int var_id) const {
     return var_names_[var_id];
 }
 
+bool FormulaPool::has_variable(const std::string& name) const {
+    return var_ids_.find(name) != var_ids_.end();
+}
+
+int FormulaPool::get_or_create_variable(const std::string& name) {
+    auto it = var_ids_.find(name);
+    if (it != var_ids_.end()) {
+        return it->second;
+    }
+
+    // Auto-declare as output
+    int var_id = static_cast<int>(var_names_.size());
+    var_names_.push_back(name);
+    var_ids_[name] = var_id;
+    num_outputs_++;
+
+    return var_id;
+}
+
 // ========== Formula Creation ==========
 
 Formula* FormulaPool::create(Formula::OpType op, Formula* left,
