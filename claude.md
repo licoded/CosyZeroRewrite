@@ -25,7 +25,7 @@ cmake/
   Dependencies.cmake    # Dependency detection and configuration
   LibraryTargets.cmake  # Library build targets
   Tests.cmake           # Unit test configuration
-  Fuzzing.cmake         # Fuzzing targets (libFuzzer)
+  Fuzzing.cuzzer         # Fuzzing targets (libFuzzer)
   Installation.cmake    # Install rules
 ```
 
@@ -66,3 +66,90 @@ make -j4
 ./formula_tests
 ./parser_checker_tests
 ```
+
+---
+
+## IMPORTANT: User Instructions (2026-01-02)
+
+**CRITICAL - HIGHEST PRIORITY**:
+- **DO NOT ASK QUESTIONS** - make decisions independently
+- Work autonomously on planned tasks
+- Record decisions in code comments or logs for user review later
+- Continue until user explicitly interrupts
+
+**This applies whenever user is resting/sleeping or has indicated they should not be disturbed.**
+
+---
+
+## Project Decisions Log
+
+### Stress Testing Plan (2026-01-02)
+
+| Decision | Value |
+|----------|-------|
+| Memory leak detection | Both Valgrind AND AddressSanitizer |
+| Variable naming | Descriptive: `p1, p2, ...` / `s1, s2, ...` (state/prop) |
+| Timeout handling | Count as PASS, log to separate file with details |
+| Error handling | Custom exception hierarchy (see below) |
+| Variable name validation | `[a-zA-Z_][a-zA-Z0-9_]*`, max 64 chars, keyword blacklist |
+| WeakNext (WX) | Keep in OpType, convert to X during parsing |
+| Conflict detection | Literal-only (`a & !a`), no semantic expansion |
+
+### Exception Hierarchy Design
+
+```cpp
+namespace formula {
+
+class FormulaException : public std::runtime_error {
+public:
+    explicit FormulaException(const std::string& msg)
+        : std::runtime_error(msg) {}
+};
+
+class ParseException : public FormulaException {
+public:
+    explicit ParseException(const std::string& msg)
+        : FormulaException("Parse error: " + msg) {}
+};
+
+class ValidationException : public FormulaException {
+public:
+    explicit ValidationException(const std::string& msg)
+        : FormulaException("Validation error: " + msg) {}
+};
+
+class UndeclaredVariableException : public ValidationException {
+public:
+    explicit UndeclaredVariableException(const std::string& name)
+        : ValidationException("Undeclared variable: " + name) {}
+};
+
+} // namespace formula
+```
+
+### Timeout Log Format
+
+File: `logs/timeouts_YYYYMMDD_HHMMSS.csv`
+```csv
+timestamp,formula1,formula2,bound,timeout_ms,elapsed_ms,result
+2026-01-02T02:30:00,"X(X(a U b))","X(X(a U b))",32,30000,1523,TIMEOUT
+```
+
+---
+
+## Pending Tasks (from migrationDocs)
+
+### High Priority
+- [ ] Custom exception hierarchy (TODO 5)
+- [ ] Variable name validation (TODO 6)
+- [ ] Integration tests (Task 4.2)
+- [ ] Performance benchmarks (Task 4.3) - NO comparison with original
+- [ ] Code review with Valgrind/ASan (Task 5.2)
+
+### Medium Priority
+- [ ] Formula Pool lifecycle documentation (TODO 4)
+- [ ] Doxygen documentation (Task 5.1)
+
+### Documentation Tasks
+- [ ] Create `docs/design/` folder for design decisions
+- [ ] Document simplify conflict detection design choice

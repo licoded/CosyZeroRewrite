@@ -2,7 +2,9 @@
 #define FORMULA_POOL_HPP
 
 #include "formula/formula.hpp"
+#include "formula/formula_exception.hpp"
 #include <memory>
+#include <regex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -274,6 +276,53 @@ public:
     }
 
 private:
+    // ========== Variable Name Validation ==========
+
+    /**
+     * @brief Maximum length for variable names
+     */
+    static constexpr size_t MAX_VAR_NAME_LENGTH = 64;
+
+    /**
+     * @brief Reserved keywords that cannot be used as variable names
+     *
+     * Includes logical operators and special constants.
+     */
+    static const std::unordered_set<std::string>& reserved_keywords() {
+        static const std::unordered_set<std::string> keywords = {
+            // Constants
+            "true", "false", "TRUE", "FALSE",
+            // Operators
+            "not", "and", "or", "next", "until", "release",
+            "NOT", "AND", "OR", "NEXT", "UNTIL", "RELEASE",
+            "X", "U", "R", "G", "F", "W",  // Single-letter operators
+            // Special
+            "end", "End", "END", "last", "Last", "LAST",
+            "tail", "Tail", "TAIL"
+        };
+        return keywords;
+    }
+
+    /**
+     * @brief Validate a variable name
+     * @param name Variable name to validate
+     * @throws InvalidVariableNameException if name is invalid
+     *
+     * Naming rules:
+     * - Must match: [a-zA-Z_][a-zA-Z0-9_]*
+     * - Maximum length: 64 characters
+     * - Cannot be a reserved keyword
+     * - Cannot be empty
+     */
+    static void validate_variable_name(const std::string& name);
+
+    /**
+     * @brief Check if a string is a valid variable name
+     * @param name String to check
+     * @return true if valid, false otherwise
+     */
+    static bool is_valid_variable_name(const std::string& name);
+
     // ========== Canonicalization ==========
 
     /**

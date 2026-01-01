@@ -1,10 +1,54 @@
 #include "formula/formula_pool.hpp"
 #include <algorithm>
 #include <fstream>
+#include <functional>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 
 namespace formula {
+
+// ========== Variable Name Validation ==========
+
+bool FormulaPool::is_valid_variable_name(const std::string& name) {
+    // Empty check
+    if (name.empty()) return false;
+
+    // Length check
+    if (name.length() > MAX_VAR_NAME_LENGTH) return false;
+
+    // Pattern check: [a-zA-Z_][a-zA-Z0-9_]*
+    static const std::regex pattern("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    if (!std::regex_match(name, pattern)) return false;
+
+    // Reserved keyword check
+    if (reserved_keywords().count(name) > 0) return false;
+
+    return true;
+}
+
+void FormulaPool::validate_variable_name(const std::string& name) {
+    if (name.empty()) {
+        throw InvalidVariableNameException(name, "variable name cannot be empty");
+    }
+
+    if (name.length() > MAX_VAR_NAME_LENGTH) {
+        throw InvalidVariableNameException(name,
+            "exceeds maximum length of " + std::to_string(MAX_VAR_NAME_LENGTH));
+    }
+
+    // Pattern check: [a-zA-Z_][a-zA-Z0-9_]*
+    static const std::regex pattern("^[a-zA-Z_][a-zA-Z0-9_]*$");
+    if (!std::regex_match(name, pattern)) {
+        throw InvalidVariableNameException(name,
+            "must match pattern [a-zA-Z_][a-zA-Z0-9_]*");
+    }
+
+    // Reserved keyword check
+    if (reserved_keywords().count(name) > 0) {
+        throw InvalidVariableNameException(name, "is a reserved keyword");
+    }
+}
 
 // ========== Hash Function ==========
 
