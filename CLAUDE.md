@@ -65,6 +65,11 @@
 - [x] 基础单元测试 (31 测试通过)
 - [x] 日志系统集成 (spdlog)
 - [x] 所有测试添加日志输出
+- [x] **变换等价性测试** (196 测试全部通过)
+  - String Roundtrip (Parse → to_verbose_string → Re-parse)
+  - NNF 变换等价性验证
+  - XNF 变换等价性验证
+  - Full Pipeline 等价性验证
 
 ### Benchmark 数据
 
@@ -100,18 +105,35 @@ git commit -m "feat: implement FormulaPool with hash consing"
 
 ### 当前优先级
 
-#### 1. 新增变换等价性测试 (高优先级)
-- [ ] 测试：解析公式 → to_string → 再解析，验证等价性
-- [ ] 测试：NNF 变换前后公式等价性验证
-- [ ] 测试：XNF 变换前后公式等价性验证
-- [ ] 使用 Z3 BMC 作为等价性判断的标准答案
+#### 1. LTLf Synthesis 模块实现 (高优先级)
 
-#### 2. LTLf Synthesis 实现
-- [ ] 实现 synthesis 算法核心逻辑
-- [ ] 集成 benchmark 测试 (使用 `benchmarks/sm1000/` 数据)
-- [ ] 实现 Synthesis 结果与 `results.csv` 标准答案对比
+需要创建新的 `synthesis/` 模块，包含以下组件：
 
-#### 3. 测试与文档完善
+- [ ] **DFA 数据结构** (`include/synthesis/dfa.hpp`)
+  - 状态 ID、转移关系
+  - 初始状态、接受状态
+  - 变量绑定
+
+- [ ] **Tarjan SCC 算法** (`include/synthesis/tarjan.hpp`)
+  - 强连通分量分解
+  - 游戏状态判定 (Swin/Ewin)
+  - 反向搜索传播
+
+- [ ] **Edge Constraint Builder** (`include/synthesis/edge_cons.hpp`)
+  - BDD 边约束构建
+  - 成功/失败转移集合
+
+- [ ] **Synthesis 主接口** (`include/synthesis/synthesis.hpp`)
+  - `isRealizable()` 函数
+  - 增量组合策略
+  - AALTA LTLf→DFA 集成
+
+- [ ] **Benchmark 集成**
+  - 读取 `benchmarks/sm1000/` 测试数据
+  - 与 `results.csv` 标准答案对比
+  - 输出测试报告
+
+#### 2. 测试与文档完善
 - [ ] 添加集成测试 (Task 4.2)
 - [ ] 添加性能基准测试 (Task 4.3)
 - [ ] 完善文档和 Doxygen 注释 (Task 5.1)
