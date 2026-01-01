@@ -98,8 +98,30 @@ git commit -m "feat: implement FormulaPool with hash consing"
 
 ## 待办事项
 
-1. 实现 LTLf synthesis 算法
-2. 集成 benchmark 测试 (使用 `benchmarks/sm1000/` 数据)
-3. 实现 Synthesis 结果与 `results.csv` 标准答案对比
-4. 扩展测试覆盖率
-5. 文档生成 (Doxygen)
+### 当前优先级
+
+#### 1. 新增变换等价性测试 (高优先级)
+- [ ] 测试：解析公式 → to_string → 再解析，验证等价性
+- [ ] 测试：NNF 变换前后公式等价性验证
+- [ ] 测试：XNF 变换前后公式等价性验证
+- [ ] 使用 Z3 BMC 作为等价性判断的标准答案
+
+#### 2. LTLf Synthesis 实现
+- [ ] 实现 synthesis 算法核心逻辑
+- [ ] 集成 benchmark 测试 (使用 `benchmarks/sm1000/` 数据)
+- [ ] 实现 Synthesis 结果与 `results.csv` 标准答案对比
+
+#### 3. 测试与文档完善
+- [ ] 添加集成测试 (Task 4.2)
+- [ ] 添加性能基准测试 (Task 4.3)
+- [ ] 完善文档和 Doxygen 注释 (Task 5.1)
+- [ ] 记录设计决策到新文档文件夹
+
+### 工作习惯
+
+**重要：每次开始新任务前，必须先更新 TODO 列表**
+
+- 使用 TodoWrite 工具记录任务进度
+- 任务开始前标记为 in_progress
+- 任务完成后立即标记为 completed
+- 发现新任务及时添加到列表
