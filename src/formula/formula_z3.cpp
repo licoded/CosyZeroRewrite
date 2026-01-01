@@ -2,39 +2,139 @@
 #include <unordered_map>
 #include <optional>
 #include <algorithm>
+#include <iostream>
+#include <cmath>
+#include <chrono>
 
 namespace formula {
 
 #ifdef FORMULA_USE_Z3
+
+using Clock = std::chrono::high_resolution_clock;
+using Duration = std::chrono::duration<double, std::milli>;
 
 std::optional<bool> FormulaZ3::are_equivalent(Formula* f1, Formula* f2,
                                                 int max_bound,
                                                 unsigned timeout_ms) {
     if (!f1 || !f2) return f1 == f2;
 
-    // Incremental checking: start small, increase until counterexample or max bound
+    // Incremental mode with time estimation
     if (max_bound == -1) {
-        // Start with minimum bound (X operator depth)
-        int min_bound = get_x_depth(f1, f2);
-        int auto_max_bound = std::max(detect_bound(f1), detect_bound(f2));
-
-        // Try incrementally: min_bound, min_bound*2, ..., auto_max_bound
-        for (int bound = min_bound; bound <= auto_max_bound; bound = std::min(bound + 2, auto_max_bound + 1)) {
-            auto result = are_equivalent_bounded(f1, f2, bound, timeout_ms / std::max(1, auto_max_bound / 2));
-            if (result.has_value()) {
-                // If we found a counterexample (sat), it's definitely not equivalent
-                // If we proved equivalence (unsat), it's definitely equivalent
-                return result;
-            }
-            // If timeout/unknown, try with larger bound
-        }
-        return std::nullopt;  // Couldn't determine with any bound up to auto_max_bound
+        return are_equivalent_incremental(f1, f2, -1, timeout_ms);
     }
 
     // Auto-detect bound if not specified
-    int actual_bound = (max_bound <= 0) ? std::max(detect_bound(f1), detect_bound(f2)) : max_bound;
+    int actual_bound = (max_bound <= 0)
+        ? detect_bound(f1) * DEFAULT_BOUND_MULTIPLIER
+        : max_bound;
 
     return are_equivalent_bounded(f1, f2, actual_bound, timeout_ms);
+}
+
+std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* f2,
+                                                           int max_bound,
+                                                           unsigned timeout_ms) {
+    std::vector<BmcAttempt> attempts;
+
+    // Determine target bound
+    int auto_detected = std::max(detect_bound(f1), detect_bound(f2));
+    int target_bound = (max_bound <= 0) ? auto_detected * DEFAULT_BOUND_MULTIPLIER : max_bound;
+
+    // Count temporal operators for complexity estimation
+    [[maybe_unused]] int temporal_count = count_temporal_ops(f1) + count_temporal_ops(f2);
+
+    // Start with small bounds to measure time
+    int start_bound = std::max(MIN_INCREMENTAL_START_BOUND, get_x_depth(f1, f2));
+
+    for (int step = 0; step < MAX_INCREMENTAL_STEPS; ++step) {
+        // Calculate next bound to try
+        int bound;
+        if (step == 0) {
+            bound = start_bound;
+        } else {
+            // Exponential increase: 2, 4, 8, 16, ... up to target
+            bound = std::min(start_bound * (1 << step), target_bound);
+        }
+
+        // Estimate time before running
+        auto estimated_ms = estimate_time(attempts, bound);
+        if (estimated_ms.has_value()) {
+            double safe_estimate = *estimated_ms * TIME_ESTIMATION_SAFETY_FACTOR;
+            if (safe_estimate > timeout_ms) {
+                // Would exceed timeout, abort
+                std::cerr << "[Z3 BMC] Estimated time for bound=" << bound
+                          << " is " << static_cast<int>(safe_estimate / 1000.0)
+                          << "s, exceeding timeout of " << (timeout_ms / 1000.0) << "s. Aborting.\n";
+                return std::nullopt;
+            }
+        }
+
+        // Run BMC with this bound
+        auto start_time = Clock::now();
+        auto result = are_equivalent_bounded(f1, f2, bound,
+            std::min(static_cast<unsigned>(timeout_ms / 4), 30000u));  // Per-step timeout
+        auto end_time = Clock::now();
+        double elapsed_ms = Duration(end_time - start_time).count();
+
+        attempts.push_back({bound, result, elapsed_ms});
+
+        // If we got a definitive answer, return it
+        if (result.has_value()) {
+            // Found counterexample or proved equivalence
+            return result;
+        }
+
+        // If we reached target bound, stop
+        if (bound >= target_bound) {
+            break;
+        }
+    }
+
+    // Couldn't determine equivalence
+    std::cerr << "[Z3 BMC] Unable to determine equivalence after "
+              << attempts.size() << " attempts (up to bound " << attempts.back().bound << ")\n";
+    return std::nullopt;
+}
+
+std::optional<double> FormulaZ3::estimate_time(const std::vector<BmcAttempt>& attempts, int target_bound) {
+    if (attempts.empty()) {
+        return std::nullopt;
+    }
+
+    // Use the most recent attempt(s) for estimation
+    // For formulas with U/R, complexity is roughly O(bound^2.5)
+    // For pure X formulas, complexity is closer to O(bound)
+
+    if (attempts.size() >= 2) {
+        // Use two most recent data points to fit a power law
+        const auto& a1 = attempts[attempts.size() - 2];
+        const auto& a2 = attempts[attempts.size() - 1];
+
+        if (a1.elapsed_ms > 0.1 && a2.elapsed_ms > 0.1 && a1.bound != a2.bound) {
+            // Fit: time = c * bound^k
+            // k = log(t2/t1) / log(b2/b1)
+            double k = std::log(a2.elapsed_ms / a1.elapsed_ms) /
+                      std::log(static_cast<double>(a2.bound) / a1.bound);
+            double c = a1.elapsed_ms / std::pow(a1.bound, k);
+
+            // Clamp k to reasonable range [1, 4]
+            k = std::max(1.0, std::min(4.0, k));
+
+            double estimated = c * std::pow(target_bound, k);
+            return estimated;
+        }
+    }
+
+    // Fallback: use single data point with assumed exponent
+    const auto& last = attempts.back();
+    if (last.elapsed_ms > 0.1) {
+        // Assume O(bound^2) for U/R formulas
+        double k = 2.0;
+        double c = last.elapsed_ms / std::pow(last.bound, k);
+        return c * std::pow(target_bound, k);
+    }
+
+    return std::nullopt;
 }
 
 std::optional<bool> FormulaZ3::are_equivalent_bounded(Formula* f1, Formula* f2,
@@ -80,7 +180,7 @@ std::optional<bool> FormulaZ3::is_valid(Formula* f,
                                         unsigned timeout_ms) {
     if (!f) return false;
 
-    int actual_bound = (bound <= 0) ? detect_bound(f) : bound;
+    int actual_bound = (bound <= 0) ? detect_bound(f) * DEFAULT_BOUND_MULTIPLIER : bound;
 
     try {
         z3::context ctx;
@@ -117,7 +217,7 @@ std::optional<bool> FormulaZ3::is_satisfiable(Formula* f,
                                                unsigned timeout_ms) {
     if (!f) return false;
 
-    int actual_bound = (bound <= 0) ? detect_bound(f) : bound;
+    int actual_bound = (bound <= 0) ? detect_bound(f) * DEFAULT_BOUND_MULTIPLIER : bound;
 
     try {
         z3::context ctx;
@@ -183,8 +283,6 @@ int FormulaZ3::detect_bound(Formula* f) {
     if (!f) return 1;
 
     // Bound based on formula structure
-    // For U/R: need enough steps for the "eventually" part to happen
-    // For nested X: need at least the X depth
     switch (f->op()) {
         case Formula::OpType::True:
         case Formula::OpType::False:
@@ -204,10 +302,6 @@ int FormulaZ3::detect_bound(Formula* f) {
 
         case Formula::OpType::Until:
         case Formula::OpType::Release: {
-            // For f U g or f R g, we need enough steps for:
-            // 1. The nested structure
-            // 2. The temporal aspect (g might be satisfied at various times)
-            // Heuristic: max(left depth, right depth) + X depth + 2
             int x_depth = std::max(count_x_depth(f->left()), count_x_depth(f->right()));
             int structural_depth = std::max(detect_bound(f->left()), detect_bound(f->right()));
             return structural_depth + x_depth + 2;
@@ -215,6 +309,34 @@ int FormulaZ3::detect_bound(Formula* f) {
     }
 
     return 1;
+}
+
+int FormulaZ3::count_temporal_ops(Formula* f) {
+    if (!f) return 0;
+
+    switch (f->op()) {
+        case Formula::OpType::True:
+        case Formula::OpType::False:
+        case Formula::OpType::Literal:
+        case Formula::OpType::End:
+            return 0;
+
+        case Formula::OpType::Not:
+            return count_temporal_ops(f->left());
+
+        case Formula::OpType::And:
+        case Formula::OpType::Or:
+            return count_temporal_ops(f->left()) + count_temporal_ops(f->right());
+
+        case Formula::OpType::Next:
+            return 1 + count_temporal_ops(f->left());
+
+        case Formula::OpType::Until:
+        case Formula::OpType::Release:
+            return 1 + count_temporal_ops(f->left()) + count_temporal_ops(f->right());
+    }
+
+    return 0;
 }
 
 z3::expr FormulaZ3::to_z3_bounded(Formula* f,
