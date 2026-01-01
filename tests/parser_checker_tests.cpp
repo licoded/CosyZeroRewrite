@@ -1,8 +1,10 @@
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
 #include "formula/formula_checker.hpp"
+#include "log/logger.hpp"
 
 using namespace formula;
 
@@ -441,4 +443,22 @@ TEST_CASE("Property: NNF is idempotent", "[property][nnf]") {
         // NNF twice should give equivalent result
         REQUIRE(FormulaChecker::are_equivalent(pool, nnf1, nnf2));
     }
+}
+
+// =============================================================================
+// Custom Main with Logger
+// =============================================================================
+
+int main(int argc, char* argv[]) {
+    // Initialize logger
+    LOG_INFO("Parser & Checker Tests starting...");
+
+    // Run Catch2 tests
+    int result = Catch::Session().run(argc, argv);
+
+    // Log completion
+    LOG_INFO("Parser & Checker Tests completed with exit code: {}", result);
+    LOG_FLUSH();
+
+    return result;
 }

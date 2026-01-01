@@ -1,7 +1,8 @@
-#define CATCH_CONFIG_MAIN
+#define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
+#include "log/logger.hpp"
 
 using namespace formula;
 
@@ -480,4 +481,22 @@ TEST_CASE("Integration: Complex formula with Next and Until", "[integration]") {
 
     // Should be: (q & !End) | (X(p) & X(X(p) U q))
     REQUIRE(xnf_f->is_or());
+}
+
+// =============================================================================
+// Custom Main with Logger
+// =============================================================================
+
+int main(int argc, char* argv[]) {
+    // Initialize logger
+    LOG_INFO("Formula Tests starting...");
+
+    // Run Catch2 tests
+    int result = Catch::Session().run(argc, argv);
+
+    // Log completion
+    LOG_INFO("Formula Tests completed with exit code: {}", result);
+    LOG_FLUSH();
+
+    return result;
 }
