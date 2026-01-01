@@ -1,175 +1,65 @@
 cmake_minimum_required(VERSION 3.10)
-project(CosyZeroFormula VERSION 1.0 LANGUAGES CXX)
 
-# Set C++17 standard
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
-
-# Compiler options
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    add_compile_options(-Wall -Wextra -Wpedantic)
-endif()
-
-# Include directories
-include_directories(${PROJECT_SOURCE_DIR}/include)
-
-# Find spdlog for logging
-find_package(PkgConfig)
-if(PKG_CONFIG_FOUND)
-    pkg_check_modules(SPDLOG spdlog)
-endif()
-
-# Fallback: try to find spdlog manually
-if(NOT SPDLOG_FOUND)
-    find_path(SPDLOG_INCLUDE_DIR NAMES spdlog/spdlog.h PATH_SUFFIXES spdlog)
-    if(SPDLOG_INCLUDE_DIR)
-        set(SPDLOG_FOUND TRUE)
-        set(SPDLOG_INCLUDE_DIRS ${SPDLOG_INCLUDE_DIR})
-        set(SPDLOG_LIBRARIES)  # Header-only, no libraries needed
-    endif()
-endif()
-
-if(SPDLOG_FOUND)
-    message(STATUS "spdlog found: ${SPDLOG_INCLUDE_DIRS}")
-    include_directories(${SPDLOG_INCLUDE_DIRS})
-    add_compile_definitions(FORMULA_USE_LOGGER)
-else()
-    message(WARNING "spdlog not found. Logging will be disabled.")
-endif()
-
-# Z3 SMT Solver support
-option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)
-
-# Source files for formula library
-set(FORMULA_SOURCES
-    src/formula/formula.cpp
-    src/formula/formula_pool.cpp
-    src/formula/formula_parser.cpp
-    src/formula/formula_checker.cpp
-    src/formula/nnf.cpp
-    src/formula/xnf.cpp
-    src/formula/simplify.cpp
-    src/formula/rmnext.cpp
+project(CosyZeroFormula
+    VERSION 1.0
+    DESCRIPTION "LTLf Formula Library with Z3 Integration"
+    LANGUAGES CXX
 )
 
-# Find Z3 package
-if(USE_Z3)
-    find_package(PkgConfig)
-    if(PKG_CONFIG_FOUND)
-        pkg_check_modules(Z3 libz3)
-    endif()
-
-    # Alternative: try to find Z3 manually
-    if(NOT Z3_FOUND)
-        find_path(Z3_INCLUDE_DIR NAMES z3++.h z3.h)
-        find_library(Z3_LIBRARY NAMES z3)
-        if(Z3_INCLUDE_DIR AND Z3_LIBRARY)
-            set(Z3_FOUND TRUE)
-            set(Z3_INCLUDE_DIRS ${Z3_INCLUDE_DIR})
-            set(Z3_LIBRARIES ${Z3_LIBRARY})
-        endif()
-    endif()
-
-    if(Z3_FOUND)
-        message(STATUS "Z3 found: ${Z3_LIBRARIES}")
-        add_compile_definitions(FORMULA_USE_Z3)
-        include_directories(${Z3_INCLUDE_DIRS})
-
-        # Add Z3 source file
-        set(FORMULA_SOURCES ${FORMULA_SOURCES}
-            src/formula/formula_z3.cpp
-        )
-    else()
-        message(WARNING "Z3 requested but not found. Z3 support will be disabled.")
-        message(STATUS "To install Z3 on Ubuntu: sudo apt install libz3-dev")
-    endif()
-endif()
-
-# Build formula library
-add_library(formula STATIC ${FORMULA_SOURCES})
-
-# Link Z3 to formula library if available
-if(Z3_FOUND)
-    target_link_libraries(formula ${Z3_LIBRARIES})
-endif()
-
-# Test executable
+# ============================================================
+# Project options
+# ============================================================
 option(BUILD_TESTS "Build unit tests" ON)
-if(BUILD_TESTS)
-    enable_testing()
-
-    # Catch2 header-only library
-    add_library(catch2 INTERFACE)
-    target_include_directories(catch2 INTERFACE ${PROJECT_SOURCE_DIR}/tests/catch2)
-
-    # Original tests (with CATCH_CONFIG_MAIN)
-    add_executable(formula_tests tests/formula_tests.cpp)
-    target_link_libraries(formula_tests PRIVATE formula catch2)
-
-    # Parser and checker tests (combined with formula_tests for main)
-    add_executable(parser_checker_tests tests/formula_tests.cpp tests/parser_checker_tests.cpp)
-    target_link_libraries(parser_checker_tests PRIVATE formula catch2)
-
-    # Disable warnings for Catch2
-    if(MSVC)
-        target_compile_options(formula_tests PRIVATE /W4)
-        target_compile_options(parser_checker_tests PRIVATE /W4)
-    else()
-        target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
-    endif()
-
-    add_test(NAME formula_tests COMMAND formula_tests)
-    add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
-endif()
-
-# Fuzzing with libFuzzer
 option(BUILD_FUZZER "Build libFuzzer targets" OFF)
-if(BUILD_FUZZER)
-    # Check if compiler supports -fsanitize=fuzzer (requires clang)
-    include(CheckCXXCompilerFlag)
-    check_cxx_compiler_flag(-fsanitize=fuzzer HAS_FUZZER_FLAG)
+option(USE_Z3 "Enable Z3 SMT solver" ON)
+option(USE_SPDLOG "Enable spdlog logging" ON)
 
-    if(HAS_FUZZER_FLAG)
-        # Parser fuzzer - tests formula string parsing
-        add_executable(parser_fuzzer tests/fuzz/fuzz_parser.cpp)
-        target_compile_options(parser_fuzzer PRIVATE -fsanitize=fuzzer -g -O1)
-        target_link_libraries(parser_fuzzer PRIVATE formula)
+# ============================================================
+# Include subdirectories for CMake modules
+# ============================================================
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 
-        # Transformation property fuzzer - tests semantic preservation
-        add_executable(transformation_fuzzer tests/fuzz/fuzz_transformations.cpp)
-        target_compile_options(transformation_fuzzer PRIVATE -fsanitize=fuzzer -g -O1)
-        target_link_libraries(transformation_fuzzer PRIVATE formula)
+# ============================================================
+# Compiler setup
+# ============================================================
+include(cmake/CompilerOptions.cmake)
 
-        # Equivalence fuzzer - tests equivalence checker correctness
-        add_executable(equivalence_fuzzer tests/fuzz/fuzz_equivalence.cpp)
-        target_compile_options(equivalence_fuzzer PRIVATE -fsanitize=fuzzer -g -O1)
-        target_link_libraries(equivalence_fuzzer PRIVATE formula)
+# ============================================================
+# Dependencies (Z3, spdlog)
+# ============================================================
+include(cmake/Dependencies.cmake)
 
-        message(STATUS "LibFuzzer targets enabled: parser_fuzzer, transformation_fuzzer, equivalence_fuzzer")
-    else()
-        # Build standalone test harness for fuzzing with external tools
-        add_executable(fuzz_harness tests/fuzz/fuzz_harness.cpp)
-        target_link_libraries(fuzz_harness PRIVATE formula)
+# ============================================================
+# Build library
+# ============================================================
+include(cmake/LibraryTargets.cmake)
 
-        # Build test driver that simulates fuzzer behavior
-        add_executable(fuzz_driver tests/fuzz/fuzz_driver.cpp)
-        target_link_libraries(fuzz_driver PRIVATE formula)
+# ============================================================
+# Testing
+# ============================================================
+include(cmake/Tests.cmake)
 
-        message(WARNING "Compiler does not support -fsanitize=fuzzer. Built fuzz_harness and fuzz_driver instead.")
-        message(STATUS "To run fuzzers with clang+libFuzzer, install clang with libFuzzer support:")
-        message(STATUS "  Ubuntu: sudo apt install clang libfuzzer-dev")
-        message(STATUS "Then:")
-        message(STATUS "  mkdir -p build_fuzz && cd build_fuzz")
-        message(STATUS "  CC=clang CXX=clang++ cmake .. -DBUILD_FUZZER=ON")
-    endif()
-endif()
+# ============================================================
+# Fuzzing
+# ============================================================
+include(cmake/Fuzzing.cmake)
 
+# ============================================================
 # Installation
-install(TARGETS formula
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-)
+# ============================================================
+include(cmake/Installation.cmake)
 
-install(DIRECTORY include/ DESTINATION include)
+# ============================================================
+# Summary
+# ============================================================
+message(STATUS "========================================")
+message(STATUS "  ${PROJECT_NAME} v${PROJECT_VERSION}")
+message(STATUS "========================================")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ standard: ${CMAKE_CXX_STANDARD}")
+message(STATUS "Compiler: ${CMAKE_CXX_COMPILER_ID} ${CMAKE_CXX_COMPILER_VERSION}")
+message(STATUS "Z3 support: ${Z3_FOUND}")
+message(STATUS "spdlog support: ${SPDLOG_FOUND}")
+message(STATUS "Tests enabled: ${BUILD_TESTS}")
+message(STATUS "Fuzzer enabled: ${BUILD_FUZZER}")
+message(STATUS "========================================")

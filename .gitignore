@@ -7,7 +7,10 @@ CMakeCache.txt
 CMakeFiles/
 cmake_install.cmake
 Makefile
-*.cmake
+# Exclude *.cmake except in cmake/ directory
+# /*.cmake excludes .cmake files in root only
+/*.cmake
+/**/CMakeFiles/*.cmake
 
 # Compiled objects and libraries
 *.o

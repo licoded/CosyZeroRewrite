@@ -1,0 +1,58 @@
+# Dependencies.cmake - Find and configure all project dependencies
+
+# ============================================================
+# Base formula library sources
+# ============================================================
+set(FORMULA_SOURCES
+    src/formula/formula.cpp
+    src/formula/formula_pool.cpp
+    src/formula/formula_parser.cpp
+    src/formula/formula_checker.cpp
+    src/formula/nnf.cpp
+    src/formula/xnf.cpp
+    src/formula/simplify.cpp
+    src/formula/rmnext.cpp
+)
+
+# ============================================================
+# spdlog (logging library)
+# ============================================================
+option(USE_SPDLOG "Enable spdlog logging" ON)
+
+if(USE_SPDLOG)
+    # Use custom Find module
+    find_package(spdlog QUIET)
+
+    if(SPDLOG_FOUND)
+        message(STATUS "spdlog found: ${SPDLOG_INCLUDE_DIRS}")
+        include_directories(${SPDLOG_INCLUDE_DIRS})
+        add_compile_definitions(FORMULA_USE_LOGGER)
+    else()
+        message(WARNING "spdlog not found. Logging will be disabled.")
+        message(STATUS "  To install: sudo apt install libspdlog-dev (Ubuntu/Debian)")
+        message(STATUS "             brew install spdlog (macOS)")
+    endif()
+endif()
+
+# ============================================================
+# Z3 (SMT solver)
+# ============================================================
+option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)
+
+if(USE_Z3)
+    # Use custom Find module
+    find_package(Z3 QUIET)
+
+    if(Z3_FOUND)
+        message(STATUS "Z3 found: ${Z3_LIBRARIES}")
+        include_directories(${Z3_INCLUDE_DIRS})
+        add_compile_definitions(FORMULA_USE_Z3)
+
+        # Add Z3 source file to FORMULA_SOURCES
+        list(APPEND FORMULA_SOURCES src/formula/formula_z3.cpp)
+    else()
+        message(WARNING "Z3 requested but not found. Z3 support will be disabled.")
+        message(STATUS "  To install: sudo apt install libz3-dev (Ubuntu/Debian)")
+        message(STATUS "             brew install z3 (macOS)")
+    endif()
+endif()
