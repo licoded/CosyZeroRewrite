@@ -37,8 +37,9 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     // If parsing succeeded, exercise various operations
     if (f && !parser.has_error()) {
-        // Exercise toString (may catch crashes in string conversion)
-        std::string str = f->toString();
+        // Exercise to_string (may catch crashes in string conversion)
+        std::string str = f->to_string();
+        (void)str;  // Suppress unused warning in fuzzer mode
 
         // Exercise structural queries
         f->is_literal();
@@ -53,31 +54,26 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         f->is_end();
 
         if (f->left()) {
-            f->left()->toString();
+            f->left()->to_string();
         }
         if (f->right()) {
-            f->right()->toString();
+            f->right()->to_string();
         }
 
         // Exercise transformations (may find bugs)
         Formula* nnf = f->nnf(pool);
         if (nnf) {
-            nnf->toString();
+            nnf->to_string();
         }
 
         Formula* xnf = f->xnf_with_tail(pool);
         if (xnf) {
-            xnf->toString();
+            xnf->to_string();
         }
 
         Formula* simp = f->simplify(pool);
         if (simp) {
-            simp->toString();
-        }
-
-        Formula* rmnext = f->remove_next(pool);
-        if (rmnext) {
-            rmnext->toString();
+            simp->to_string();
         }
     }
 

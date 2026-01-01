@@ -270,19 +270,25 @@ bool FormulaChecker::evaluate(Formula* f, const Assignment& assignment) {
         case Formula::OpType::Until: {
             // f U g means: eventually g, with f holding until then
             // For truth table: evaluate as g | (f & X(f U g))
-            // Simplified for single position: g | f
-            bool left_val = evaluate(f->left(), assignment);
+            // For single position (no next state): X(f U g) is always false
+            // So the formula reduces to just g (whether g is true NOW)
             bool right_val = evaluate(f->right(), assignment);
-            return right_val || left_val;
+            return right_val;
         }
 
         case Formula::OpType::Release: {
             // f R g means: g always holds, until f becomes true
             // For truth table: g & (f | X(f R g))
-            // Simplified for single position: g & f
-            bool left_val = evaluate(f->left(), assignment);
+            // Simplified for single position: if g is true, return true; otherwise g & f
+            // Special case: true R g → g (but here we check right first)
             bool right_val = evaluate(f->right(), assignment);
-            return right_val && left_val;
+            if (right_val) {
+                // If right (g) is true, the formula requires g to always hold
+                // which is satisfied since g=true
+                return true;
+            }
+            // g is false, so f R g is false
+            return false;
         }
 
         case Formula::OpType::End:
