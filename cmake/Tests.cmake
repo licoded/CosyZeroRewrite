@@ -25,14 +25,22 @@ if(BUILD_TESTS)
     target_link_libraries(parser_checker_tests PRIVATE formula catch2)
 
     # ============================================================
+    # Transformation equivalence tests
+    # ============================================================
+    add_executable(transformation_tests tests/transformation_tests.cpp)
+    target_link_libraries(transformation_tests PRIVATE formula catch2)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
         target_compile_options(formula_tests PRIVATE /W4)
         target_compile_options(parser_checker_tests PRIVATE /W4)
+        target_compile_options(transformation_tests PRIVATE /W4)
     else()
         target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(transformation_tests PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================
@@ -40,8 +48,9 @@ if(BUILD_TESTS)
     # ============================================================
     add_test(NAME formula_tests COMMAND formula_tests)
     add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
+    add_test(NAME transformation_tests COMMAND transformation_tests)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests")
 endif()
 
 # ============================================================
