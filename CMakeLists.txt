@@ -14,6 +14,30 @@ endif()
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# Find spdlog for logging
+find_package(PkgConfig)
+if(PKG_CONFIG_FOUND)
+    pkg_check_modules(SPDLOG spdlog)
+endif()
+
+# Fallback: try to find spdlog manually
+if(NOT SPDLOG_FOUND)
+    find_path(SPDLOG_INCLUDE_DIR NAMES spdlog/spdlog.h PATH_SUFFIXES spdlog)
+    if(SPDLOG_INCLUDE_DIR)
+        set(SPDLOG_FOUND TRUE)
+        set(SPDLOG_INCLUDE_DIRS ${SPDLOG_INCLUDE_DIR})
+        set(SPDLOG_LIBRARIES)  # Header-only, no libraries needed
+    endif()
+endif()
+
+if(SPDLOG_FOUND)
+    message(STATUS "spdlog found: ${SPDLOG_INCLUDE_DIRS}")
+    include_directories(${SPDLOG_INCLUDE_DIRS})
+    add_compile_definitions(FORMULA_USE_LOGGER)
+else()
+    message(WARNING "spdlog not found. Logging will be disabled.")
+endif()
+
 # Z3 SMT Solver support
 option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)
 

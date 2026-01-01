@@ -6,6 +6,10 @@
 #include <cmath>
 #include <chrono>
 
+#ifdef FORMULA_USE_LOGGER
+#include "log/logger.hpp"
+#endif
+
 namespace formula {
 
 #ifdef FORMULA_USE_Z3
@@ -18,6 +22,10 @@ std::optional<bool> FormulaZ3::are_equivalent(Formula* f1, Formula* f2,
                                                 unsigned timeout_ms) {
     if (!f1 || !f2) return f1 == f2;
 
+#ifdef FORMULA_USE_LOGGER
+    LOG_INFO("Z3 are_equivalent called: max_bound={}, timeout={}ms", max_bound, timeout_ms);
+#endif
+
     // Incremental mode with time estimation
     if (max_bound == -1) {
         return are_equivalent_incremental(f1, f2, -1, timeout_ms);
@@ -27,6 +35,10 @@ std::optional<bool> FormulaZ3::are_equivalent(Formula* f1, Formula* f2,
     int actual_bound = (max_bound <= 0)
         ? detect_bound(f1) * DEFAULT_BOUND_MULTIPLIER
         : max_bound;
+
+#ifdef FORMULA_USE_LOGGER
+    LOG_DEBUG("Auto-detected bound: {}, using: {}", detect_bound(f1), actual_bound);
+#endif
 
     return are_equivalent_bounded(f1, f2, actual_bound, timeout_ms);
 }
@@ -39,12 +51,18 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
     // Determine target bound
     int auto_detected = std::max(detect_bound(f1), detect_bound(f2));
     int target_bound = (max_bound <= 0) ? auto_detected * DEFAULT_BOUND_MULTIPLIER : max_bound;
+    int x_depth = get_x_depth(f1, f2);
 
     // Count temporal operators for complexity estimation
     [[maybe_unused]] int temporal_count = count_temporal_ops(f1) + count_temporal_ops(f2);
 
+#ifdef FORMULA_USE_LOGGER
+    LOG_INFO("Incremental BMC: auto_detected_bound={}, target_bound={}, x_depth={}, temporal_ops={}",
+             auto_detected, target_bound, x_depth, temporal_count);
+#endif
+
     // Start with small bounds to measure time
-    int start_bound = std::max(MIN_INCREMENTAL_START_BOUND, get_x_depth(f1, f2));
+    int start_bound = std::max(MIN_INCREMENTAL_START_BOUND, x_depth);
 
     for (int step = 0; step < MAX_INCREMENTAL_STEPS; ++step) {
         // Calculate next bound to try
@@ -60,16 +78,28 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
         auto estimated_ms = estimate_time(attempts, bound);
         if (estimated_ms.has_value()) {
             double safe_estimate = *estimated_ms * TIME_ESTIMATION_SAFETY_FACTOR;
+#ifdef FORMULA_USE_LOGGER
+            LOG_DEBUG("Bound {}: estimated time {:.1f}ms (safe: {:.1f}ms)",
+                     bound, *estimated_ms, safe_estimate);
+#endif
             if (safe_estimate > timeout_ms) {
                 // Would exceed timeout, abort
+#ifdef FORMULA_USE_LOGGER
+                LOG_WARN("Estimated time for bound={} is {:.1f}s, exceeding timeout of {:.1f}s. Aborting.",
+                         bound, safe_estimate / 1000.0, timeout_ms / 1000.0);
+#else
                 std::cerr << "[Z3 BMC] Estimated time for bound=" << bound
                           << " is " << static_cast<int>(safe_estimate / 1000.0)
                           << "s, exceeding timeout of " << (timeout_ms / 1000.0) << "s. Aborting.\n";
+#endif
                 return std::nullopt;
             }
         }
 
         // Run BMC with this bound
+#ifdef FORMULA_USE_LOGGER
+        LOG_DEBUG("Running BMC with bound={}...", bound);
+#endif
         auto start_time = Clock::now();
         auto result = are_equivalent_bounded(f1, f2, bound,
             std::min(static_cast<unsigned>(timeout_ms / 4), 30000u));  // Per-step timeout
@@ -78,9 +108,19 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
 
         attempts.push_back({bound, result, elapsed_ms});
 
+#ifdef FORMULA_USE_LOGGER
+        LOG_INFO("Bound {}: result={}, time={:.2f}ms",
+                 bound,
+                 result.has_value() ? (result.value() ? "equivalent" : "not_equiv") : "unknown",
+                 elapsed_ms);
+#endif
+
         // If we got a definitive answer, return it
         if (result.has_value()) {
             // Found counterexample or proved equivalence
+#ifdef FORMULA_USE_LOGGER
+            LOG_INFO("Definitive answer found: {}", result.value() ? "EQUIVALENT" : "NOT EQUIVALENT");
+#endif
             return result;
         }
 
@@ -91,8 +131,13 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
     }
 
     // Couldn't determine equivalence
+#ifdef FORMULA_USE_LOGGER
+    LOG_WARN("Unable to determine equivalence after {} attempts (up to bound {})",
+             attempts.size(), attempts.back().bound);
+#else
     std::cerr << "[Z3 BMC] Unable to determine equivalence after "
               << attempts.size() << " attempts (up to bound " << attempts.back().bound << ")\n";
+#endif
     return std::nullopt;
 }
 
@@ -119,6 +164,10 @@ std::optional<double> FormulaZ3::estimate_time(const std::vector<BmcAttempt>& at
 
             // Clamp k to reasonable range [1, 4]
             k = std::max(1.0, std::min(4.0, k));
+
+#ifdef FORMULA_USE_LOGGER
+            LOG_TRACE("Time estimation: k={:.2f}, c={:.4f}", k, c);
+#endif
 
             double estimated = c * std::pow(target_bound, k);
             return estimated;
@@ -168,7 +217,10 @@ std::optional<bool> FormulaZ3::are_equivalent_bounded(Formula* f1, Formula* f2,
                 return std::nullopt;
         }
 
-    } catch (const z3::exception&) {
+    } catch (const z3::exception& e) {
+#ifdef FORMULA_USE_LOGGER
+        LOG_ERROR("Z3 exception: {}", e.what());
+#endif
         return std::nullopt;
     }
 
@@ -181,6 +233,10 @@ std::optional<bool> FormulaZ3::is_valid(Formula* f,
     if (!f) return false;
 
     int actual_bound = (bound <= 0) ? detect_bound(f) * DEFAULT_BOUND_MULTIPLIER : bound;
+
+#ifdef FORMULA_USE_LOGGER
+    LOG_DEBUG("is_valid: bound={}", actual_bound);
+#endif
 
     try {
         z3::context ctx;

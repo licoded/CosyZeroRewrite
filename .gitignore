@@ -31,3 +31,7 @@ Thumbs.db
 # Test output
 *.log
 build_fuzz/
+
+# Logs directory (but keep the directory itself via .gitkeep)
+logs/*.log
+logs/*.txt
