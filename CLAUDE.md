@@ -62,14 +62,33 @@
 - [x] XNF 转换实现
 - [x] Simplify 实现
 - [x] rmnext 实现
-- [x] 基础单元测试 (31 测试通过)
+- [x] Z3 BMC 等价性检查
 - [x] 日志系统集成 (spdlog)
 - [x] 所有测试添加日志输出
-- [x] **变换等价性测试** (196 测试全部通过)
-  - String Roundtrip (Parse → to_verbose_string → Re-parse)
-  - NNF 变换等价性验证
-  - XNF 变换等价性验证
-  - Full Pipeline 等价性验证
+
+### 测试覆盖
+
+| 测试套件 | 断言数 | 测试用例 | 状态 |
+|---------|-------|---------|------|
+| formula_tests | 66 | 31 | ✓ 全部通过 |
+| parser_checker_tests | 124 | 31 | ✓ 全部通过 |
+| transformation_tests | 4 | 4 (196 公式) | ✓ 全部通过 |
+| random_formula_test | - | 10000 | ✓ 全部通过 |
+
+### Fuzzing 测试
+
+- **随机公式测试**: 10000 个随机生成的公式
+  - Parser roundtrip: 10000 通过, 0 失败, 0 崩溃
+  - NNF 等价性: 10000 通过, 0 失败
+  - XNF 等价性: 10000 通过, 0 失败
+  - Simplify 等价性: 10000 通过, 0 失败
+  - NNF 幂等性: 10000 通过, 0 失败
+
+### 已修复的问题
+
+1. **to_verbose_string 格式**: `True/False` → `true/false` (解析器兼容)
+2. **压力测试逻辑**: 修复期望值错误和随机测试逻辑
+3. **变量名管理**: FormulaPool 变量声明和查询正确性
 
 ### Benchmark 数据
 
@@ -103,40 +122,42 @@ git commit -m "feat: implement FormulaPool with hash consing"
 
 ## 待办事项
 
-### 当前优先级
+### 1. LTLf Synthesis 模块分析
 
-#### 1. LTLf Synthesis 模块实现 (高优先级)
+Synthesis 是一个复杂的模块，需要以下外部依赖：
 
-需要创建新的 `synthesis/` 模块，包含以下组件：
+| 组件 | 依赖 | 说明 |
+|------|------|------|
+| LTLf → DFA | AALTA 或 Lydia | 外部工具转换公式到自动机 |
+| BDD 操作 | CUDD | Binary Decision Diagram 库 |
+| 游戏求解 | Tarjan SCC | 强连通分量分解算法 |
 
-- [ ] **DFA 数据结构** (`include/synthesis/dfa.hpp`)
-  - 状态 ID、转移关系
-  - 初始状态、接受状态
-  - 变量绑定
+#### 实现选项
 
-- [ ] **Tarjan SCC 算法** (`include/synthesis/tarjan.hpp`)
-  - 强连通分量分解
-  - 游戏状态判定 (Swin/Ewin)
-  - 反向搜索传播
+**选项 A**: 集成 AALTA 工具
+- 优点: 已验证的正确性
+- 缺点: 外部依赖，需要调用外部程序
 
-- [ ] **Edge Constraint Builder** (`include/synthesis/edge_cons.hpp`)
-  - BDD 边约束构建
-  - 成功/失败转移集合
+**选项 B**: 使用 Z3 实现简化版本
+- 优点: 已集成 Z3，无额外依赖
+- 缺点: 需要重新实现 LTLf → DFA 转换
 
-- [ ] **Synthesis 主接口** (`include/synthesis/synthesis.hpp`)
-  - `isRealizable()` 函数
-  - 增量组合策略
-  - AALTA LTLf→DFA 集成
+**选项 C**: 使用 Python 库 (lydia-pysmt)
+- 优点: 快速原型
+- 缺点: 不是纯 C++ 实现
 
-- [ ] **Benchmark 集成**
-  - 读取 `benchmarks/sm1000/` 测试数据
-  - 与 `results.csv` 标准答案对比
-  - 输出测试报告
+#### 推荐方案
 
-#### 2. 测试与文档完善
-- [ ] 添加集成测试 (Task 4.2)
-- [ ] 添加性能基准测试 (Task 4.3)
-- [ ] 完善文档和 Doxygen 注释 (Task 5.1)
+由于 Synthesis 模块的复杂性和外部依赖，建议：
+1. 先完成其他高优先级任务
+2. 评估是否可以通过 FFI 调用现有工具
+3. 或者使用 Python binding 快速实现原型
+
+### 2. 其他待办任务
+
+- [ ] 添加集成测试
+- [ ] 添加性能基准测试
+- [ ] 完善文档和 Doxygen 注释
 - [ ] 记录设计决策到新文档文件夹
 
 ### 工作习惯
