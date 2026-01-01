@@ -14,6 +14,9 @@ endif()
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
 
+# Z3 SMT Solver support
+option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)
+
 # Source files for formula library
 set(FORMULA_SOURCES
     src/formula/formula.cpp
@@ -26,8 +29,46 @@ set(FORMULA_SOURCES
     src/formula/rmnext.cpp
 )
 
+# Find Z3 package
+if(USE_Z3)
+    find_package(PkgConfig)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(Z3 libz3)
+    endif()
+
+    # Alternative: try to find Z3 manually
+    if(NOT Z3_FOUND)
+        find_path(Z3_INCLUDE_DIR NAMES z3++.h z3.h)
+        find_library(Z3_LIBRARY NAMES z3)
+        if(Z3_INCLUDE_DIR AND Z3_LIBRARY)
+            set(Z3_FOUND TRUE)
+            set(Z3_INCLUDE_DIRS ${Z3_INCLUDE_DIR})
+            set(Z3_LIBRARIES ${Z3_LIBRARY})
+        endif()
+    endif()
+
+    if(Z3_FOUND)
+        message(STATUS "Z3 found: ${Z3_LIBRARIES}")
+        add_compile_definitions(FORMULA_USE_Z3)
+        include_directories(${Z3_INCLUDE_DIRS})
+
+        # Add Z3 source file
+        set(FORMULA_SOURCES ${FORMULA_SOURCES}
+            src/formula/formula_z3.cpp
+        )
+    else()
+        message(WARNING "Z3 requested but not found. Z3 support will be disabled.")
+        message(STATUS "To install Z3 on Ubuntu: sudo apt install libz3-dev")
+    endif()
+endif()
+
 # Build formula library
 add_library(formula STATIC ${FORMULA_SOURCES})
+
+# Link Z3 to formula library if available
+if(Z3_FOUND)
+    target_link_libraries(formula ${Z3_LIBRARIES})
+endif()
 
 # Test executable
 option(BUILD_TESTS "Build unit tests" ON)
