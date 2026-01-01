@@ -1,6 +1,7 @@
 # Tests.cmake - Configure testing with Catch2
 
 option(BUILD_TESTS "Build unit tests" ON)
+option(BUILD_STRESS_TEST "Build stress test (long-running)" OFF)
 
 if(BUILD_TESTS)
     enable_testing()
@@ -20,10 +21,7 @@ if(BUILD_TESTS)
     # ============================================================
     # Parser and checker tests
     # ============================================================
-    add_executable(parser_checker_tests
-        tests/formula_tests.cpp
-        tests/parser_checker_tests.cpp
-    )
+    add_executable(parser_checker_tests tests/parser_checker_tests.cpp)
     target_link_libraries(parser_checker_tests PRIVATE formula catch2)
 
     # ============================================================
@@ -44,4 +42,20 @@ if(BUILD_TESTS)
     add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
 
     message(STATUS "Test executables: formula_tests, parser_checker_tests")
+endif()
+
+# ============================================================
+# Stress Test (separate option as it runs for hours)
+# ============================================================
+if(BUILD_STRESS_TEST)
+    add_executable(stress_test tests/stress_test.cpp)
+    target_link_libraries(stress_test PRIVATE formula)
+
+    if(MSVC)
+        target_compile_options(stress_test PRIVATE /W4)
+    else()
+        target_compile_options(stress_test PRIVATE -Wno-sign-compare)
+    endif()
+
+    message(STATUS "Stress test enabled: stress_test")
 endif()
