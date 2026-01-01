@@ -26,6 +26,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 using namespace formula;
 using namespace std::chrono;
@@ -62,6 +63,7 @@ TestStats stats;
 std::vector<TimeoutRecord> timeout_records;
 steady_clock::time_point test_start_time;
 std::ofstream timeout_log;
+std::ofstream failure_log;
 
 // ========== Utility Functions ==========
 
@@ -119,6 +121,22 @@ void log_timeout(const std::string& f1, const std::string& f2,
                     << std::fixed << std::setprecision(2) << elapsed << ","
                     << result << "\n";
         timeout_log.flush();
+    }
+}
+
+void log_failure(const std::string& test_name, const std::string& f1, const std::string& f2,
+                 bool expected, bool actual, double elapsed) {
+    if (failure_log.is_open()) {
+        failure_log << "========== FAILURE ==========\n";
+        failure_log << "Timestamp: " << get_timestamp() << "\n";
+        failure_log << "Test Name: " << test_name << "\n";
+        failure_log << "Expected: " << (expected ? "equivalent" : "not-equivalent") << "\n";
+        failure_log << "Actual:   " << (actual ? "equivalent" : "not-equivalent") << "\n";
+        failure_log << "Elapsed:  " << std::fixed << std::setprecision(2) << elapsed << "ms\n";
+        failure_log << "Formula 1: " << f1 << "\n";
+        failure_log << "Formula 2: " << f2 << "\n";
+        failure_log << "================================\n";
+        failure_log.flush();
     }
 }
 
@@ -296,6 +314,9 @@ void run_test(FormulaPool&, FormulaParser& parser, const TestCase& test) {
                           << " (" << elapsed << "ms)\n";
                 LOG_WARN("FAIL: {} - expected {}, got {} ({}ms)",
                          test.name, test.expected_equiv, result.value(), elapsed);
+                // Log detailed failure info
+                log_failure(test.name, test.f1, test.f2,
+                          test.expected_equiv, result.value(), elapsed);
             }
         } else {
             stats.timeouts++;
@@ -343,29 +364,61 @@ void run_random_tests(FormulaPool& pool, FormulaParser& parser, int count) {
 
 // ========== Main ==========
 
+// Helper to find project root directory (containing CMakeLists.txt)
+std::string find_project_root() {
+    std::string current = ".";
+    for (int i = 0; i < 5; ++i) {  // Check up to 5 levels up
+        std::string cmake_path = current + "/CMakeLists.txt";
+        std::ifstream f(cmake_path);
+        if (f.good()) {
+            // Found project root
+            return current == "." ? "" : current;
+        }
+        current = "../" + current;
+    }
+    return "";  // Not found, use current directory
+}
+
 int main() {
     test_start_time = steady_clock::now();
+
+    // Find project root and set up log directory
+    std::string project_root = find_project_root();
+    std::string log_dir = project_root.empty() ? "logs" : project_root + "/logs";
+
+    // Create logs directory if it doesn't exist
+    std::filesystem::create_directories(log_dir);
 
     // Initialize logger
     LOG_INFO("Starting Z3 BMC Stress Test");
     LOG_INFO("Total target duration: {} ms", TOTAL_TARGET_DURATION_MS);
     LOG_INFO("Progress report interval: {} ms", PROGRESS_REPORT_INTERVAL_MS);
     LOG_INFO("Benchmark timeout: {} ms", BENCHMARK_TIMEOUT_MS);
+    LOG_INFO("Log directory: {}", log_dir);
 
     print_header("Z3 BMC Stress Test");
 
-    // Open timeout log
+    // Open timeout and failure logs
     char time_buf[64];
     auto now = system_clock::now();
     auto timer = system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&timer);
     std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm);
 
-    std::string log_filename = "logs/timeouts_" + std::string(time_buf) + ".csv";
-    timeout_log.open(log_filename);
+    std::string timeout_log_filename = log_dir + "/timeouts_" + std::string(time_buf) + ".csv";
+    std::string failure_log_filename = log_dir + "/failures_" + std::string(time_buf) + ".log";
+
+    timeout_log.open(timeout_log_filename);
     if (timeout_log.is_open()) {
         timeout_log << "timestamp,formula1,formula2,bound,timeout_ms,elapsed_ms,result\n";
-        std::cout << "Timeout log: " << log_filename << "\n";
+        std::cout << "Timeout log: " << timeout_log_filename << "\n";
+    }
+
+    failure_log.open(failure_log_filename);
+    if (failure_log.is_open()) {
+        failure_log << "Z3 BMC Stress Test - Failure Log\n";
+        failure_log << "Start time: " << get_timestamp() << "\n\n";
+        std::cout << "Failure log: " << failure_log_filename << "\n";
     }
 
     FormulaPool pool;
@@ -440,9 +493,21 @@ int main() {
              stats.total > 0 ? stats.total_time_ms / stats.total : 0);
     LOG_FLUSH();
 
+    // Close logs
     if (timeout_log.is_open()) {
         timeout_log.close();
-        std::cout << "\nTimeout log saved to: " << log_filename << "\n";
+        std::cout << "\nTimeout log saved to: " << timeout_log_filename << "\n";
+    }
+
+    if (failure_log.is_open()) {
+        failure_log << "\n========== Summary ==========\n";
+        failure_log << "End time: " << get_timestamp() << "\n";
+        failure_log << "Total tests: " << stats.total << "\n";
+        failure_log << "Passed: " << stats.passed << "\n";
+        failure_log << "Failed: " << stats.failed << "\n";
+        failure_log << "Timeouts: " << stats.timeouts << "\n";
+        failure_log.close();
+        std::cout << "Failure log saved to: " << failure_log_filename << "\n";
     }
 
     std::cout << "\n========== Test Complete ==========\n";
