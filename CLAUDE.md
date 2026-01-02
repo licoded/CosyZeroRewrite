@@ -114,6 +114,12 @@ cmake ..
 make
 ```
 
+**⚠️ 编译命令注意**：
+- 项目使用 **CMake** 构建系统
+- **正确方式**：`cd build && make` 或 `cmake --build build`
+- **错误方式**：在项目根目录直接运行 `make`（会触发自定义 Makefile 的 help 命令）
+- **原因**：项目根目录的 Makefile 是用于管理 changelog 和测试的辅助工具，不是 CMake 的编译入口
+
 ### 运行测试
 
 ```bash
@@ -211,6 +217,7 @@ TableauState (DFA 状态)
 3. **更新测试脚本**以避免重复错误
 
 例如：
+- **编译命令**：项目使用 CMake，必须用 `cd build && make` 或 `cmake --build build`，不能在根目录直接 `make`
 - Cosy partition 文件格式要求（inputs 先写，空 inputs 也要写）
 - 新发现的边界情况
 - 容易犯的错误模式
