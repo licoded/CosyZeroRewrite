@@ -25,17 +25,25 @@ set(FORMULA_SOURCES
 option(USE_SPDLOG "Enable spdlog logging" ON)
 
 if(USE_SPDLOG)
-    # Use custom Find module
-    find_package(spdlog QUIET)
-
-    if(SPDLOG_FOUND)
-        message(STATUS "spdlog found: ${SPDLOG_INCLUDE_DIRS}")
-        include_directories(${SPDLOG_INCLUDE_DIRS})
+    # First check for local copy in project
+    if(EXISTS "${CMAKE_SOURCE_DIR}/include/spdlog/spdlog.h")
+        message(STATUS "spdlog found: local copy in include/")
+        include_directories("${CMAKE_SOURCE_DIR}/include")
         add_compile_definitions(FORMULA_USE_LOGGER)
+        set(SPDLOG_FOUND TRUE)
     else()
-        message(WARNING "spdlog not found. Logging will be disabled.")
-        message(STATUS "  To install: sudo apt install libspdlog-dev (Ubuntu/Debian)")
-        message(STATUS "             brew install spdlog (macOS)")
+        # Use custom Find module
+        find_package(spdlog QUIET)
+
+        if(SPDLOG_FOUND)
+            message(STATUS "spdlog found: ${SPDLOG_INCLUDE_DIRS}")
+            include_directories(${SPDLOG_INCLUDE_DIRS})
+            add_compile_definitions(FORMULA_USE_LOGGER)
+        else()
+            message(WARNING "spdlog not found. Logging will be disabled.")
+            message(STATUS "  To install: sudo apt install libspdlog-dev (Ubuntu/Debian)")
+            message(STATUS "             brew install spdlog (macOS)")
+        endif()
     endif()
 endif()
 
