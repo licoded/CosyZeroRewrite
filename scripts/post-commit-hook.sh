@@ -60,12 +60,26 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
     echo "[CHANGELOG] Created follow-up commit for changelog"
 
-    # Auto-push to remote dev branch (with buffer: push dev~3 to allow amend/rebase)
+    # Auto-push to remote dev branch (with buffer: keep 3 non-CHANGELOG commits local)
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     if [ "$CURRENT_BRANCH" = "dev" ]; then
-        echo "[CHANGELOG] Pushing to remote dev branch (buffer: dev~3)..."
-        git push origin dev~3:dev --force
-        echo "[CHANGELOG] Pushed successfully (3 commits kept local for amend/rebase)"
+        # Find the commit after the 3rd non-CHANGELOG commit (counting from HEAD~1)
+        # HEAD is the CHANGELOG commit we just created, HEAD~1 is the actual work commit
+        count=0
+        target="HEAD"
+        while [ $count -lt 3 ]; do
+            target="${target}~1"
+            subject=$(git log -1 --format=%s "$target" 2>/dev/null) || break
+            # Skip CHANGELOG commits when counting
+            if [[ ! "$subject" =~ ^docs:\ (add|update)\ CHANGELOG\ for ]] && [[ ! "$subject" =~ ^chore:\ (add|update)\ CHANGELOG\ for ]]; then
+                count=$((count + 1))
+            fi
+        done
+        # Push up to target^ (parent of 3rd non-CHANGELOG commit)
+        # This keeps the latest 3 real commits AND their CHANGELOGs local
+        echo "[CHANGELOG] Pushing to remote dev branch (buffer: 3 real commits)..."
+        git push origin "${target}^:dev" --force || echo "[CHANGELOG] Push failed (may need manual push)"
+        echo "[CHANGELOG] Pushed successfully (3 real commits kept local for amend/rebase)"
     fi
 fi
 
