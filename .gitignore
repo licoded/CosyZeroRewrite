@@ -38,3 +38,5 @@ build_fuzz/
 # Logs directory (but keep the directory itself via .gitkeep)
 logs/*.log
 logs/*.txt
+benchmark_results_*.csv
+benchmark_visualization/

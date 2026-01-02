@@ -11,7 +11,7 @@ project(CosyZeroFormula
 # ============================================================
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_FUZZER "Build libFuzzer targets" OFF)
-option(BUILD_BENCHMARK "Build benchmark runner" OFF)
+option(BUILD_BENCHMARK "Build benchmark runner" ON)
 option(USE_Z3 "Enable Z3 SMT solver" ON)
 option(USE_SPDLOG "Enable spdlog logging" ON)
 
@@ -54,7 +54,7 @@ include(cmake/Installation.cmake)
 # Benchmark runner
 # ============================================================
 if(BUILD_BENCHMARK)
-    add_executable(benchmark_runner tests/benchmark_runner.cpp)
+    add_executable(benchmark_runner tools/benchmark_runner.cpp)
     target_include_directories(benchmark_runner PRIVATE include)
     target_link_libraries(benchmark_runner PRIVATE formula)
     message(STATUS "Benchmark runner enabled")

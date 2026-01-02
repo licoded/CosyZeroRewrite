@@ -55,6 +55,12 @@ if(BUILD_TESTS)
     target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula)
 
     # ============================================================
+    # I/O separation tests
+    # ============================================================
+    add_executable(io_separation_test tests/io_separation_test.cpp)
+    target_link_libraries(io_separation_test PRIVATE formula)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
@@ -65,6 +71,7 @@ if(BUILD_TESTS)
         target_compile_options(tableau_state_tests PRIVATE /W4)
         target_compile_options(synthesis_tests PRIVATE /W4)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
+        target_compile_options(io_separation_test PRIVATE /W4)
     else()
         target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
@@ -73,6 +80,7 @@ if(BUILD_TESTS)
         target_compile_options(tableau_state_tests PRIVATE -Wno-sign-compare)
         target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================
@@ -85,8 +93,9 @@ if(BUILD_TESTS)
     add_test(NAME tableau_state_tests COMMAND tableau_state_tests)
     add_test(NAME synthesis_tests COMMAND synthesis_tests)
     add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
+    add_test(NAME io_separation_test COMMAND io_separation_test)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests, io_separation_test")
 endif()
 
 # ============================================================
