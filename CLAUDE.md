@@ -261,6 +261,48 @@ make
 - [ ] 完善文档和 Doxygen 注释
 - [ ] 记录设计决策到新文档文件夹
 
+### 3. 已知问题 (Bugs & Limitations)
+
+#### 解析器 Bug：单字符操作符优先级问题
+
+**位置**: `src/formula/formula_parser.cpp` tokenize() 函数
+
+**问题**: 词法分析器在读取字母时，优先匹配单字符操作符：
+- `r` → Release 操作符 (R)
+- `f` → Finally 操作符 (F)
+- `g` → Globally 操作符 (G)
+
+**影响**: 变量名以 `r`/`f`/`g` 开头会被错误解析：
+- `req` → 被解析为 `R` + `eq` (错误)
+- `fact` → 被解析为 `F` + `act` (错误)
+- `goal` → 被解析为 `G` + `oal` (错误)
+
+**临时解决方案**: 使用不以 `r`/`f`/`g` 开头的变量名：
+- `req` → `quest` / `request`
+- `fact` → `stmt` / `truth`
+- `goal` → `target` / `aim`
+
+**修复方案**: 修改 tokenize() 逻辑：
+```cpp
+// 当前 (错误):
+case 'r': token.type = TokenType::Release;
+
+// 修复后:
+case 'r':
+    // 先检查后面是否有字母（多字符标识符）
+    if (i+1 < input.size() && isalpha(input[i+1])) {
+        // 继续读取完整标识符，然后判断是否为 "r"
+    } else {
+        token.type = TokenType::Release;
+    }
+```
+
+**优先级**: 中等（影响用户体验，但有绕过方法）
+
+**相关文件**:
+- `src/formula/formula_parser.cpp:133-136`
+- `examples/response.ltlf` (使用 workaround)
+
 ### 工作习惯
 
 **重要：每次开始新任务前，必须先更新 TODO 列表**
