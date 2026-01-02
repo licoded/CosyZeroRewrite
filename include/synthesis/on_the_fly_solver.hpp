@@ -209,6 +209,30 @@ public:
     const std::unordered_map<GameState, StateClass, GameStateHash, GameStateEqual>&
     get_classification() const { return classification_; }
 
+    /**
+     * @brief Test interface: add a test transition (for unit testing SCC)
+     * Allows building custom graph structures for testing the Tarjan algorithm.
+     * Note: This appends to existing successors rather than replacing them.
+     */
+    void add_test_transition(const GameState& from, const std::vector<GameState>& to) {
+        auto& existing = successors_[from];
+        existing.insert(existing.end(), to.begin(), to.end());
+    }
+
+    /**
+     * @brief Test interface: get all successors map
+     */
+    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>&
+    get_successors_map() { return successors_; }
+
+    /**
+     * @brief Test interface: run Tarjan SCC algorithm on current graph
+     * Exposed for unit testing the Tarjan implementation.
+     * This version only works with states explicitly added via add_test_transition()
+     * and doesn't trigger expand_state() like the production find_sccs() does.
+     */
+    std::vector<std::vector<GameState>> find_sccs_for_testing();
+
 private:
     // Formula and pool
     formula::FormulaPool& pool_;
@@ -254,10 +278,18 @@ private:
     std::vector<std::vector<GameState>> find_sccs();
 
     /**
-     * @brief Try to classify an SCC
-     * @return Classification if determined, nullopt otherwise
+     * @brief Classify an SCC using fixed-point iteration
+     *
+     * Algorithm:
+     * 1. Initialize seed set: accepting DFA states are Swin
+     * 2. Iterate: find predecessors of Swin states, classify new Swin
+     * 3. Terminate: when no new Swin states found
+     * 4. Remaining states: mark as Ewin
+     *
+     * @param scc The SCC to classify (list of states)
+     * @return true if all states in SCC were classified
      */
-    std::optional<StateClass> try_classify_scc(const std::vector<GameState>& scc);
+    bool classify_scc(const std::vector<GameState>& scc);
 
     /**
      * @brief Propagate classification backward from classified states

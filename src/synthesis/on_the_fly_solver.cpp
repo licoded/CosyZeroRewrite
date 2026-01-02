@@ -111,22 +111,17 @@ bool OnTheFlyGameSolver::is_realizable() {
         auto sccs = find_sccs();
         LOG_DEBUG("OnTheFlyGameSolver: found ", sccs.size(), " SCCs");
 
-        // Try to classify each SCC
+        // Classify each SCC using fixed-point iteration
         for (const auto& scc : sccs) {
             if (scc.empty()) continue;
 
             LOG_DEBUG("OnTheFlyGameSolver: processing SCC with ", scc.size(), " states");
-            auto cls = try_classify_scc(scc);
-            if (cls) {
-                LOG_DEBUG("OnTheFlyGameSolver: SCC classified as ", to_string(*cls));
+            bool classified = classify_scc(scc);
+            if (classified) {
+                LOG_DEBUG("OnTheFlyGameSolver: SCC classified using fixed-point iteration");
                 num_sccs_found_++;
 
-                // Classify all states in SCC
-                for (const auto& s : scc) {
-                    classification_[s] = *cls;
-                }
-
-                // Propagate backward
+                // Propagate backward to SCC predecessors
                 bool initial_done = propagate_classification();
                 if (initial_done) {
                     LOG_DEBUG("OnTheFlyGameSolver: initial state classified!");
@@ -331,43 +326,175 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs() {
     return result;
 }
 
-std::optional<StateClass>
-OnTheFlyGameSolver::try_classify_scc(const std::vector<GameState>& scc) {
-    // Check if any state in SCC is already classified
-    StateClass existing = StateClass::Unknown;
-    bool has_classified = false;
-    for (const auto& s : scc) {
-        auto it = classification_.find(s);
-        if (it != classification_.end()) {
-            existing = it->second;
-            has_classified = true;
-            break;
+// Testing-only version that doesn't trigger expand_state()
+// This version only works with states explicitly added to successors_ map
+std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs_for_testing() {
+    std::vector<std::vector<GameState>> result;
+
+    std::unordered_map<GameState, int, GameStateHash, GameStateEqual> indices;
+    std::unordered_map<GameState, int, GameStateHash, GameStateEqual> lowlinks;
+    std::unordered_map<GameState, bool, GameStateHash, GameStateEqual> on_stack;
+    std::vector<GameState> stack;
+
+    int index = 0;
+
+    std::function<void(const GameState&)> strongconnect = [&](const GameState& v) {
+        indices[v] = index;
+        lowlinks[v] = index;
+        index++;
+        stack.push_back(v);
+        on_stack[v] = true;
+
+        // Directly access successors_ map - don't trigger expand_state()
+        auto succ_it = successors_.find(v);
+        if (succ_it != successors_.end()) {
+            for (const GameState& w : succ_it->second) {
+                // If successor doesn't have its own entry, auto-register as terminal
+                if (successors_.count(w) == 0) {
+                    successors_[w] = {};  // Empty successor list for terminal state
+                }
+
+                if (indices.count(w) == 0) {
+                    strongconnect(w);
+                    lowlinks[v] = std::min(lowlinks[v], lowlinks[w]);
+                } else if (on_stack[w]) {
+                    lowlinks[v] = std::min(lowlinks[v], indices[w]);
+                }
+            }
+        }
+
+        if (lowlinks[v] == indices[v]) {
+            std::vector<GameState> scc;
+            GameState w;
+            do {
+                w = stack.back();
+                stack.pop_back();
+                on_stack[w] = false;
+                scc.push_back(w);
+            } while (w != v);
+            result.push_back(scc);
+        }
+    };
+
+    // Visit all states in successors_ map
+    for (const auto& pair : successors_) {
+        const GameState& v = pair.first;
+        if (indices.count(v) == 0) {
+            strongconnect(v);
         }
     }
-    if (has_classified) {
-        return existing;
+
+    return result;
+}
+
+bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
+    // Create a set for fast SCC membership test
+    std::unordered_set<GameState, GameStateHash, GameStateEqual> scc_set;
+    for (const auto& s : scc) {
+        scc_set.insert(s);
     }
 
-    // Check if SCC contains an accepting DFA state
-    // In LTLf, accepting states are those where all Until obligations are satisfied
-    bool has_accepting = false;
+    // Build predecessor map within SCC: state -> predecessors in SCC
+    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual> predecessors;
+    for (const auto& state : scc) {
+        auto succ_it = successors_.find(state);
+        if (succ_it != successors_.end()) {
+            for (const auto& succ : succ_it->second) {
+                // Only consider predecessors that are in the SCC
+                if (scc_set.count(succ)) {
+                    predecessors[succ].push_back(state);
+                }
+            }
+        }
+    }
+
+    // Step 1: Initialize seed set (accepting states are Swin)
+    std::unordered_set<GameState, GameStateHash, GameStateEqual> swin_states;
     for (const auto& s : scc) {
+        // Skip if already classified
+        if (classification_.count(s)) {
+            if (classification_[s] == StateClass::Swin) {
+                swin_states.insert(s);
+            }
+            continue;
+        }
+
+        // Accepting DFA states are Swin seeds
         if (dfa_.is_accepting(s.dfa_state)) {
-            has_accepting = true;
-            break;
+            swin_states.insert(s);
+            classification_[s] = StateClass::Swin;
         }
     }
 
-    // Classification rule from paper:
-    // - SCC with accepting state → System winning (Swin)
-    if (has_accepting) {
-        return StateClass::Swin;
+    // Step 2: Fixed-point iteration
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        std::unordered_set<GameState, GameStateHash, GameStateEqual> new_swin_states;
+
+        // Find predecessors of current Swin states
+        for (const GameState& swin : swin_states) {
+            auto pred_it = predecessors.find(swin);
+            if (pred_it == predecessors.end()) continue;
+
+            for (const GameState& pred : pred_it->second) {
+                // Skip if already classified
+                if (classification_.count(pred)) continue;
+
+                // Check if predecessor can be classified as Swin
+                auto succ_it = successors_.find(pred);
+                if (succ_it == successors_.end()) continue;
+
+                const auto& succs = succ_it->second;
+
+                if (pred.player == Player::System) {
+                    // System: ANY successor Swin → Swin
+                    bool has_swin_succ = false;
+                    for (const auto& succ : succs) {
+                        auto cls_it = classification_.find(succ);
+                        if (cls_it != classification_.end() &&
+                            cls_it->second == StateClass::Swin) {
+                            has_swin_succ = true;
+                            break;
+                        }
+                    }
+                    if (has_swin_succ) {
+                        new_swin_states.insert(pred);
+                        classification_[pred] = StateClass::Swin;
+                        changed = true;
+                    }
+                } else {
+                    // Environment: ALL successors Swin → Swin
+                    bool all_swin_succ = !succs.empty();
+                    for (const auto& succ : succs) {
+                        auto cls_it = classification_.find(succ);
+                        if (cls_it == classification_.end() ||
+                            cls_it->second != StateClass::Swin) {
+                            all_swin_succ = false;
+                            break;
+                        }
+                    }
+                    if (all_swin_succ) {
+                        new_swin_states.insert(pred);
+                        classification_[pred] = StateClass::Swin;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
+        swin_states.insert(new_swin_states.begin(), new_swin_states.end());
     }
 
-    // For SCCs without accepting states, we need to check if all successors
-    // lead to Ewin states. This check happens in propagate_classification.
-    // For now, return nullopt to indicate this SCC can't be classified yet.
-    return std::nullopt;
+    // Step 3: Mark remaining states as Ewin
+    for (const auto& s : scc) {
+        if (!classification_.count(s)) {
+            classification_[s] = StateClass::Ewin;
+        }
+    }
+
+    // All states in SCC are now classified
+    return true;
 }
 
 bool OnTheFlyGameSolver::propagate_classification() {
@@ -418,35 +545,37 @@ bool OnTheFlyGameSolver::propagate_classification() {
                     LOG_DEBUG("OnTheFlyGameSolver: propagate: system state -> Ewin (all Ewin succs)");
                 }
             } else {
-                // Environment wins if ALL successors are Ewin
-                // Environment loses (system wins) if ANY successor is Swin
-                bool has_swin = false;
-                bool all_ewin = true;
+                // Environment's turn: Environment chooses input
+                // Environment wants System to lose, so will choose input leading to Ewin
+                // If ANY successor is Ewin → Environment chooses it → current is Ewin
+                // If ALL successors are Swin → Environment cannot avoid → current is Swin
+                bool has_ewin = false;
+                bool all_swin = true;
 
                 for (const auto& succ : succs) {
                     auto it = classification_.find(succ);
                     if (it != classification_.end()) {
-                        if (it->second == StateClass::Swin) {
-                            has_swin = true;
-                            all_ewin = false;
-                        } else if (it->second == StateClass::Ewin) {
+                        if (it->second == StateClass::Ewin) {
+                            has_ewin = true;
+                            all_swin = false;
+                        } else if (it->second == StateClass::Swin) {
                             // Continue checking
                         } else {
-                            all_ewin = false;
+                            all_swin = false;
                         }
                     } else {
-                        all_ewin = false;
+                        all_swin = false;
                     }
                 }
 
-                if (all_ewin && !succs.empty()) {
+                if (has_ewin) {
                     classification_[state] = StateClass::Ewin;
                     changed = true;
-                    LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Ewin (all Ewin succs)");
-                } else if (has_swin) {
+                    LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Ewin (has Ewin succ)");
+                } else if (all_swin && !succs.empty()) {
                     classification_[state] = StateClass::Swin;
                     changed = true;
-                    LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Swin (has Swin succ)");
+                    LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Swin (all Swin succs)");
                 }
             }
 

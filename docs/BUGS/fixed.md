@@ -4,6 +4,52 @@
 
 ---
 
+## [Bug #003] Synthesis: 状态传播规则和 SCC 分类算法错误
+
+**发现日期**: 2026-01-02
+**修复日期**: 2026-01-02
+**影响版本**: v1.0
+**优先级**: 🔴 高
+
+**问题描述**:
+两个严重错误导致状态分类不正确：
+
+1. **Environment 状态传播规则错误** (line 442-449)
+   - 错误：`all_ewin → Ewin`, `has_swin → Swin`
+   - 正确：`has_ewin → Ewin`, `all_swin → Swin`
+
+2. **SCC 分类算法错误**
+   - 错误：整个 SCC 统一标记为相同分类
+   - 正确：使用不动点迭代分别判断每个状态
+
+**修复方案**:
+
+1. **修复传播规则** (`src/synthesis/on_the_fly_solver.cpp:420-453`):
+```cpp
+// Environment 回合：Environment 选择输入
+// 任一后继是 Ewin → Environment 选它 → 当前是 Ewin
+// 所有后继是 Swin → Environment 没法避免 → 当前是 Swin
+if (has_ewin) {
+    classification_[state] = StateClass::Ewin;
+} else if (all_swin && !succs.empty()) {
+    classification_[state] = StateClass::Swin;
+}
+```
+
+2. **实现 SCC 内部不动点算法** (`classify_scc`):
+   - 初始化：接受状态作为 Swin 种子
+   - 迭代：找前继，用传播规则判断新的 Swin
+   - 终止：没有新的 Swin
+   - 剩余：标记为 Ewin
+
+**测试结果**:
+- `synthesis_tests`: 21 assertions, 8 test cases ✅
+- `on_the_fly_synthesis_tests`: 12/12 tests passed ✅
+
+**相关提交**: 待提交
+
+---
+
 ## [Bug #002] 解析器：单字符操作符优先级问题
 
 **发现日期**: 2026-01-02
@@ -95,5 +141,5 @@ if (formulas_.count(right) == 0)
 
 | 年份 | 修复数量 |
 |------|---------|
-| 2026 | 2 |
-| **总计** | **2** |
+| 2026 | 3 |
+| **总计** | **3** |

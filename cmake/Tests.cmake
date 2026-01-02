@@ -55,6 +55,12 @@ if(BUILD_TESTS)
     target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula)
 
     # ============================================================
+    # Tarjan SCC algorithm tests
+    # ============================================================
+    add_executable(tarjan_scc_tests tests/tarjan_scc_tests.cpp)
+    target_link_libraries(tarjan_scc_tests PRIVATE formula catch2)
+
+    # ============================================================
     # I/O separation tests
     # ============================================================
     add_executable(io_separation_test tests/io_separation_test.cpp)
@@ -77,7 +83,9 @@ if(BUILD_TESTS)
         target_compile_options(tableau_state_tests PRIVATE /W4)
         target_compile_options(synthesis_tests PRIVATE /W4)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
+        target_compile_options(tarjan_scc_tests PRIVATE /W4)
         target_compile_options(io_separation_test PRIVATE /W4)
+        target_compile_options(strategy_extraction_test PRIVATE /W4)
     else()
         target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
@@ -86,6 +94,7 @@ if(BUILD_TESTS)
         target_compile_options(tableau_state_tests PRIVATE -Wno-sign-compare)
         target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(tarjan_scc_tests PRIVATE -Wno-sign-compare)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
         target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
     endif()
@@ -100,10 +109,11 @@ if(BUILD_TESTS)
     add_test(NAME tableau_state_tests COMMAND tableau_state_tests)
     add_test(NAME synthesis_tests COMMAND synthesis_tests)
     add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
+    add_test(NAME tarjan_scc_tests COMMAND tarjan_scc_tests)
     add_test(NAME io_separation_test COMMAND io_separation_test)
     add_test(NAME strategy_extraction_test COMMAND strategy_extraction_test)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests, io_separation_test, strategy_extraction_test")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests, tarjan_scc_tests, io_separation_test, strategy_extraction_test")
 endif()
 
 # ============================================================
