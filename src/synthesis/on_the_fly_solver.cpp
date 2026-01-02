@@ -133,6 +133,59 @@ bool OnTheFlyGameSolver::is_realizable() {
 
     LOG_DEBUG("Phase 1 complete: expanded ", expanded_.size(), " states");
 
+    // Debug: output game graph in DOT format for visualization
+    std::cerr << "=== Game Graph DOT ===" << std::endl;
+    std::cerr << "digraph Game {" << std::endl;
+    std::cerr << "  rankdir=LR;" << std::endl;
+
+    int state_id = 0;
+    std::unordered_map<GameState, int, GameStateHash, GameStateEqual> state_ids;
+    for (const auto& pair : successors_) {
+        state_ids[pair.first] = state_id++;
+    }
+
+    // Print nodes
+    for (const auto& pair : successors_) {
+        const GameState& s = pair.first;
+        int id = state_ids[s];
+        const std::vector<GameState>& succs = pair.second;
+
+        bool is_accepting = dfa_.is_accepting(s.dfa_state);
+        bool is_terminal = succs.empty();
+
+        // Build label with DFA state info
+        std::string dfa_formulas = s.dfa_state->to_string();
+        if (dfa_formulas.length() > 50) {
+            dfa_formulas = dfa_formulas.substr(0, 47) + "...";
+        }
+
+        std::string shape = (s.player == Player::System) ? "box" : "ellipse";
+        std::string color = is_accepting ? "green" : "red";
+        if (is_terminal) color = "blue";  // terminal states are blue
+
+        std::cerr << "  " << id << " [shape=\"" << shape << "\", color=\"" << color
+                  << "\", label=\"" << id << " (" << (s.player == Player::System ? "Sys" : "Env")
+                  << ")\\nDFA: " << dfa_formulas
+                  << "\\nacc=" << is_accepting
+                  << ", term=" << is_terminal
+                  << "\"];" << std::endl;
+    }
+
+    // Print edges
+    for (const auto& pair : successors_) {
+        const GameState& s = pair.first;
+        int from_id = state_ids[s];
+        const std::vector<GameState>& succs = pair.second;
+
+        for (const auto& succ : succs) {
+            int to_id = state_ids[succ];
+            std::cerr << "  " << from_id << " -> " << to_id << ";" << std::endl;
+        }
+    }
+
+    std::cerr << "}" << std::endl;
+    std::cerr << "=== End Game Graph DOT ===" << std::endl;
+
     // ========================================================================
     // PHASE 2: SCC decomposition, classification, and propagation
     // ========================================================================
@@ -162,12 +215,23 @@ bool OnTheFlyGameSolver::is_realizable() {
 
         auto succ_it = successors_.find(s);
         if (succ_it != successors_.end() && succ_it->second.empty()) {
-            // Terminal state
+            // Terminal state (no successors)
+            // In LTLf, a terminal state means the game ends here
+            // The winner depends on:
+            // 1. Is the state accepting (can the formula be satisfied)?
+            // 2. Whose turn is it?
             bool is_accepting = dfa_.is_accepting(s.dfa_state);
             if (s.player == Player::System) {
-                classification_[s] = StateClass::Ewin;
-                LOG_DEBUG("Phase 3: terminal System state -> Ewin");
+                // System's terminal state:
+                // - If accepting: System wins (can satisfy formula and game ends)
+                // - If not accepting: Environment wins (formula cannot be satisfied)
+                classification_[s] = is_accepting ? StateClass::Swin : StateClass::Ewin;
+                LOG_DEBUG("Phase 3: terminal System state -> ",
+                          is_accepting ? "Swin" : "Ewin");
             } else {
+                // Environment's terminal state:
+                // - If accepting: System wins (Environment cannot avoid System winning)
+                // - If not accepting: Environment wins (System cannot force satisfaction)
                 classification_[s] = is_accepting ? StateClass::Swin : StateClass::Ewin;
                 LOG_DEBUG("Phase 3: terminal Env state -> ",
                           is_accepting ? "Swin" : "Ewin");
@@ -252,7 +316,17 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
 
             // Compute next DFA state
             automata::TableauState* next_dfa = dfa_.successor(state.dfa_state, full);
-            succs.push_back(system_state(next_dfa));
+
+            // Check if the next DFA state is terminal (empty formula set)
+            // In LTLf, an empty state means the game has ended
+            if (next_dfa->formulas().empty()) {
+                // Terminal DFA state reached - game ends here
+                // Don't add a successor (terminal game state)
+                // The winner will be determined by whether the terminal DFA state is accepting
+                LOG_DEBUG("OnTheFlyGameSolver: terminal DFA state reached, not adding successor");
+            } else {
+                succs.push_back(system_state(next_dfa));
+            }
         }
 
         LOG_DEBUG("OnTheFlyGameSolver: environment state -> ", succs.size(), " system states");

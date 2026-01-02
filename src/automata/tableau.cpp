@@ -95,18 +95,21 @@ std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formu
     FormulaSet formulas;
 
     // Helper function to expand all subformulas
+    // Note: For Not formulas, we don't expand the child - !v should only contain !v, not v
     std::function<void(formula::Formula*)> expand = [&](formula::Formula* f) {
         if (!f) return;
 
         // Add this formula
         formulas.insert(f);
 
-        // Recursively expand subformulas
-        if (f->left()) {
-            expand(f->left());
-        }
-        if (f->right()) {
-            expand(f->right());
+        // Recursively expand subformulas, but NOT for Not
+        if (f->op() != formula::Formula::OpType::Not) {
+            if (f->left()) {
+                expand(f->left());
+            }
+            if (f->right()) {
+                expand(f->right());
+            }
         }
     };
 
@@ -424,6 +427,23 @@ TableauState::next(const Assignment& assignment, formula::FormulaPool& pool, int
 
     FormulaSet next_formulas;
 
+    // Check if there are any temporal formulas (X, U, R)
+    // If not, this is a terminal state in LTLf - return empty next state
+    bool has_temporal = false;
+    for (formula::Formula* f : current_formulas) {
+        if (is_temporal(f)) {
+            has_temporal = true;
+            break;
+        }
+    }
+
+    if (!has_temporal) {
+        // Purely propositional state - terminal in LTLf
+        // Return empty state set to indicate no successors
+        // The game solver will handle this as a terminal state
+        return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
+    }
+
     // Add old formulas (non-temporal)
     for (formula::Formula* f : current_formulas) {
         if (!is_temporal(f)) {
@@ -578,6 +598,12 @@ OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
 }
 
 bool OnTheFlyDFA::is_accepting(TableauState* q) const {
+    // Special case: empty state (no formulas) is accepting in LTLf
+    // This represents the "true" state where the formula has been satisfied
+    if (q->formulas().empty()) {
+        return true;
+    }
+
     // First check tableau-level acceptance (no false, local consistency)
     if (!q->is_accepting()) {
         return false;
