@@ -1,0 +1,14 @@
+Response Pattern
+==============
+
+Formula: G (req -> F ack)
+
+Description: Whenever a request occurs, eventually acknowledge it.
+
+Variables:
+- req: input (request from environment)
+- ack: output (acknowledgment from system)
+
+Realizability: REALIZABLE
+
+Strategy: When req becomes true, set ack = true in the next step.

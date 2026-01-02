@@ -1,0 +1,5 @@
+# Sequential Execution
+# p1 must be true now, and p2 must be true at the next step
+# This tests the temporal X operator
+
+p1 & X p2

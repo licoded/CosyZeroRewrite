@@ -1,0 +1,5 @@
+# Response Pattern
+# When a request is made, eventually acknowledge
+# This is realizable: system sets ack=true after req becomes true
+
+G (req -> F ack)

@@ -1,0 +1,5 @@
+# Mutual Exclusion
+# Two processes should never be in their critical sections simultaneously
+# G: globally/always at all times
+
+! (crit1 & crit2)

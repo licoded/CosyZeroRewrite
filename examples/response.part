@@ -1,0 +1,8 @@
+# Variable partition for response example
+# Format: OUTPUTS followed by INPUTS (one per line)
+
+OUTPUTS
+ack
+
+INPUTS
+req
