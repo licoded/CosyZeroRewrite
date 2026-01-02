@@ -63,22 +63,32 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
     # Auto-push to remote dev branch (with buffer: keep 3 non-CHANGELOG commits local)
     CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
     if [ "$CURRENT_BRANCH" = "dev" ]; then
-        # Find the commit after the 3rd non-CHANGELOG commit (counting from HEAD~1)
-        # HEAD is the CHANGELOG commit we just created, HEAD~1 is the actual work commit
+        # Check if remote exists and is ahead (e.g., after rebase/rollback)
+        if git rev-parse --verify origin/dev >/dev/null 2>&1; then
+            LOCAL_TIP=$(git rev-parse HEAD)
+            REMOTE_TIP=$(git rev-parse origin/dev)
+            # Check if remote is ahead of local (local is behind)
+            if git merge-base --is-ancestor "$LOCAL_TIP" "$REMOTE_TIP" 2>/dev/null; then
+                echo "[CHANGELOG] Remote is ahead of local, skipping auto-push"
+                exit 0
+            fi
+        fi
+
+        # Find the 3rd non-CHANGELOG commit from HEAD, then push its parent
+        # This keeps the latest 3 real commits AND their CHANGELOGs local
         count=0
         target="HEAD"
         while [ $count -lt 3 ]; do
             target="${target}~1"
             subject=$(git log -1 --format=%s "$target" 2>/dev/null) || break
-            # Skip CHANGELOG commits when counting
+            # Only count non-CHANGELOG commits
             if [[ ! "$subject" =~ ^docs:\ (add|update)\ CHANGELOG\ for ]] && [[ ! "$subject" =~ ^chore:\ (add|update)\ CHANGELOG\ for ]]; then
                 count=$((count + 1))
             fi
         done
-        # Push up to target^ (parent of 3rd non-CHANGELOG commit)
-        # This keeps the latest 3 real commits AND their CHANGELOGs local
+        # Push the parent of the 3rd real commit (which includes its CHANGELOG)
         echo "[CHANGELOG] Pushing to remote dev branch (buffer: 3 real commits)..."
-        git push origin "${target}^:dev" --force || echo "[CHANGELOG] Push failed (may need manual push)"
+        git push origin "${target}~1:dev" --force || echo "[CHANGELOG] Push failed (may need manual push)"
         echo "[CHANGELOG] Pushed successfully (3 real commits kept local for amend/rebase)"
     fi
 fi
