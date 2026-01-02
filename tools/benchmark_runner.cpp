@@ -499,6 +499,7 @@ void run_stage_parallel(
     int stage,
     ResultContainer& results,
     std::ofstream& out_csv,
+    std::ofstream& out_csv_local,
     ThreadSafeOutput& output
 ) {
     std::atomic<int> completed(0);
@@ -543,7 +544,9 @@ void run_stage_parallel(
 
             if (result.success) {
                 out_csv << result.to_csv() << "\n";
+                out_csv_local << result.to_csv() << "\n";
                 out_csv.flush();
+                out_csv_local.flush();
 
                 if (result.matches) {
                     ++passed;
@@ -634,11 +637,35 @@ int main(int argc, char* argv[]) {
     start_idx = std::max(0, std::min(start_idx, static_cast<int>(files.size())));
     end_idx = std::max(start_idx, std::min(end_idx, static_cast<int>(files.size())));
 
-    // Prepare output file
-    std::string timestamp = std::to_string(std::time(nullptr));
-    std::string output_csv = "benchmark_results_" + timestamp + ".csv";
+    // Create results directory with same structure as logs
+    auto now = std::chrono::system_clock::now();
+    auto time_t = std::chrono::system_clock::to_time_t(now);
+
+    std::ostringstream results_oss;
+    results_oss << "../results/benchmark/"
+                 << std::put_time(std::localtime(&time_t), "%Y-%m-%d")
+                 << "/"
+                 << std::put_time(std::localtime(&time_t), "%H-%M");
+
+    std::string results_dir = results_oss.str();
+    fs::create_directories(results_dir);
+
+    std::ostringstream name_oss;
+    name_oss << "benchmark_results_"
+             << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S")
+             << ".csv";
+
+    // Prepare output file in results directory
+    std::string output_csv = results_dir + "/" + name_oss.str();
     std::ofstream out_csv(output_csv);
     write_csv_header(out_csv);
+
+    // Also save a copy in build directory for convenience
+    std::string local_csv = "benchmark_results_latest.csv";
+    std::ofstream out_csv_local(local_csv);
+    write_csv_header(out_csv_local);
+
+    std::cout << "Results CSV: " << output_csv << std::endl;
 
     ResultContainer results;
     ThreadSafeOutput output;
@@ -696,7 +723,7 @@ int main(int argc, char* argv[]) {
         std::cout << "Running " << pending.size() << " benchmarks (using " << NUM_THREADS << " threads)..." << std::endl;
 
         // Run benchmarks in parallel
-        run_stage_parallel(pending, expected_results, timeout_sec, stage_idx, results, out_csv, output);
+        run_stage_parallel(pending, expected_results, timeout_sec, stage_idx, results, out_csv, out_csv_local, output);
 
         // Collect all results for summary
         auto all_results = results.get_all();
