@@ -102,8 +102,35 @@ pending → in_progress → completed
 1. **更新文档**: 在 `docs/TODO/*.md` 中标记为已完成
 2. **TodoWrite**: 标记任务为 `completed`
 3. **提交代码**: `git commit` 带清晰描述
+4. **CHANGELOG**: 提交后自动生成到 `docs/CHANGELOG/` (git hook)
 
-### 4.3 提交格式
+### 4.3 CHANGELOG 自动生成
+
+每次 `git commit` 后，post-commit hook 会自动生成 CHANGELOG：
+
+```
+git commit -m "feat: add new feature"
+# → 自动生成: docs/CHANGELOG/00017_abc123_add_new_feature.md
+```
+
+**禁用方法**:
+```bash
+# 临时禁用
+NO_CHANGELOG=1 git commit -m "message"
+
+# 跳过 hook
+git commit --no-verify -m "message"
+```
+
+**手动生成**:
+```bash
+make changelog                    # 最新提交
+make changelog COMMIT=HEAD~2      # 指定提交
+```
+
+详见: [CHANGELOG README](../../CHANGELOG/README.md)
+
+### 4.4 提交格式
 
 ```
 <type>: <description>

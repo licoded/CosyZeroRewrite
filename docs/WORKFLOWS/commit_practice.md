@@ -92,23 +92,109 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
 ---
 
-## 3. 提交前检查清单
+## 3. 提交后 CHANGELOG
 
-### 3.1 必须检查
+每次提交后自动生成 CHANGELOG 记录到 `docs/CHANGELOG/`。
+
+### 3.1 自动生成 (默认)
+
+通过 post-commit hook 自动触发：
+
+```bash
+git commit -m "feat: add new feature"
+# → 自动生成: docs/CHANGELOG/00004_abc123_add_new_feature.md
+```
+
+### 3.2 文件命名
+
+```
+序号_commitHash_简述.md
+```
+
+示例:
+- `00001_452f724_add_cosy2_tool.md`
+- `00002_dbf0871_fix_parser_bug.md`
+- `00003_6c36489_docs_reorg.md`
+
+### 3.3 文件内容
+
+```markdown
+# [序号] commit message
+
+**Commit**: `hash`
+**Date**: YYYY-MM-DD HH:MM:SS
+**Author**: name <email>
+
+## Description
+
+[完整提交消息]
+
+## Changes
+
+### Modified
+- file1
+- file2
+
+### Added
+- file3
+
+## Stats
+
+- X files changed
+- Y insertions(+)
+- Z deletions(-)
+```
+
+### 3.4 禁用/手动控制
+
+```bash
+# 临时禁用自动生成
+NO_CHANGELOG=1 git commit -m "message"
+
+# 或使用 --no-verify (跳过所有 hook)
+git commit --no-verify -m "message"
+```
+
+### 3.5 手动生成 CHANGELOG
+
+```bash
+# 记录最新提交
+make changelog
+
+# 记录指定提交
+make changelog COMMIT=HEAD~2
+
+# 或直接运行脚本
+./scripts/changelog.sh HEAD
+```
+
+### 3.6 恢复 Hook
+
+```bash
+make install-changelog-hook
+```
+
+详见: [CHANGELOG README](../../CHANGELOG/README.md)
+
+---
+
+## 4. 提交前检查清单
+
+### 4.1 必须检查
 
 - [ ] `make` 编译通过，无警告
 - [ ] 所有测试通过 (`make test`)
 - [ ] 新代码有测试覆盖
 - [ ] 代码符合项目风格
 
-### 3.2 文档检查
+### 4.2 文档检查
 
 - [ ] API 变更更新了头文件注释
 - [ ] Bug 修复更新了 `docs/BUGS/`
 - [ ] 功能完成更新了 `docs/TODO/`
 - [ ] 重要决策记录在 `docs/ARCHITECTURE/adr/`
 
-### 3.3 检查脚本
+### 4.3 检查脚本
 
 ```bash
 #!/bin/bash
@@ -132,9 +218,9 @@ echo "All checks passed!"
 
 ---
 
-## 4. 常见模式
+## 5. 常见模式
 
-### 4.1 Bug 修复提交
+### 5.1 Bug 修复提交
 
 ```
 fix: parser single-char operator precedence bug (#002)
@@ -153,7 +239,7 @@ Test results: 171 assertions in 36 test cases (was 124 in 31)
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
-### 4.2 新功能提交
+### 5.2 新功能提交
 
 ```
 feat: implement on-the-fly LTLf synthesis
@@ -172,7 +258,7 @@ Key changes:
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
-### 4.3 文档更新提交
+### 5.3 文档更新提交
 
 ```
 docs: reorganize TODO and BUGS into docs/ directory
