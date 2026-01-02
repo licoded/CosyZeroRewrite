@@ -215,3 +215,125 @@ private:
                    │  → bool             │
                    └──────────────────────┘
 ```
+
+---
+
+## 6. 代码实现细节
+
+### 6.1 unordered_map 初始化参数
+
+在 OnTheFlyDFA 中使用了自定义哈希表的初始化：
+
+```cpp
+mutable std::unordered_map<CacheKey, TableauState*, CacheKeyHash, CacheKeyEqual> transition_cache_;
+transition_cache_(16, CacheKeyHash{}, CacheKeyEqual{})
+```
+
+#### 构造函数签名
+
+```cpp
+unordered_map(
+    size_type bucket_count,      // 参数 1: 初始桶数量
+    const Hash& hash,            // 参数 2: 哈希函数对象
+    const KeyEqual& equal,       // 参数 3: 键相等比较函数
+    const Allocator& alloc = Allocator()  // 参数 4 (可选)
+);
+```
+
+#### 参数解释
+
+| 参数 | 值 | 含义 |
+|------|-----|------|
+| **bucket_count** | `16` | 初始桶数量，影响哈希表容量和重哈希频率 |
+| **hash** | `CacheKeyHash{}` | 哈希函数对象（值初始化） |
+| **equal** | `CacheKeyEqual{}` | 键相等比较函数对象（值初始化） |
+
+#### 桶数量 (bucket_count)
+
+```cpp
+// 桶数量是哈希表中"桶"的初始个数
+// 当元素数量 > 桶数量 * load_factor 时，会触发 rehash（扩容）
+
+// 选择 16 的原因：
+// - 足够小，不浪费内存
+// - 足够大，避免频繁 rehash
+// - 16 是 2 的幂，对哈希表性能友好
+```
+
+#### 哈希函数和相等比较
+
+```cpp
+// CacheKeyHash{} 是"值初始化"的临时对象
+// 等价于: CacheKeyHash()
+
+struct CacheKeyHash {
+    size_t operator()(const CacheKey& key) const {
+        // 计算哈希值
+    }
+};
+
+struct CacheKeyEqual {
+    bool operator()(const CacheKey& a, const CacheKey& b) const {
+        // 比较逻辑
+    }
+};
+```
+
+#### `{}` 语法的含义
+
+```cpp
+CacheKeyHash{}     // 值初始化 (value-initialization)
+                   // 对于没有构造函数参数的类型，等同于默认构造
+
+// 等价写法：
+CacheKeyHash{}     ← C++11 统一初始化
+CacheKeyHash()     ← C++98 风格（但在某些上下文可能被解析为函数声明）
+```
+
+#### 如果不提供这些参数
+
+```cpp
+// 默认构造（使用默认参数）
+transition_cache_()
+// 等价于：
+transition_cache_(0, CacheKeyHash{}, CacheKeyEqual{})
+//                 ↑
+//                 桶数量为 0，第一次插入时会自动扩容
+
+// 默认也是可以的，但显式指定桶数量可以优化性能
+```
+
+#### 完整示例
+
+```cpp
+struct CacheKey {
+    TableauState* state;
+    Assignment assignment;
+};
+
+struct CacheKeyHash {
+    size_t operator()(const CacheKey& key) const {
+        size_t h1 = std::hash<TableauState*>{}(key.state);
+        size_t h2 = std::hash<Assignment>{}(key.assignment);
+        return h1 ^ (h2 << 1);  // 组合哈希
+    }
+};
+
+struct CacheKeyEqual {
+    bool operator()(const CacheKey& a, const CacheKey& b) const {
+        return a.state == b.state && a.assignment == b.assignment;
+    }
+};
+
+// 使用
+class OnTheFlyDFA {
+    mutable std::unordered_map<CacheKey, TableauState*,
+                                CacheKeyHash, CacheKeyEqual> transition_cache_;
+
+    OnTheFlyDFA(Formula* phi, FormulaPool& pool)
+        : transition_cache_(16, CacheKeyHash{}, CacheKeyEqual{})
+    { }
+};
+```
+
+**总结**：这是一种性能优化实践——预先指定合理的桶数量，减少哈希表在增长过程中的 rehash 次数。
