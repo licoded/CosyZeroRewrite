@@ -233,6 +233,19 @@ public:
      */
     std::vector<std::vector<GameState>> find_sccs_for_testing();
 
+    /**
+     * @brief Debug: Check propagation logic consistency across all classified states
+     *
+     * Verifies that for every classified state:
+     * - System state with Swin has at least one Swin successor
+     * - System state with Ewin has all successors as Ewin
+     * - Environment state with Swin has all successors as Swin
+     * - Environment state with Ewin has at least one Ewin successor
+     *
+     * @return Number of violations found (0 = all consistent)
+     */
+    size_t check_propagation_consistency() const;
+
 private:
     // Formula and pool
     formula::FormulaPool& pool_;

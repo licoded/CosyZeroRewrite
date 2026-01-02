@@ -83,17 +83,21 @@ int OnTheFlyGameSolver::count_variables(formula::Formula* phi) {
 bool OnTheFlyGameSolver::is_realizable() {
     LOG_DEBUG("OnTheFlyGameSolver: starting realizability check");
 
-    // Initialize worklist with initial state
+    // Debug mode: Set COSY_DEBUG_PROPAGATION=1 to enable consistency checking
+    const char* debug_prop = std::getenv("COSY_DEBUG_PROPAGATION");
+    bool enable_consistency_check = (debug_prop && std::string(debug_prop) == "1");
+
+    // ========================================================================
+    // PHASE 1: Expand ALL reachable states (no early SCC/classify/propagate)
+    // ========================================================================
+    LOG_DEBUG("=== PHASE 1: Expanding all reachable states ===");
+
     worklist_.clear();
     worklist_.push_back(initial_state_);
 
-    // Main loop: expand, classify SCCs, propagate, repeat
-    int iteration = 0;
-    while (!worklist_.empty() && !is_initial_classified()) {
-        iteration++;
-        LOG_DEBUG("OnTheFlyGameSolver: iteration ", iteration,
-                  ", worklist size=", worklist_.size(),
-                  ", expanded=", expanded_.size());
+    int expand_iteration = 0;
+    while (!worklist_.empty()) {
+        expand_iteration++;
 
         // Pop a state to expand
         GameState state = worklist_.back();
@@ -107,113 +111,110 @@ bool OnTheFlyGameSolver::is_realizable() {
         // Expand state (compute successors)
         expand_state(state);
 
-        // Run SCC decomposition on current graph
-        auto sccs = find_sccs();
-        LOG_DEBUG("OnTheFlyGameSolver: found ", sccs.size(), " SCCs");
+        LOG_DEBUG("Phase 1: expanded state #", expanded_.size(),
+                  " (worklist remaining: ", worklist_.size(), ")");
 
-        // Classify each SCC using fixed-point iteration
-        for (const auto& scc : sccs) {
-            if (scc.empty()) continue;
-
-            LOG_DEBUG("OnTheFlyGameSolver: processing SCC with ", scc.size(), " states");
-            bool classified = classify_scc(scc);
-            if (classified) {
-                LOG_DEBUG("OnTheFlyGameSolver: SCC classified using fixed-point iteration");
-                num_sccs_found_++;
-
-                // Propagate backward to SCC predecessors
-                bool initial_done = propagate_classification();
-                if (initial_done) {
-                    LOG_DEBUG("OnTheFlyGameSolver: initial state classified!");
-                    break;
-                }
-            }
-        }
-
-        // Add unclassified successors to worklist
-        for (const auto& pair : successors_) {
-            // pair.first is the source state, pair.second is the list of successors
-            for (const GameState& succ : pair.second) {
-                if (!classification_.count(succ) && !expanded_.count(succ)) {
+        // Add all unexpanded successors to worklist
+        auto succ_it = successors_.find(state);
+        if (succ_it != successors_.end()) {
+            for (const GameState& succ : succ_it->second) {
+                if (!expanded_.count(succ)) {
                     worklist_.push_back(succ);
                 }
             }
         }
 
-        // Limit iterations to prevent infinite loop (should not happen)
-        if (iteration > 10000) {
-            LOG_WARN("OnTheFlyGameSolver: iteration limit reached");
+        // Safety limit
+        if (expand_iteration > 100000) {
+            LOG_WARN("Phase 1: expansion limit reached");
             break;
         }
     }
 
-    // If initial state is still unclassified after main loop,
-    // check if we've exhausted all reachable states
-    if (!is_initial_classified() && worklist_.empty()) {
-        LOG_DEBUG("OnTheFlyGameSolver: worklist empty, checking for terminal classification");
+    LOG_DEBUG("Phase 1 complete: expanded ", expanded_.size(), " states");
 
-        // Check if there's any unexpanded state reachable from initial state
-        // If not, classify all unclassified states as Ewin and propagate
-        bool has_unexpanded = false;
-        for (const auto& pair : successors_) {
-            const GameState& s = pair.first;
-            if (!expanded_.count(s)) {
-                has_unexpanded = true;
-                break;
+    // ========================================================================
+    // PHASE 2: SCC decomposition, classification, and propagation
+    // ========================================================================
+    LOG_DEBUG("=== PHASE 2: SCC decomposition and classification ===");
+
+    // Run SCC decomposition on the COMPLETE graph
+    auto sccs = find_sccs();
+    LOG_DEBUG("Phase 2: found ", sccs.size(), " SCCs in complete graph");
+    num_sccs_found_ = sccs.size();
+
+    // Classify each SCC using fixed-point iteration
+    for (const auto& scc : sccs) {
+        if (scc.empty()) continue;
+
+        LOG_DEBUG("Phase 2: processing SCC with ", scc.size(), " states");
+        classify_scc(scc);
+    }
+
+    // ========================================================================
+    // PHASE 3: Terminal state classification (for states without SCC)
+    // ========================================================================
+    LOG_DEBUG("=== PHASE 3: Terminal state classification ===");
+
+    for (const auto& pair : successors_) {
+        const GameState& s = pair.first;
+        if (classification_.count(s)) continue;
+
+        auto succ_it = successors_.find(s);
+        if (succ_it != successors_.end() && succ_it->second.empty()) {
+            // Terminal state
+            bool is_accepting = dfa_.is_accepting(s.dfa_state);
+            if (s.player == Player::System) {
+                classification_[s] = StateClass::Ewin;
+                LOG_DEBUG("Phase 3: terminal System state -> Ewin");
+            } else {
+                classification_[s] = is_accepting ? StateClass::Swin : StateClass::Ewin;
+                LOG_DEBUG("Phase 3: terminal Env state -> ",
+                          is_accepting ? "Swin" : "Ewin");
             }
-        }
-
-        if (!has_unexpanded && successors_.size() > 0) {
-            LOG_DEBUG("OnTheFlyGameSolver: all states expanded, classifying terminal states");
-
-            // Classify terminal states (states with no successors)
-            // Terminal state semantics:
-            // - System turn, no successors: System can't move, loses → Ewin
-            // - Environment turn, no successors: Environment can't move
-            //   - If accepting: System wins → Swin
-            //   - If not accepting: formula violated, System loses → Ewin
-            for (const auto& pair : successors_) {
-                const GameState& s = pair.first;
-                if (classification_.count(s)) continue;
-
-                auto succ_it = successors_.find(s);
-                if (succ_it != successors_.end() && succ_it->second.empty()) {
-                    // Terminal state
-                    bool is_accepting = dfa_.is_accepting(s.dfa_state);
-                    if (s.player == Player::System) {
-                        // System has no moves → loses
-                        classification_[s] = StateClass::Ewin;
-                        LOG_DEBUG("OnTheFlyGameSolver: terminal System state -> Ewin");
-                    } else {
-                        // Environment has no moves → Environment loses
-                        // System wins if formula is satisfied (accepting)
-                        classification_[s] = is_accepting ? StateClass::Swin : StateClass::Ewin;
-                        LOG_DEBUG("OnTheFlyGameSolver: terminal Env state -> ",
-                                  is_accepting ? "Swin" : "Ewin");
-                    }
-                }
-            }
-
-            // For remaining non-terminal unclassified states in SCCs,
-            // they form cycles without accepting states → Ewin
-            for (const auto& pair : successors_) {
-                const GameState& s = pair.first;
-                if (!classification_.count(s) && !successors_[s].empty()) {
-                    classification_[s] = StateClass::Ewin;
-                    LOG_DEBUG("OnTheFlyGameSolver: non-terminal unclassified -> Ewin");
-                }
-            }
-
-            // Final propagation
-            propagate_classification();
         }
     }
 
+    // Any remaining unclassified non-terminal states are in losing SCCs
+    for (const auto& pair : successors_) {
+        const GameState& s = pair.first;
+        if (!classification_.count(s) && !successors_[s].empty()) {
+            classification_[s] = StateClass::Ewin;
+        }
+    }
+
+    // ========================================================================
+    // PHASE 4: Propagate classification to fixed point
+    // ========================================================================
+    LOG_DEBUG("=== PHASE 4: Propagating classification ===");
+
+    int prop_iteration = 0;
+    while (propagate_classification() && prop_iteration < 1000) {
+        prop_iteration++;
+        LOG_DEBUG("Phase 4: propagation iteration ", prop_iteration);
+    }
+    LOG_DEBUG("Phase 4: propagation complete after ", prop_iteration, " iterations");
+
+    // ========================================================================
+    // FINAL: Check consistency and return result
+    // ========================================================================
     StateClass result = get_initial_classification();
     LOG_DEBUG("OnTheFlyGameSolver: final classification: ", to_string(result));
 
+    if (enable_consistency_check) {
+        LOG_DEBUG("=== Running propagation consistency check ===");
+        size_t violations = check_propagation_consistency();
+        if (violations > 0) {
+            LOG_WARN("OnTheFlyGameSolver: ", violations, " propagation violations detected!");
+        }
+    }
+
     return result == StateClass::Swin;
 }
+
+//==============================================================================
+// State Expansion
+//==============================================================================
 
 void OnTheFlyGameSolver::expand_state(const GameState& state) {
     if (expanded_.count(state)) {
@@ -587,6 +588,107 @@ bool OnTheFlyGameSolver::propagate_classification() {
     }
 
     return is_initial_classified();
+}
+
+//==============================================================================
+// Debug: Propagation Consistency Checker
+//==============================================================================
+
+size_t OnTheFlyGameSolver::check_propagation_consistency() const {
+    size_t violations = 0;
+
+    for (const auto& pair : successors_) {
+        const GameState& state = pair.first;
+        const std::vector<GameState>& succs = pair.second;
+
+        // Skip unclassified states
+        auto cls_it = classification_.find(state);
+        if (cls_it == classification_.end()) {
+            continue;
+        }
+
+        StateClass cls = cls_it->second;
+
+        if (state.player == Player::System) {
+            // System state rules
+            if (cls == StateClass::Swin) {
+                // Swin: should have at least one Swin successor
+                bool has_swin_succ = false;
+                for (const auto& succ : succs) {
+                    auto succ_cls = classification_.find(succ);
+                    if (succ_cls != classification_.end() &&
+                        succ_cls->second == StateClass::Swin) {
+                        has_swin_succ = true;
+                        break;
+                    }
+                }
+                if (!has_swin_succ && !succs.empty()) {
+                    LOG_WARN("Propagation violation: System state ", state.to_string(),
+                             " is Swin but has no Swin successor (has ", succs.size(), " successors)");
+                    violations++;
+                }
+            } else if (cls == StateClass::Ewin) {
+                // Ewin: should have all successors as Ewin
+                bool all_ewin = true;
+                for (const auto& succ : succs) {
+                    auto succ_cls = classification_.find(succ);
+                    if (succ_cls == classification_.end() ||
+                        succ_cls->second != StateClass::Ewin) {
+                        all_ewin = false;
+                        LOG_WARN("Propagation violation: System state ", state.to_string(),
+                                 " is Ewin but successor is not Ewin");
+                        break;
+                    }
+                }
+                if (!all_ewin && !succs.empty()) {
+                    violations++;
+                }
+            }
+        } else {
+            // Environment state rules
+            if (cls == StateClass::Swin) {
+                // Swin: should have all successors as Swin
+                bool all_swin = !succs.empty();
+                for (const auto& succ : succs) {
+                    auto succ_cls = classification_.find(succ);
+                    if (succ_cls == classification_.end() ||
+                        succ_cls->second != StateClass::Swin) {
+                        all_swin = false;
+                        LOG_WARN("Propagation violation: Environment state ", state.to_string(),
+                                 " is Swin but not all successors are Swin");
+                        break;
+                    }
+                }
+                if (!all_swin && !succs.empty()) {
+                    violations++;
+                }
+            } else if (cls == StateClass::Ewin) {
+                // Ewin: should have at least one Ewin successor
+                bool has_ewin_succ = false;
+                for (const auto& succ : succs) {
+                    auto succ_cls = classification_.find(succ);
+                    if (succ_cls != classification_.end() &&
+                        succ_cls->second == StateClass::Ewin) {
+                        has_ewin_succ = true;
+                        break;
+                    }
+                }
+                if (!has_ewin_succ && !succs.empty()) {
+                    LOG_WARN("Propagation violation: Environment state ", state.to_string(),
+                             " is Ewin but has no Ewin successor (has ", succs.size(), " successors)");
+                    violations++;
+                }
+            }
+        }
+    }
+
+    if (violations > 0) {
+        LOG_ERROR("Found ", violations, " propagation consistency violations!");
+    } else {
+        LOG_DEBUG("Propagation consistency check: PASSED");
+    }
+
+    return violations;
 }
 
 //==============================================================================
