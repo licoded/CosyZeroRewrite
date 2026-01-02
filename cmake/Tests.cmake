@@ -31,16 +31,40 @@ if(BUILD_TESTS)
     target_link_libraries(transformation_tests PRIVATE formula catch2)
 
     # ============================================================
+    # DFA construction tests
+    # ============================================================
+    add_executable(dfa_tests tests/dfa_test.cpp)
+    target_link_libraries(dfa_tests PRIVATE formula catch2)
+
+    # ============================================================
+    # Synthesis tests
+    # ============================================================
+    add_executable(synthesis_tests tests/synthesis_test.cpp)
+    target_link_libraries(synthesis_tests PRIVATE formula catch2)
+
+    # ============================================================
+    # On-the-fly synthesis tests
+    # ============================================================
+    add_executable(on_the_fly_synthesis_tests tests/on_the_fly_synthesis_tests.cpp)
+    target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
         target_compile_options(formula_tests PRIVATE /W4)
         target_compile_options(parser_checker_tests PRIVATE /W4)
         target_compile_options(transformation_tests PRIVATE /W4)
+        target_compile_options(dfa_tests PRIVATE /W4)
+        target_compile_options(synthesis_tests PRIVATE /W4)
+        target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
     else()
         target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
         target_compile_options(transformation_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(dfa_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================
@@ -49,8 +73,11 @@ if(BUILD_TESTS)
     add_test(NAME formula_tests COMMAND formula_tests)
     add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
     add_test(NAME transformation_tests COMMAND transformation_tests)
+    add_test(NAME dfa_tests COMMAND dfa_tests)
+    add_test(NAME synthesis_tests COMMAND synthesis_tests)
+    add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, synthesis_tests, on_the_fly_synthesis_tests")
 endif()
 
 # ============================================================
