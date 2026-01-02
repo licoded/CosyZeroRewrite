@@ -129,6 +129,132 @@ TEST_CASE("Parser: Auto-declare single char variables", "[parser]") {
 }
 
 // =============================================================================
+// Regression Tests for Bug #001: Single-char operator precedence
+// =============================================================================
+
+TEST_CASE("Parser: Bug #001 - Variables starting with 'r'", "[parser][regression][bug001]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // These were previously parsed as Release operator + identifier
+    Formula* f1 = parser.parse("req");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f1->is_literal());
+    REQUIRE(pool.has_variable("req"));
+
+    Formula* f2 = parser.parse("read");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f2->is_literal());
+    REQUIRE(pool.has_variable("read"));
+
+    Formula* f3 = parser.parse("request");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f3->is_literal());
+    REQUIRE(pool.has_variable("request"));
+
+    // Complex formula with r-prefixed variables
+    Formula* f4 = parser.parse("req | read");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f4->is_or());
+}
+
+TEST_CASE("Parser: Bug #001 - Variables starting with 'f'", "[parser][regression][bug001]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // These were previously parsed as Finally operator + identifier
+    Formula* f1 = parser.parse("fact");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f1->is_literal());
+    REQUIRE(pool.has_variable("fact"));
+
+    Formula* f2 = parser.parse("flag");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f2->is_literal());
+    REQUIRE(pool.has_variable("flag"));
+
+    Formula* f3 = parser.parse("future");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f3->is_literal());
+    REQUIRE(pool.has_variable("future"));
+
+    // Complex formula with f-prefixed variables
+    Formula* f4 = parser.parse("fact & flag");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f4->is_and());
+}
+
+TEST_CASE("Parser: Bug #001 - Variables starting with 'g'", "[parser][regression][bug001]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // These were previously parsed as Globally operator + identifier
+    Formula* f1 = parser.parse("goal");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f1->is_literal());
+    REQUIRE(pool.has_variable("goal"));
+
+    Formula* f2 = parser.parse("get");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f2->is_literal());
+    REQUIRE(pool.has_variable("get"));
+
+    Formula* f3 = parser.parse("grant");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f3->is_literal());
+    REQUIRE(pool.has_variable("grant"));
+
+    // Complex formula with g-prefixed variables
+    Formula* f4 = parser.parse("goal | grant");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f4->is_or());
+}
+
+TEST_CASE("Parser: Bug #001 - Single-char R/F/G still work as operators", "[parser][regression][bug001]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // Single 'r' should still be Release operator
+    Formula* f1 = parser.parse("p R q");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f1->is_release());
+
+    // F and G as syntactic sugar (require parentheses)
+    Formula* f2 = parser.parse("F(p)");
+    REQUIRE_FALSE(parser.has_error());
+    // F(p) expands to (true U p)
+    REQUIRE(f2->is_until());
+
+    Formula* f3 = parser.parse("G(p)");
+    REQUIRE_FALSE(parser.has_error());
+    // G(p) expands to (false R p)
+    REQUIRE(f3->is_release());
+}
+
+TEST_CASE("Parser: Bug #001 - Mixed formulas work correctly", "[parser][regression][bug001]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // Mix of operators and r/f/g-prefixed variables
+    Formula* f1 = parser.parse("req U goal");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f1->is_until());
+
+    Formula* f2 = parser.parse("fact R flag");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f2->is_release());
+
+    Formula* f3 = parser.parse("request & get");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f3->is_and());
+
+    // More complex formula
+    Formula* f4 = parser.parse("(req | goal) U grant");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f4->is_until());
+}
+
+// =============================================================================
 // Equivalence Checking Tests
 // =============================================================================
 

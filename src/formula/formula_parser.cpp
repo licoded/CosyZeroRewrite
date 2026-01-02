@@ -130,13 +130,29 @@ void FormulaParser::tokenize(const std::string& input) {
                 ++i;
                 continue;
 
-            case 'R':
-            case 'r':
-                token.type = TokenType::Release;
-                token.value = "R";
-                tokens_.push_back(token);
-                ++i;
-                continue;
+        }
+
+        // Handle ambiguous single-char operators that could start identifiers
+        // 'r' could be Release (R) or start of identifier like "req", "read"
+        // 'f' could be Finally (F) or start of identifier like "fact", "flag"
+        // 'g' could be Globally (G) or start of identifier like "goal", "get"
+        // Peek ahead: if followed by another letter, it's an identifier start
+        if ((c == 'R' || c == 'r' || c == 'F' || c == 'f' || c == 'G' || c == 'g') &&
+            i + 1 < input.size() &&
+            std::isalpha(static_cast<unsigned char>(input[i + 1]))) {
+            // This is the start of a multi-character identifier, fall through to identifier handling
+        } else if (c == 'R' || c == 'r') {
+            token.type = TokenType::Release;
+            token.value = "R";
+            tokens_.push_back(token);
+            ++i;
+            continue;
+        } else if (c == 'F' || c == 'f') {
+            // F is handled in the identifier section for syntactic sugar consistency
+            // Fall through to identifier handling
+        } else if (c == 'G' || c == 'g') {
+            // G is handled in the identifier section for syntactic sugar consistency
+            // Fall through to identifier handling
         }
 
         // Keywords and identifiers
