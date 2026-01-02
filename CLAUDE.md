@@ -98,6 +98,27 @@
   - `bench1/`, `bench2/`: 包含 `.ltlf` (公式) 和 `.part` (变量定义) 文件
   - `results.csv`: 标准答案 (Realizable/Unrealizable)
 
+#### Benchmark Runner 使用
+
+```bash
+# 构建时启用 benchmark
+cmake .. -DBUILD_BENCHMARK=ON
+make
+
+# 运行 benchmark (默认 f1-f100)
+./benchmark_runner
+
+# 指定范围
+./benchmark_runner /path/to/sm1000 100 200
+```
+
+当前状态：
+- ✓ 读取 `.ltlf` 和 `.part` 文件
+- ✓ 解析公式
+- ✓ 读取预期结果
+- ✓ SAT 检查 (使用 Z3)
+- ✗ Realizability 检查 (需要完整的 synthesis 实现)
+
 ## 构建命令
 
 ```bash
@@ -107,51 +128,129 @@ make
 ./formula_tests
 ```
 
-## Git 提交规范
+### 禁止事项
 
-按模块拆分提交，每次提交专注单一功能：
+- 不要在单个 commit 中混合多个无关的修改
+- 不要提交调试代码或临时文件
+- 不要提交前先运行 `make` 确保编译通过
 
-```bash
-# 示例
-git add include/formula/formula.hpp src/formula/formula.cpp
-git commit -m "feat: implement Formula class with immutable design"
+### 提交流程
 
-git add include/formula/formula_pool.hpp src/formula/formula_pool.cpp
-git commit -m "feat: implement FormulaPool with hash consing"
-```
+1. 完成一个功能模块
+2. 运行测试确保通过
+3. `git add` 相关文件
+4. `git commit` 带清晰描述
+5. 继续下一个功能
 
 ## 待办事项
 
 ### 1. LTLf Synthesis 模块分析
 
-Synthesis 是一个复杂的模块，需要以下外部依赖：
+参考实现位于 `/home/lic/files/rewrite_ltlf_codes/Cosy_rewrite/`，已完整实现 Synthesis 功能。
 
-| 组件 | 依赖 | 说明 |
-|------|------|------|
-| LTLf → DFA | AALTA 或 Lydia | 外部工具转换公式到自动机 |
-| BDD 操作 | CUDD | Binary Decision Diagram 库 |
-| 游戏求解 | Tarjan SCC | 强连通分量分解算法 |
+#### 架构概览
 
-#### 实现选项
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    LTLf Synthesis Pipeline                   │
+├─────────────────────────────────────────────────────────────┤
+│                                                               │
+│  LTLf Formula ──► Parser ──► aalta_formula                   │
+│       │                                                      │
+│       ▼                                                      │
+│  Preprocessing (NNF → Simplify → NNF)                       │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Lydia/AALTA: LTLf → DFA Conversion                │    │
+│  │  - Symbolic DFA (BDD representation)               │    │
+│  │  - Explicit DFA (state enumeration)                │    │
+│  └─────────────────────────────────────────────────────┘    │
+│       │                                                      │
+│       ▼                                                      │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │  Game Solving (Tarjan SCC + BDD)                    │    │
+│  │  - Build game graph from DFA                       │    │
+│  │  - Find SCCs using Tarjan algorithm                │    │
+│  │  - Classify states: Swin (winning) / Ewin (losing) │    │
+│  │  - Backward propagation for strategy extraction    │    │
+│  └─────────────────────────────────────────────────────┘    │
+│       │                                                      │
+│       ▼                                                      │
+│  Strategy / Realizable?                                      │
+│                                                               │
+└─────────────────────────────────────────────────────────────┘
+```
 
-**选项 A**: 集成 AALTA 工具
-- 优点: 已验证的正确性
-- 缺点: 外部依赖，需要调用外部程序
+#### 核心组件
 
-**选项 B**: 使用 Z3 实现简化版本
-- 优点: 已集成 Z3，无额外依赖
-- 缺点: 需要重新实现 LTLf → DFA 转换
+| 组件 | 文件位置 | 功能 |
+|------|----------|------|
+| Formula | `formula/aalta_formula.*` | 公式表示、NNF/XNF/Simplify |
+| Lydia Wrapper | `lydiasyft_wrapper/` | LTLf → DFA 转换接口 |
+| BDD Manager | `synutil/formula_in_bdd.*` | BDD 状态表示 |
+| Tarjan Algorithm | `synutil/syn_tarjan.*` | SCC 分解 |
+| Synthesis | `ltlfsyn/synthesis.*` | 主合成算法 |
+| Edge Constraints | `edge_cons/` | 转移关系管理 |
 
-**选项 C**: 使用 Python 库 (lydia-pysmt)
-- 优点: 快速原型
-- 缺点: 不是纯 C++ 实现
+#### 外部依赖
 
-#### 推荐方案
+| 依赖 | 用途 | 必需性 |
+|------|------|--------|
+| AALTA | 公式解析和转换 | 核心 |
+| Lydia | LTLf → DFA 转换 | 核心 |
+| CUDD | BDD 操作 | 核心 |
+| spdlog | 日志 | 可选 |
 
-由于 Synthesis 模块的复杂性和外部依赖，建议：
-1. 先完成其他高优先级任务
-2. 评估是否可以通过 FFI 调用现有工具
-3. 或者使用 Python binding 快速实现原型
+#### CosyZeroRewrite 当前状态
+
+**已实现**:
+- ✓ Formula 类 (类似 aalta_formula 的简化版)
+- ✓ FormulaPool (Hash consing)
+- ✓ NNF, XNF, Simplify 转换
+- ✓ Z3 等价性检查
+- ✓ **DFA 数据结构** (`automata/dfa.hpp`)
+- ✓ **LTLf → DFA 转换** (tableau 构造)
+- ✓ **Tarjan SCC 算法** (游戏求解核心)
+- ✓ **游戏图构造** (`synthesis/game_solver.hpp`)
+- ✓ **is_realizable 函数** (基础版本)
+- ✓ Benchmark runner (`tests/benchmark_runner.cpp`)
+
+**测试覆盖**:
+| 测试套件 | 断言数 | 测试用例 | 状态 |
+|---------|-------|---------|------|
+| formula_tests | 66 | 31 | ✓ 全部通过 |
+| parser_checker_tests | 124 | 31 | ✓ 全部通过 |
+| transformation_tests | 4 | 4 (196 公式) | ✓ 全部通过 |
+| dfa_tests | 22 | 8 | ✓ 全部通过 |
+| synthesis_tests | 20 | 7/8 | △ 基本通过 |
+| random_formula_test | 50000 | 10000 | ✓ 全部通过 |
+
+**待完善**:
+- △ DFA 接受状态判定逻辑
+- △ 输入/输出变量分离 (当前简化为单一状态)
+- △ 策略提取
+- ✗ BDD 符号化表示 (当前使用显式状态)
+
+#### 实现路线图
+
+**阶段 1: 外部工具集成** (推荐优先)
+1. 使用子进程调用 AALTA/Lydia 进行 LTLf → DFA 转换
+2. 解析生成的 DFA (如 .dot 格式)
+3. 实现简化的游戏求解算法
+
+**阶段 2: 纯 C++ 实现** (已完成基础版本)
+1. ✓ 实现 LTLf → DFA 转换 (基于现有公式类)
+2. △ 集成 BDD 库进行符号化表示 (当前使用显式状态)
+3. ✓ 实现 Tarjan SCC 算法
+4. ✓ 实现游戏求解和策略分类
+5. △ 完善接受状态判定逻辑
+
+**阶段 3: 优化**
+1. DFA 最小化
+2. 组成式合成 (compositional synthesis)
+3. 符号化执行优化
+4. 策略提取和可视化
 
 ### 2. 其他待办任务
 
