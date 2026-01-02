@@ -74,6 +74,36 @@
 
 ---
 
+## 工作流程
+
+### Bug 修复流程
+
+**重要：修复大 Bug 时的 Git 提交规范**
+
+在修复复杂的 bug 时，每完成一个小阶段/进展后必须立即提交 git：
+1. 每个小功能修复完成后立即 `git add` + `git commit`
+2. 提交信息应清晰描述该阶段做了什么
+3. 这样便于：
+   - 出问题时快速回滚
+   - 代码审查时清楚看到每个步骤
+   - 理解问题解决的完整过程
+
+### 复杂问题协作 (working_issues)
+
+当遇到复杂 bug 需要深入分析时：
+
+1. **创建问题文档**: 在 `docs/working_issues/` 下创建详细记录
+   - 目录命名: `YYYY-MM-DD_AM/PM_ProblemSummary/`
+   - 包含 `BUG_REPORT.md` 详细描述问题和进展
+
+2. **及时同步进展**: 在问题文档中实时更新修复进度
+
+3. **协作讨论**: 完成初步分析后与用户讨论解决方案
+
+详见: [Bug 报告模板](./docs/working_issues/README.md)
+
+---
+
 ## 快速开始
 
 ### 构建
@@ -145,6 +175,23 @@ TableauState (DFA 状态)
 4. **归档**: 移至 `docs/BUGS/fixed.md`
 
 详见: [Bug 修复流程](./docs/WORKFLOWS/bug_fix.md)
+
+### 复杂问题协作 (working_issues)
+
+对于需要深入调查的复杂 bug，使用 `docs/working_issues/` 目录进行协作追踪：
+
+1. **创建问题目录**: `docs/working_issues/YYYY-MM-DD_AM/PM_ProblemSummary/`
+2. **编写详细报告**: `BUG_REPORT.md` 包含
+   - 问题描述
+   - 根因分析
+   - 已修复的 bug 列表
+   - 进行中的问题
+   - 测试结果
+3. **同步进展**: 每次有新进展时更新 `BUG_REPORT.md`
+4. **完成后归档**: 问题解决后移至 `docs/BUGS/fixed.md`
+
+**当前进行中的问题**:
+- `docs/working_issues/2026-01-02_PM_BenchmarkAccuracy/` - Benchmark 准确率问题 (22% → 待改进)
 
 ### 提交规范
 
