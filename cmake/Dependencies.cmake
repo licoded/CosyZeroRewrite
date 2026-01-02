@@ -17,6 +17,7 @@ set(FORMULA_SOURCES
     src/synthesis/synthesis.cpp
     src/synthesis/game_solver.cpp
     src/synthesis/on_the_fly_solver.cpp
+    src/synthesis/strategy.cpp
 )
 
 # ============================================================

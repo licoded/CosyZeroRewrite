@@ -61,6 +61,12 @@ if(BUILD_TESTS)
     target_link_libraries(io_separation_test PRIVATE formula)
 
     # ============================================================
+    # Strategy extraction tests
+    # ============================================================
+    add_executable(strategy_extraction_test tests/strategy_extraction_test.cpp)
+    target_link_libraries(strategy_extraction_test PRIVATE formula)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
@@ -81,6 +87,7 @@ if(BUILD_TESTS)
         target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
+        target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================
@@ -94,8 +101,9 @@ if(BUILD_TESTS)
     add_test(NAME synthesis_tests COMMAND synthesis_tests)
     add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
     add_test(NAME io_separation_test COMMAND io_separation_test)
+    add_test(NAME strategy_extraction_test COMMAND strategy_extraction_test)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests, io_separation_test")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests, io_separation_test, strategy_extraction_test")
 endif()
 
 # ============================================================
