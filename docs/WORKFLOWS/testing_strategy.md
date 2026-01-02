@@ -164,9 +164,44 @@ make test
 
 ---
 
-## 7. 测试编写指南
+## 7. 代码修改后的测试流程
 
-### 7.1 单元测试模板
+**重要**: 修改代码后必须按以下顺序进行测试：
+
+### 7.1 测试顺序
+
+1. **单元测试/自定义测试** - 先验证基本功能
+   ```bash
+   make test  # 运行所有单元测试
+   ```
+   - 确保所有单元测试通过
+   - 确保没有引入回归问题
+
+2. **小范围抽查** (20 个随机案例)
+   ```bash
+   ./build/benchmark_runner benchmarks/sm1000 1 20
+   ```
+   - 验证基本逻辑在大范围内的稳定性
+   - 发现问题立即修复，不要继续
+
+3. **全量 Benchmark** (1000 个案例)
+   ```bash
+   ./build/benchmark_runner benchmarks/sm1000 1 1000
+   ```
+   - 只有在前面阶段通过后才运行
+   - 避免浪费时间在明显有问题的代码上
+
+### 7.2 重要提醒
+
+- ❌ **不要**修改代码后直接跑全量 benchmark
+- ❌ **不要**跳过单元测试直接跑 benchmark
+- ✅ **必须**按顺序：单元测试 → 小范围抽查(20) → 全量测试
+
+---
+
+## 8. 测试编写指南
+
+### 8.1 单元测试模板
 
 ```cpp
 TEST_CASE("Feature: Brief description", "[module]") {
@@ -190,7 +225,7 @@ TEST_CASE("Feature: Brief description", "[module]") {
 }
 ```
 
-### 7.2 测试命名
+### 8.2 测试命名
 
 - `TEST_CASE("Parser: Simple literals", "[parser]")` - 功能描述
 - `TEST_CASE("Formula: Bug #001 - Hash collision", "[formula][regression]")` - Bug 修复
