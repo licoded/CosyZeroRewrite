@@ -66,20 +66,62 @@ static Partition parse_partition_file(const std::string& filename) {
         size_t end = line.find_last_not_of(" \t\r\n");
         if (end != std::string::npos) line = line.substr(0, end + 1);
 
-        // Convert to uppercase for section comparison
+        // Check for section headers (with or without dot, with or without colon)
         std::string upper_line = line;
         for (char& c : upper_line) c = std::toupper(c);
 
-        if (upper_line == "OUTPUTS") {
+        if (upper_line == ".OUTPUTS:" || upper_line == "OUTPUTS:" ||
+            upper_line == ".OUTPUTS" || upper_line == "OUTPUTS") {
             section = Section::Outputs;
-        } else if (upper_line == "INPUTS") {
+            continue;
+        } else if (upper_line == ".INPUTS:" || upper_line == "INPUTS:" ||
+                   upper_line == ".INPUTS" || upper_line == "INPUTS") {
             section = Section::Inputs;
-        } else {
-            // Variable name
-            if (section == Section::Outputs) {
-                result.outputs.push_back(line);
-            } else if (section == Section::Inputs) {
-                result.inputs.push_back(line);
+            continue;
+        }
+
+        // Check if line starts with a section header followed by variables
+        size_t colon_pos = line.find(':');
+        if (colon_pos != std::string::npos) {
+            std::string prefix = line.substr(0, colon_pos);
+            std::string upper_prefix = prefix;
+            for (char& c : upper_prefix) c = std::toupper(c);
+
+            if (upper_prefix == ".OUTPUTS" || upper_prefix == "OUTPUTS") {
+                section = Section::Outputs;
+                // Extract variables after colon
+                std::string rest = line.substr(colon_pos + 1);
+                std::istringstream iss(rest);
+                std::string token;
+                while (iss >> token) {
+                    if (!token.empty()) result.outputs.push_back(token);
+                }
+                continue;
+            } else if (upper_prefix == ".INPUTS" || upper_prefix == "INPUTS") {
+                section = Section::Inputs;
+                // Extract variables after colon
+                std::string rest = line.substr(colon_pos + 1);
+                std::istringstream iss(rest);
+                std::string token;
+                while (iss >> token) {
+                    if (!token.empty()) result.inputs.push_back(token);
+                }
+                continue;
+            }
+        }
+
+        // Variable name (standalone, not on same line as section header)
+        if (section == Section::Outputs) {
+            std::istringstream iss(line);
+            std::string token;
+            while (iss >> token) {
+                if (!token.empty()) result.outputs.push_back(token);
+            }
+        } else if (section == Section::Inputs) {
+            std::istringstream iss(line);
+            std::string token;
+            while (iss >> token) {
+                if (!token.empty()) result.inputs.push_back(token);
             }
         }
     }

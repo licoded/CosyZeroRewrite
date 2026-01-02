@@ -582,7 +582,22 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
     }
 
     if (has_temporal) {
-        // For temporal states, check if they depend on input variables
+        // For temporal states, first check if there are any input literals
+        // Even in temporal states, input literals cannot be guaranteed by system
+        for (formula::Formula* f : q->formulas()) {
+            if (!f) continue;
+
+            if (f->op() == formula::Formula::OpType::Literal) {
+                int var_id = f->var_id();
+                if (var_id >= num_outputs_) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal state has input literal v", var_id,
+                              " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
+                    return false;
+                }
+            }
+        }
+
+        // Then check temporal formulas for input dependencies
         // If a temporal formula requires an input to be true, system cannot guarantee it
         for (formula::Formula* f : q->formulas()) {
             if (!f) continue;
