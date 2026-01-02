@@ -1,6 +1,6 @@
 # [19] Add incremental BMC checking with time estimation
 
-**Commit**: `9538eb5` ([`9538eb5eb288e12e0a51b3668b0c3bd597c2a422`](https://github.com/anthropics/cosy-zero/commit/9538eb5eb288e12e0a51b3668b0c3bd597c2a422))
+**Commit**: `9538eb5` ([`9538eb5eb288e12e0a51b3668b0c3bd597c2a422`](https://github.com/licoded/CosyZeroRewrite/commit/9538eb5eb288e12e0a51b3668b0c3bd597c2a422))
 **Date**: 2026-01-02 01:58:14 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -28,6 +28,11 @@ Configuration:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+Add incremental BMC checking with time estimation。
 
 ## Changes
 

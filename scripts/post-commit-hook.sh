@@ -59,6 +59,14 @@ Auto-generated CHANGELOG entry for previous commit.
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
     echo "[CHANGELOG] Created follow-up commit for changelog"
+
+    # Auto-push to remote dev branch (with buffer: push HEAD~3 to allow amend/rebase)
+    CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$CURRENT_BRANCH" = "dev" ]; then
+        echo "[CHANGELOG] Pushing to remote dev branch (buffer: HEAD~3)..."
+        git push origin dev HEAD~3:dev
+        echo "[CHANGELOG] Pushed successfully (3 commits kept local for amend/rebase)"
+    fi
 fi
 
 # Exit silently even if changelog generation fails

@@ -1,6 +1,6 @@
 # [20] Add spdlog integration for Z3 BMC logging
 
-**Commit**: `04a3532` ([`04a353244f0493730138f24b81e8f547e5741cc4`](https://github.com/anthropics/cosy-zero/commit/04a353244f0493730138f24b81e8f547e5741cc4))
+**Commit**: `04a3532` ([`04a353244f0493730138f24b81e8f547e5741cc4`](https://github.com/licoded/CosyZeroRewrite/commit/04a353244f0493730138f24b81e8f547e5741cc4))
 **Date**: 2026-01-02 02:03:44 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -28,6 +28,11 @@ Example log output:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+Add spdlog integration for Z3 BMC logging。
 
 ## Changes
 

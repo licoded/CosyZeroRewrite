@@ -1,6 +1,6 @@
 # [36] docs: add on-the-fly synthesis documentation
 
-**Commit**: `5f72e7a` ([`5f72e7a12334477e1b7ca67c1d06dcb4f1324c2e`](https://github.com/anthropics/cosy-zero/commit/5f72e7a12334477e1b7ca67c1d06dcb4f1324c2e))
+**Commit**: `5f72e7a` ([`5f72e7a12334477e1b7ca67c1d06dcb4f1324c2e`](https://github.com/licoded/CosyZeroRewrite/commit/5f72e7a12334477e1b7ca67c1d06dcb4f1324c2e))
 **Date**: 2026-01-02 09:13:51 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ algorithm based on arXiv:2408.07324.
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add on-the-fly synthesis documentation。
 
 ## Changes
 

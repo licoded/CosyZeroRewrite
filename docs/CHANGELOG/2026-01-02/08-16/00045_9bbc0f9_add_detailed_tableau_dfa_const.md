@@ -1,6 +1,6 @@
 # [45] docs: add detailed Tableau DFA construction guide
 
-**Commit**: `9bbc0f9` ([`9bbc0f95aa4c656052756cdc5cf05995a8c2d7a0`](https://github.com/anthropics/cosy-zero/commit/9bbc0f95aa4c656052756cdc5cf05995a8c2d7a0))
+**Commit**: `9bbc0f9` ([`9bbc0f95aa4c656052756cdc5cf05995a8c2d7a0`](https://github.com/licoded/CosyZeroRewrite/commit/9bbc0f95aa4c656052756cdc5cf05995a8c2d7a0))
 **Date**: 2026-01-02 09:18:04 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -21,6 +21,11 @@ Add comprehensive documentation for tableau-based DFA construction:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add detailed Tableau DFA construction guide。
 
 ## Changes
 

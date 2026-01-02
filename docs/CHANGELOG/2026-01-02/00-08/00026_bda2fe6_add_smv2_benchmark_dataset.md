@@ -1,6 +1,6 @@
 # [26] feat: add SMv2 benchmark dataset
 
-**Commit**: `bda2fe6` ([`bda2fe652d89fb8c5e0e29df6d6328976ff33a2a`](https://github.com/anthropics/cosy-zero/commit/bda2fe652d89fb8c5e0e29df6d6328976ff33a2a))
+**Commit**: `bda2fe6` ([`bda2fe652d89fb8c5e0e29df6d6328976ff33a2a`](https://github.com/licoded/CosyZeroRewrite/commit/bda2fe652d89fb8c5e0e29df6d6328976ff33a2a))
 **Date**: 2026-01-02 02:46:42 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -9,6 +9,11 @@
 - benchmarks/sm1000/ with 1000 test cases
 - .ltlf files (formulas) and .part files (variable definitions)
 - results.csv with ground truth (Realizable/Unrealizable)
+
+## AI Analysis
+
+### 📝 Change Summary
+实现 add SMv2 benchmark dataset。
 
 ## Changes
 

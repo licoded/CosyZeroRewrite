@@ -1,6 +1,6 @@
 # [46] docs: fix accepting state conditions in Tableau DFA doc
 
-**Commit**: `d340ea6` ([`d340ea6ef972c5100d5dc916dc81783051506c1c`](https://github.com/anthropics/cosy-zero/commit/d340ea6ef972c5100d5dc916dc81783051506c1c))
+**Commit**: `d340ea6` ([`d340ea6ef972c5100d5dc916dc81783051506c1c`](https://github.com/licoded/CosyZeroRewrite/commit/d340ea6ef972c5100d5dc916dc81783051506c1c))
 **Date**: 2026-01-02 09:44:36 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ Correct Section 5.1 accepting state conditions:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：fix accepting state conditions in Tableau DFA doc。
 
 ## Changes
 

@@ -1,6 +1,6 @@
 # [49] build: add spdlog logging support
 
-**Commit**: `4201996` ([`42019963dd2f108b5c24a0bdac9449455cf39b88`](https://github.com/anthropics/cosy-zero/commit/42019963dd2f108b5c24a0bdac9449455cf39b88))
+**Commit**: `4201996` ([`42019963dd2f108b5c24a0bdac9449455cf39b88`](https://github.com/licoded/CosyZeroRewrite/commit/42019963dd2f108b5c24a0bdac9449455cf39b88))
 **Date**: 2026-01-02 09:55:01 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -14,6 +14,11 @@
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+build: add spdlog logging support。
 
 ## Changes
 

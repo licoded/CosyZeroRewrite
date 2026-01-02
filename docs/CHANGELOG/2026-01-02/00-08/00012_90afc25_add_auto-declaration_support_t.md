@@ -1,6 +1,6 @@
 # [12] Add auto-declaration support to FormulaPool
 
-**Commit**: `90afc25` ([`90afc2520309223c2b0c735d71d07b97a1384548`](https://github.com/anthropics/cosy-zero/commit/90afc2520309223c2b0c735d71d07b97a1384548))
+**Commit**: `90afc25` ([`90afc2520309223c2b0c735d71d07b97a1384548`](https://github.com/licoded/CosyZeroRewrite/commit/90afc2520309223c2b0c735d71d07b97a1384548))
 **Date**: 2026-01-02 01:31:38 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -13,6 +13,11 @@
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+Add auto-declaration support to FormulaPool。
 
 ## Changes
 

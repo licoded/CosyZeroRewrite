@@ -1,6 +1,6 @@
 # [39] test: add on-the-fly synthesis and DFA tests
 
-**Commit**: `968ed78` ([`968ed782ca0ded7bd3a96480a25c3432ab0faf08`](https://github.com/anthropics/cosy-zero/commit/968ed782ca0ded7bd3a96480a25c3432ab0faf08))
+**Commit**: `968ed78` ([`968ed782ca0ded7bd3a96480a25c3432ab0faf08`](https://github.com/licoded/CosyZeroRewrite/commit/968ed782ca0ded7bd3a96480a25c3432ab0faf08))
 **Date**: 2026-01-02 09:14:00 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -23,6 +23,11 @@ All 12 tests passing (11 pass, 1 skip for known issue).
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+测试增强：add on-the-fly synthesis and DFA tests。
 
 ## Changes
 

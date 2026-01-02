@@ -1,6 +1,6 @@
 # [62] docs: add CHANGELOG and refine skip pattern
 
-**Commit**: `059f9a0` ([`059f9a041e8c4a4013df6ad75984a018ba0f67a7`](https://github.com/anthropics/cosy-zero/commit/059f9a041e8c4a4013df6ad75984a018ba0f67a7))
+**Commit**: `059f9a0` ([`059f9a041e8c4a4013df6ad75984a018ba0f67a7`](https://github.com/licoded/CosyZeroRewrite/commit/059f9a041e8c4a4013df6ad75984a018ba0f67a7))
 **Date**: 2026-01-02 10:45:39 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -8,6 +8,11 @@
 
 - Manually add CHANGELOG for cf9166d (was false positive skipped)
 - Refine regex to only skip 'docs: add/update CHANGELOG for...' commits
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add CHANGELOG and refine skip pattern。
 
 ## Changes
 

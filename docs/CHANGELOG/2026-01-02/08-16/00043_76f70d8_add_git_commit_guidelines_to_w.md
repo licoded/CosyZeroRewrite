@@ -1,6 +1,6 @@
 # [43] docs: add git commit guidelines to work habits
 
-**Commit**: `76f70d8` ([`76f70d874be4a2f0d4c151f62d71bc6750b082e6`](https://github.com/anthropics/cosy-zero/commit/76f70d874be4a2f0d4c151f62d71bc6750b082e6))
+**Commit**: `76f70d8` ([`76f70d874be4a2f0d4c151f62d71bc6750b082e6`](https://github.com/licoded/CosyZeroRewrite/commit/76f70d874be4a2f0d4c151f62d71bc6750b082e6))
 **Date**: 2026-01-02 09:14:11 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -15,6 +15,11 @@ Add guidelines for modular git commits:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add git commit guidelines to work habits。
 
 ## Changes
 

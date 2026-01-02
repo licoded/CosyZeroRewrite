@@ -1,6 +1,6 @@
 # [51] docs: add TODO completion workflow to work habits
 
-**Commit**: `26f6531` ([`26f65317ff4cfbdf0779406b3c448e872f9a04ed`](https://github.com/anthropics/cosy-zero/commit/26f65317ff4cfbdf0779406b3c448e872f9a04ed))
+**Commit**: `26f6531` ([`26f65317ff4cfbdf0779406b3c448e872f9a04ed`](https://github.com/licoded/CosyZeroRewrite/commit/26f65317ff4cfbdf0779406b3c448e872f9a04ed))
 **Date**: 2026-01-02 10:07:59 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ Add requirement to git commit immediately after completing a TODO:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add TODO completion workflow to work habits。
 
 ## Changes
 

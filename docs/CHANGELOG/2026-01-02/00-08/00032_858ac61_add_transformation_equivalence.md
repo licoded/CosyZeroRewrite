@@ -1,6 +1,6 @@
 # [32] feat: add transformation equivalence tests
 
-**Commit**: `858ac61` ([`858ac618aefe9ee4d9e586d0320c0c83c37a68a5`](https://github.com/anthropics/cosy-zero/commit/858ac618aefe9ee4d9e586d0320c0c83c37a68a5))
+**Commit**: `858ac61` ([`858ac618aefe9ee4d9e586d0320c0c83c37a68a5`](https://github.com/licoded/CosyZeroRewrite/commit/858ac618aefe9ee4d9e586d0320c0c83c37a68a5))
 **Date**: 2026-01-02 03:09:10 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -13,6 +13,11 @@
 - All 196 tests pass
 - Failed cases logged to logs/transform_failures_*.log with context
 - Summary logged to logs/transform_summary_*.log
+
+## AI Analysis
+
+### 📝 Change Summary
+实现 add transformation equivalence tests。
 
 ## Changes
 

@@ -1,6 +1,6 @@
 # [44] docs: correct git commit guidelines in work habits
 
-**Commit**: `ecca8ca` ([`ecca8ca153e88973e6af616d84c3e09d724e4f7b`](https://github.com/anthropics/cosy-zero/commit/ecca8ca153e88973e6af616d84c3e09d724e4f7b))
+**Commit**: `ecca8ca` ([`ecca8ca153e88973e6af616d84c3e09d724e4f7b`](https://github.com/licoded/CosyZeroRewrite/commit/ecca8ca153e88973e6af616d84c3e09d724e4f7b))
 **Date**: 2026-01-02 09:15:53 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -14,6 +14,11 @@ Fix incorrect wording:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：correct git commit guidelines in work habits。
 
 ## Changes
 

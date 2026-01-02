@@ -1,6 +1,6 @@
 # [53] docs: add known bugs section to CLAUDE.md
 
-**Commit**: `32c749e` ([`32c749e2ac7adc56f2b57757ad164431ae971170`](https://github.com/anthropics/cosy-zero/commit/32c749e2ac7adc56f2b57757ad164431ae971170))
+**Commit**: `32c749e` ([`32c749e2ac7adc56f2b57757ad164431ae971170`](https://github.com/licoded/CosyZeroRewrite/commit/32c749e2ac7adc56f2b57757ad164431ae971170))
 **Date**: 2026-01-02 10:12:55 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ Work habit reminder: Always document bugs and limitations!
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add known bugs section to CLAUDE.md。
 
 ## Changes
 

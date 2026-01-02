@@ -1,6 +1,6 @@
 # [57] docs: reorganize documentation into ARCHITECTURE and WORKFLOWS folders
 
-**Commit**: `6c36489` ([`6c3648974c739e20de10c2e7381f32796285c917`](https://github.com/anthropics/cosy-zero/commit/6c3648974c739e20de10c2e7381f32796285c917))
+**Commit**: `6c36489` ([`6c3648974c739e20de10c2e7381f32796285c917`](https://github.com/licoded/CosyZeroRewrite/commit/6c3648974c739e20de10c2e7381f32796285c917))
 **Date**: 2026-01-02 10:28:00 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -31,6 +31,11 @@ CLAUDE.md changes:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：reorganize documentation into ARCHITECTURE and WORKFLOWS folders。
 
 ## Changes
 

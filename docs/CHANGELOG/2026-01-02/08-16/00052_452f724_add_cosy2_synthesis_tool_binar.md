@@ -1,6 +1,6 @@
 # [52] feat: add Cosy2 synthesis tool binary
 
-**Commit**: `452f724` ([`452f724d695683a155452704ad34dacac423ed8d`](https://github.com/anthropics/cosy-zero/commit/452f724d695683a155452704ad34dacac423ed8d))
+**Commit**: `452f724` ([`452f724d695683a155452704ad34dacac423ed8d`](https://github.com/licoded/CosyZeroRewrite/commit/452f724d695683a155452704ad34dacac423ed8d))
 **Date**: 2026-01-02 10:11:40 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -24,6 +24,11 @@ Known issues:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+实现 add Cosy2 synthesis tool binary。
 
 ## Changes
 

@@ -1,6 +1,6 @@
 # [40] build: update CMake configuration for synthesis module
 
-**Commit**: `a168f44` ([`a168f4470aada7f172f19be958425902e9d2e741`](https://github.com/anthropics/cosy-zero/commit/a168f4470aada7f172f19be958425902e9d2e741))
+**Commit**: `a168f44` ([`a168f4470aada7f172f19be958425902e9d2e741`](https://github.com/licoded/CosyZeroRewrite/commit/a168f4470aada7f172f19be958425902e9d2e741))
 **Date**: 2026-01-02 09:14:03 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ Update build configuration to include new synthesis components.
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+build: update CMake configuration for synthesis module。
 
 ## Changes
 

@@ -136,7 +136,7 @@ DELETIONS=$(echo "$STATS" | grep -oE '[0-9]+ deletion' | grep -oE '[0-9]+' || ec
 cat > "$FILEPATH" << EOF
 # [${COUNTER}] ${SUBJECT}
 
-**Commit**: \`${HASH}\` ([\`${FULL_HASH}\`](https://github.com/anthropics/cosy-zero/commit/${FULL_HASH}))
+**Commit**: \`${HASH}\` ([\`${FULL_HASH}\`](https://github.com/licoded/CosyZeroRewrite/commit/${FULL_HASH}))
 **Date**: ${DATE}
 **Author**: ${AUTHOR_NAME} <${AUTHOR_EMAIL}>
 

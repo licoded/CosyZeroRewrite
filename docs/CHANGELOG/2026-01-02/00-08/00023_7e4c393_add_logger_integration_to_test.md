@@ -1,6 +1,6 @@
 # [23] test: add logger integration to test suites
 
-**Commit**: `7e4c393` ([`7e4c3938e4a9a067f097669d4e090a100270f50e`](https://github.com/anthropics/cosy-zero/commit/7e4c3938e4a9a067f097669d4e090a100270f50e))
+**Commit**: `7e4c393` ([`7e4c3938e4a9a067f097669d4e090a100270f50e`](https://github.com/licoded/CosyZeroRewrite/commit/7e4c3938e4a9a067f097669d4e090a100270f50e))
 **Date**: 2026-01-02 02:46:36 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -9,6 +9,11 @@
 - Use CATCH_CONFIG_RUNNER for custom main
 - Add LOG_INFO for test start/completion
 - Add LOG_FLUSH before exit
+
+## AI Analysis
+
+### 📝 Change Summary
+测试增强：add logger integration to test suites。
 
 ## Changes
 

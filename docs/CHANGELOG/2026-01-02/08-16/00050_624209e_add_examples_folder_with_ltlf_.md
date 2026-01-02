@@ -1,6 +1,6 @@
 # [50] feat: add examples folder with LTLf formula samples
 
-**Commit**: `624209e` ([`624209e6b2d1fd35cc549466340193d36fabe1bc`](https://github.com/anthropics/cosy-zero/commit/624209e6b2d1fd35cc549466340193d36fabe1bc))
+**Commit**: `624209e` ([`624209e6b2d1fd35cc549466340193d36fabe1bc`](https://github.com/licoded/CosyZeroRewrite/commit/624209e6b2d1fd35cc549466340193d36fabe1bc))
 **Date**: 2026-01-02 10:07:19 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -16,6 +16,11 @@ Add examples directory for testing synthesis tool:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+实现 add examples folder with LTLf formula samples。
 
 ## Changes
 

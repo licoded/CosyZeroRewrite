@@ -1,6 +1,6 @@
 # [9] docs: add migration design documents
 
-**Commit**: `a79b083` ([`a79b08355e0c7d487cdd49666b36ef5f3ad2008d`](https://github.com/anthropics/cosy-zero/commit/a79b08355e0c7d487cdd49666b36ef5f3ad2008d))
+**Commit**: `a79b083` ([`a79b08355e0c7d487cdd49666b36ef5f3ad2008d`](https://github.com/licoded/CosyZeroRewrite/commit/a79b08355e0c7d487cdd49666b36ef5f3ad2008d))
 **Date**: 2026-01-02 01:05:05 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -12,6 +12,11 @@
 - XNF_TRANSFORMATION.md: XNF algorithm
 - SIMPLIFY_ANALYSIS.md: simplification deep dive
 - And more...
+
+## AI Analysis
+
+### 📝 Change Summary
+文档更新：add migration design documents。
 
 ## Changes
 

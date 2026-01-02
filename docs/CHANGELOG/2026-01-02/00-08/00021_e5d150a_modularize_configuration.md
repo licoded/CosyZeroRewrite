@@ -1,6 +1,6 @@
 # [21] Refactor CMake: modularize configuration
 
-**Commit**: `e5d150a` ([`e5d150a28ea34e74b11b556e9354c51fab945e95`](https://github.com/anthropics/cosy-zero/commit/e5d150a28ea34e74b11b556e9354c51fab945e95))
+**Commit**: `e5d150a` ([`e5d150a28ea34e74b11b556e9354c51fab945e95`](https://github.com/licoded/CosyZeroRewrite/commit/e5d150a28ea34e74b11b556e9354c51fab945e95))
 **Date**: 2026-01-02 02:14:03 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -23,6 +23,11 @@
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+Refactor CMake: modularize configuration。
 
 ## Changes
 

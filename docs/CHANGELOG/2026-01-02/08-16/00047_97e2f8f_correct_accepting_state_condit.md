@@ -1,6 +1,6 @@
 # [47] fix: correct accepting state condition for Until formulas
 
-**Commit**: `97e2f8f` ([`97e2f8f26545b124f30e11a6654cef2bc009d8c0`](https://github.com/anthropics/cosy-zero/commit/97e2f8f26545b124f30e11a6654cef2bc009d8c0))
+**Commit**: `97e2f8f` ([`97e2f8f26545b124f30e11a6654cef2bc009d8c0`](https://github.com/licoded/CosyZeroRewrite/commit/97e2f8f26545b124f30e11a6654cef2bc009d8c0))
 **Date**: 2026-01-02 09:46:22 +0800
 **Author**: licoded <busy.li@foxmail.com>
 
@@ -29,6 +29,11 @@ Also updated documentation to clarify the three accepting conditions:
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
+
+## AI Analysis
+
+### 📝 Change Summary
+修复 correct accepting state condition for Until formulas。
 
 ## Changes
 
