@@ -10,6 +10,9 @@ FormulaParser::FormulaParser(FormulaPool& pool)
     , pos_(0)
     , use_multi_char_vars_(false)
 {
+    // Auto-load variable names from pool for multi-char variable support
+    var_names_ = pool_.get_all_variable_names();
+    use_multi_char_vars_ = !var_names_.empty();
 }
 
 void FormulaParser::set_variables(const std::vector<std::string>& var_names) {

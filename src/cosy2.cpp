@@ -244,13 +244,7 @@ int main(int argc, char* argv[]) {
 
     // Parse formula
     FormulaParser parser(pool);
-
-    // Set up variables for parser (combine outputs and inputs)
-    if (!partition.outputs.empty() || !partition.inputs.empty()) {
-        std::vector<std::string> all_vars = partition.outputs;
-        all_vars.insert(all_vars.end(), partition.inputs.begin(), partition.inputs.end());
-        parser.set_variables(all_vars);
-    }
+    // Parser now auto-loads variables from pool, no need for set_variables()
 
     Formula* phi = parser.parse(formula_str);
     if (!phi) {

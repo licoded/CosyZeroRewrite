@@ -166,6 +166,17 @@ public:
     bool has_variable(const std::string& name) const;
 
     /**
+     * @brief Get all declared variable names in order
+     * @return Vector of variable names (outputs first, then inputs)
+     *
+     * This is used by FormulaParser to initialize its lexer with
+     * multi-character variable names.
+     */
+    const std::vector<std::string>& get_all_variable_names() const {
+        return var_names_;
+    }
+
+    /**
      * @brief Get or auto-declare a variable (for parser convenience)
      * @param name Variable name
      * @return Variable ID (auto-declared as output if not exists)
