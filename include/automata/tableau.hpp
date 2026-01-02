@@ -143,6 +143,7 @@ public:
 
     // Friend declarations for pool access
     friend class TableauStatePool;
+    friend class OnTheFlyDFA;  // Allow access to formulas_ for synthesis
 
 private:
     /**

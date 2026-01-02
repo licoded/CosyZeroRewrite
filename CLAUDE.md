@@ -130,6 +130,31 @@ make test
 ./Cosy2 -f examples/response.ltlf -p examples/response.part
 ```
 
+### ⚠️ 重要：运行目录规范
+
+**必须从项目根目录运行所有命令！**
+
+```bash
+# ✅ 正确：从项目根目录运行
+cd /home/lic/files/rewrite_ltlf_codes/CosyZeroRewrite
+./build/benchmark_runner benchmarks/sm1000 1 100
+
+# ❌ 错误：从 build 目录运行
+cd /home/lic/files/rewrite_ltlf_codes/CosyZeroRewrite/build
+./benchmark_runner ../benchmarks/sm1000 1 100
+```
+
+**原因**：
+- 日志文件输出到 `logs/` 目录
+- CSV 结果输出到 `results/` 目录
+- 从 build 目录运行时，这些文件会被输出到 `build/logs/` 和 `build/results/`
+- 下次 `rm -rf build && cmake .. && make` 时，这些文件会被删除！
+
+**规则**：
+1. 始终从项目根目录运行命令
+2. 可执行文件使用 `./build/xxx` 或 `build/benchmark_runner` 等相对路径
+3. 日志和结果会自动保存到项目根目录的 `logs/` 和 `results/` 下
+
 ---
 
 ## 核心组件

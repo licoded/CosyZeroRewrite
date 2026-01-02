@@ -124,9 +124,6 @@ bool OnTheFlyGameSolver::is_realizable() {
                 // Classify all states in SCC
                 for (const auto& s : scc) {
                     classification_[s] = *cls;
-                    if (s == initial_state_) {
-                        LOG_DEBUG("OnTheFlyGameSolver: INITIAL STATE classified as ", to_string(*cls), " via SCC!");
-                    }
                 }
 
                 // Propagate backward
@@ -172,32 +169,53 @@ bool OnTheFlyGameSolver::is_realizable() {
         }
 
         if (!has_unexpanded && successors_.size() > 0) {
-            LOG_DEBUG("OnTheFlyGameSolver: all states expanded, classifying remaining as Ewin");
+            LOG_DEBUG("OnTheFlyGameSolver: all states expanded, classifying terminal states");
 
-            // Classify all unclassified states as Ewin
-            int classified_count = 0;
+            // Classify terminal states (states with no successors)
+            // Terminal state semantics:
+            // - System turn, no successors: System can't move, loses → Ewin
+            // - Environment turn, no successors: Environment can't move
+            //   - If accepting: System wins → Swin
+            //   - If not accepting: formula violated, System loses → Ewin
             for (const auto& pair : successors_) {
                 const GameState& s = pair.first;
-                if (!classification_.count(s)) {
-                    classification_[s] = StateClass::Ewin;
-                    classified_count++;
-                    if (s == initial_state_) {
-                        LOG_DEBUG("OnTheFlyGameSolver: INITIAL STATE classified as Ewin via terminal!");
+                if (classification_.count(s)) continue;
+
+                auto succ_it = successors_.find(s);
+                if (succ_it != successors_.end() && succ_it->second.empty()) {
+                    // Terminal state
+                    bool is_accepting = dfa_.is_accepting(s.dfa_state);
+                    if (s.player == Player::System) {
+                        // System has no moves → loses
+                        classification_[s] = StateClass::Ewin;
+                        LOG_DEBUG("OnTheFlyGameSolver: terminal System state -> Ewin");
+                    } else {
+                        // Environment has no moves → Environment loses
+                        // System wins if formula is satisfied (accepting)
+                        classification_[s] = is_accepting ? StateClass::Swin : StateClass::Ewin;
+                        LOG_DEBUG("OnTheFlyGameSolver: terminal Env state -> ",
+                                  is_accepting ? "Swin" : "Ewin");
                     }
                 }
             }
-            LOG_DEBUG("OnTheFlyGameSolver: classified ", classified_count, " states as Ewin");
+
+            // For remaining non-terminal unclassified states in SCCs,
+            // they form cycles without accepting states → Ewin
+            for (const auto& pair : successors_) {
+                const GameState& s = pair.first;
+                if (!classification_.count(s) && !successors_[s].empty()) {
+                    classification_[s] = StateClass::Ewin;
+                    LOG_DEBUG("OnTheFlyGameSolver: non-terminal unclassified -> Ewin");
+                }
+            }
 
             // Final propagation
             propagate_classification();
-        } else {
-            LOG_DEBUG("OnTheFlyGameSolver: terminal condition NOT met: has_unexpanded=", has_unexpanded, " successors=", successors_.size());
         }
     }
 
     StateClass result = get_initial_classification();
     LOG_DEBUG("OnTheFlyGameSolver: final classification: ", to_string(result));
-    LOG_DEBUG("OnTheFlyGameSolver: is_realizable returning ", (result == StateClass::Swin ? "TRUE" : "FALSE"));
 
     return result == StateClass::Swin;
 }

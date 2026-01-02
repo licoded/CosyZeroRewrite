@@ -572,15 +572,6 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
         return false;
     }
 
-    // For synthesis, empty states should NOT be accepting
-    // An empty state means "trace can end", but in synthesis with an adversary,
-    // this allows the environment to force the system into a winning position
-    // by making literals false (ending the trace early).
-    if (q->formulas().empty()) {
-        LOG_DEBUG("OnTheFlyDFA: empty state is NOT accepting for synthesis");
-        return false;
-    }
-
     // For non-temporal states, check if system can satisfy using only outputs
     bool has_temporal = false;
     for (formula::Formula* f : q->formulas()) {
@@ -596,29 +587,20 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
         for (formula::Formula* f : q->formulas()) {
             if (!f) continue;
 
+            // Check Next: Xψ requires ψ to be true in the next state
+            // If ψ requires any input to be true, system can't guarantee it
+            if (f->op() == formula::Formula::OpType::Next && f->left()) {
+                if (requires_input_true(f->left(), num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal Next formula requires input true");
+                    return false;
+                }
+            }
+
             // Check Release: φ R ψ requires ψ to be true until φ is true
             // If ψ requires any input to be true, system can't guarantee it
             if (f->op() == formula::Formula::OpType::Release && f->right()) {
                 if (requires_input_true(f->right(), num_outputs_)) {
                     LOG_DEBUG("OnTheFlyDFA: temporal Release formula requires input true");
-                    return false;
-                }
-            }
-
-            // Check Until: φ U ψ requires ψ to eventually become true
-            // If ψ requires any input to be true, system can't guarantee it
-            if (f->op() == formula::Formula::OpType::Until && f->right()) {
-                if (requires_input_true(f->right(), num_outputs_)) {
-                    LOG_DEBUG("OnTheFlyDFA: temporal Until formula requires input true");
-                    return false;
-                }
-            }
-
-            // Check Next: X φ requires φ to be true in the next state
-            // If φ requires any input to be true, system can't guarantee it
-            if (f->op() == formula::Formula::OpType::Next && f->left()) {
-                if (requires_input_true(f->left(), num_outputs_)) {
-                    LOG_DEBUG("OnTheFlyDFA: temporal Next formula requires input true");
                     return false;
                 }
             }
@@ -716,11 +698,41 @@ TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignme
 
     LOG_DEBUG("OnTheFlyDFA: computing successor");
 
+    // For synthesis: check if any input literals will be false
+    // If an input literal is false, the formula fails → return false state
+    bool has_failed_input_literal = false;
+    for (formula::Formula* f : q->formulas()) {
+        if (!f) continue;
+        if (f->op() == formula::Formula::OpType::Literal) {
+            int var_id = f->var_id();
+            // Check if this is an input variable that's false in assignment
+            if (var_id >= num_outputs_) {
+                // This is an input variable
+                bool literal_true = assignment.count(var_id) > 0;
+                if (!literal_true) {
+                    // Input literal is false → formula fails
+                    has_failed_input_literal = true;
+                    LOG_DEBUG("OnTheFlyDFA: input literal v", var_id, " is false, formula fails");
+                    break;
+                }
+            }
+        }
+    }
+
     // Compute next state
     auto next_state = q->next(assignment, pool_);
 
+    // Get formulas from next state
+    TableauState::FormulaSet next_formulas = std::move(next_state->formulas_);
+
+    // If we had a failed input literal and next state is empty, add false
+    if (has_failed_input_literal && next_formulas.empty()) {
+        LOG_DEBUG("OnTheFlyDFA: failed input literal leads to empty, adding false");
+        next_formulas.insert(pool_.create_false());
+    }
+
     // Get or create from pool
-    TableauState* result = state_pool_.get_or_create(std::move(next_state->formulas()));
+    TableauState* result = state_pool_.get_or_create(std::move(next_formulas));
 
     // Cache and track
     transition_cache_[key] = result;
