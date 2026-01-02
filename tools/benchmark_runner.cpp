@@ -37,7 +37,7 @@
 namespace fs = std::filesystem;
 
 // Number of concurrent threads
-constexpr int NUM_THREADS = 8;
+constexpr int NUM_THREADS = 6;
 
 //==============================================================================
 // Result Tracking
