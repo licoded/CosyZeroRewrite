@@ -6,6 +6,7 @@
 
 | 文档 | 说明 |
 |------|------|
+| [Synthesis](./synthesis.md) | **LTLf Synthesis 完整架构** (算法流程、版本对比) |
 | [Pipeline](./pipeline.md) | LTLf Synthesis 完整流水线 |
 | [Components](./components.md) | 核心组件设计 (Formula, FormulaPool, TableauState) |
 | [Algorithms](./algorithms.md) | 算法复杂度分析 |
