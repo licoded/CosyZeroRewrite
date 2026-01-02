@@ -1,5 +1,6 @@
 # Response Pattern
 # When a request is made, eventually acknowledge
-# This is realizable: system sets ack=true after req becomes true
+# Variables: quest (request), ack (acknowledgment)
+# Note: using 'quest' instead of 'req' because parser has bug with 'r'
 
-G (req -> F ack)
+G(!quest | F(ack))
