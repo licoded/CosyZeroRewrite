@@ -85,6 +85,8 @@ private:
         Next,        // X
         Until,       // U
         Release,     // R
+        Finally,     // F (eventually, syntactic sugar for true U ...)
+        Globally,    // G (globally, syntactic sugar for false R ...)
         LParen,      // (
         RParen,      // )
         End,

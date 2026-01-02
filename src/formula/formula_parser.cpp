@@ -157,6 +157,12 @@ void FormulaParser::tokenize(const std::string& input) {
                 token.type = TokenType::True;
             } else if (lower == "false") {
                 token.type = TokenType::False;
+            } else if (lower == "f") {
+                // F (finally/eventually) is syntactic sugar for true U ...
+                token.type = TokenType::Finally;
+            } else if (lower == "g") {
+                // G (globally) is syntactic sugar for false R ...
+                token.type = TokenType::Globally;
             } else {
                 token.type = TokenType::Identifier;
             }
@@ -309,7 +315,7 @@ Formula* FormulaParser::parse_postfix() {
     return parse_unary_op();
 }
 
-// primary ::= literal | '(' formula ')'
+// primary ::= literal | '(' formula ')' | 'F' '(' formula ')' | 'G' '(' formula ')'
 Formula* FormulaParser::parse_primary() {
     Token tok = peek();
 
@@ -321,6 +327,40 @@ Formula* FormulaParser::parse_primary() {
     if (tok.type == TokenType::False) {
         consume();
         return pool_.create_false();
+    }
+
+    // Handle F(expr) - syntactic sugar for true U expr
+    if (tok.type == TokenType::Finally) {
+        consume();  // consume F
+        if (!match(TokenType::LParen)) {
+            set_error("Expected '(' after F");
+            return nullptr;
+        }
+        Formula* expr = parse_formula();
+        if (has_error()) return nullptr;
+        if (!match(TokenType::RParen)) {
+            set_error("Expected ')' after F(...)");
+            return nullptr;
+        }
+        // F(expr) = true U expr
+        return pool_.create_until(pool_.create_true(), expr);
+    }
+
+    // Handle G(expr) - syntactic sugar for false R expr
+    if (tok.type == TokenType::Globally) {
+        consume();  // consume G
+        if (!match(TokenType::LParen)) {
+            set_error("Expected '(' after G");
+            return nullptr;
+        }
+        Formula* expr = parse_formula();
+        if (has_error()) return nullptr;
+        if (!match(TokenType::RParen)) {
+            set_error("Expected ')' after G(...)");
+            return nullptr;
+        }
+        // G(expr) = false R expr
+        return pool_.create_release(pool_.create_false(), expr);
     }
 
     if (tok.type == TokenType::Identifier) {
