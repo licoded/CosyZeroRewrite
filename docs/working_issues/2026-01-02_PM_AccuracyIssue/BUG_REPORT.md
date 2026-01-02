@@ -1,9 +1,9 @@
 # Bug Report: Low Benchmark Accuracy (56% vs expected ~100%)
 
 **Date**: 2026-01-02 14:05
-**Updated**: 2026-01-02 15:00
+**Updated**: 2026-01-02 15:30
 **Severity**: Critical
-**Status**: INVESTIGATING - New fixes added, accuracy decreased
+**Status**: IN PROGRESS - Basic cases fixed (100%), complex cases still failing
 
 ## Problem Description
 
@@ -345,7 +345,93 @@ The root cause was that temporal states with Next formulas containing input depe
 
 ---
 
-## 调试计划 (2026-01-02 15:00)
+## SESSION 7 (2026-01-02 15:00-15:30)
+
+### Key Fixes Applied
+
+1. **quick_test.sh Partition Format Fix**
+   - Fixed Cosy partition format requirement: inputs BEFORE outputs
+   - Added empty .inputs: line when no inputs exist
+   - Enabled reliable Cosy reference verification
+
+2. **Negation (!input) Handling**
+   - `!p5` where p5 is input now correctly UNREALIZABLE ✓
+   - Fixed `is_accepting()` to reject non-temporal states with `!input`
+
+3. **Until Formula Input Dependency Check**
+   - Added Until formula check in temporal states
+   - `F(p5)` where p5 is input now correctly UNREALIZABLE ✓
+
+4. **Until "Satisfied by Input" Handling** (Critical Fix!)
+   - When Until formula's right side is an input literal that becomes true,
+     the Until is removed (seems satisfied)
+   - This is WRONG for synthesis - system can't guarantee input=true
+   - Fix: Add `false` to state when Until is "satisfied by input literal"
+   - `p6 U p5` now correctly UNREALIZABLE ✓
+
+5. **Negation Successor Handling**
+   - Fixed `successor()` to detect when `!input` fails (input=true)
+   - Add `false` to state when negation of input fails
+
+### Test Results
+
+**Basic Test Cases (10/10 = 100% PASS)**
+```
+p5 (input):          UNREALIZABLE ✓
+p6 (output):         REALIZABLE ✓
+!p5 (negated input): UNREALIZABLE ✓
+!p6 (negated output): REALIZABLE ✓
+X(p5):               REALIZABLE ✓
+X(p6):               REALIZABLE ✓
+F(p5) (input):       UNREALIZABLE ✓
+F(p6) (output):      REALIZABLE ✓
+G(p5) (input):       UNREALIZABLE ✓
+G(p6) (output):      REALIZABLE ✓
+p6 U p5:             UNREALIZABLE ✓
+```
+
+**Benchmark Results (49 formulas)**
+```
+Accuracy: 56.25%
+True Positives:  16 (correctly Realizable)
+True Negatives:  11 (correctly Unrealizable)
+False Positives: 5 (incorrectly Realizable)
+False Negatives: 16 (incorrectly Unrealizable)
+```
+
+### Remaining Issues
+
+**Complex Nested Formulas Still Failing:**
+- f11: `(!(X(G(p5)))) U (X(p6))` - Expected R, Got U
+- f102: `(F(p6)) | ((F(!(p9))) & ...)` - Expected R, Got U
+- f142: `(!(p9)) & (G(F(!(p6))))` - Expected U, Got R
+
+**Potential Root Causes:**
+1. Or/And input dependency checks incomplete
+2. Nested temporal formulas need special handling
+3. LTLf empty trace semantics not yet addressed (F End)
+
+### Files Modified
+
+- `include/automata/tableau.hpp`: Added `num_outputs` parameter to `next()`
+- `src/automata/tableau.cpp`: Multiple fixes for input dependency
+- `scripts/quick_test.sh`: Created quick verification tool
+- `tests/io_separation_test.cpp`: Fixed test expectation
+- `CLAUDE.md`: Added documentation (Chinese/English preference, Cosy format)
+
+### Git Commits
+
+- `68a98f5`: fix(synthesis): fix input dependency checks for LTLf synthesis
+- `4242337`: docs: add CHANGELOG for 68a98f5
+
+### Next Steps
+
+1. Research LTLf empty trace semantics (F End)
+2. Analyze Or/And input dependency handling
+3. Compare with Cosy source for complex formula handling
+4. Consider formula transformation (add F End constraint)
+
+---
 
 ### 当前状态
 - **准确率**: 56.25% (50 samples)
