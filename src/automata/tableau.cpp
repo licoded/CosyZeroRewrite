@@ -132,12 +132,24 @@ bool TableauState::is_locally_consistent() const {
     // Rule: false in state → inconsistent
     // EXCEPT: when false is part of a Release formula (false R ψ)
     // In LTLf, G(ψ) = (false R ψ), and false appears in the state
+    //
+    // After XNF transformation: false R ψ becomes ψ & (false | X(false R ψ))
+    // So we need to check inside Next for Release with false
     bool has_release_with_false = false;
     for (formula::Formula* f : formulas_) {
         if (f && f->op() == formula::Formula::OpType::Release) {
             if (f->left() && f->left()->is_false()) {
                 has_release_with_false = true;
                 break;
+            }
+        } else if (f && f->op() == formula::Formula::OpType::Next) {
+            // Check inside Next for Release with false (after XNF transformation)
+            formula::Formula* child = f->left();
+            if (child && child->op() == formula::Formula::OpType::Release) {
+                if (child->left() && child->left()->is_false()) {
+                    has_release_with_false = true;
+                    break;
+                }
             }
         }
     }
@@ -238,12 +250,26 @@ bool TableauState::is_accepting() const {
     // Check for false (but NOT if it's part of a Release formula structure)
     // In LTLf, G(p) = (false R p), which introduces false into the state
     // This false is not an inconsistency - it's part of the Release semantics
+    //
+    // After XNF transformation: false R p becomes p & (false | X(false R p))
+    // So the false might appear directly, but it's still part of the Release structure
     bool has_release_with_false = false;
     for (formula::Formula* f : formulas_) {
         if (f && f->op() == formula::Formula::OpType::Release) {
             if (f->left() && f->left()->is_false()) {
                 has_release_with_false = true;
                 break;
+            }
+        } else if (f && f->op() == formula::Formula::OpType::Next) {
+            // Check inside Next for Release with false (after XNF transformation)
+            // XNF produces: p & (false | X(false R p))
+            // So we need to check if X contains a Release with false
+            formula::Formula* child = f->left();
+            if (child && child->op() == formula::Formula::OpType::Release) {
+                if (child->left() && child->left()->is_false()) {
+                    has_release_with_false = true;
+                    break;
+                }
             }
         }
     }
@@ -597,8 +623,15 @@ OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
     formula::Formula* nnf_phi = phi->nnf(pool_);
     LOG_DEBUG("OnTheFlyDFA: NNF: ", nnf_phi->to_string());
 
-    // Create initial state
-    auto init_state = TableauState::initial(nnf_phi, pool_);
+    // Convert to XNF for proper state construction
+    // XNF transforms Until/Release into the correct form:
+    // - Until: xnf(φ₁ U φ₂) = xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))
+    // - Release: xnf(φ₁ R φ₂) = xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
+    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool_);
+    LOG_DEBUG("OnTheFlyDFA: XNF: ", xnf_phi->to_string());
+
+    // Create initial state using XNF
+    auto init_state = TableauState::initial(xnf_phi, pool_);
     initial_state_ = state_pool_.get_or_create(std::move(init_state->formulas()));
 
     LOG_DEBUG("OnTheFlyDFA: initial state: ", initial_state_->to_string());

@@ -12,13 +12,14 @@ namespace formula {
  * XNF: A formula is in XNF if its primitive subformulas pa(φ) only include
  * literals and Next operators (no Until/Release inside primitives).
  *
- * Key transformation rules (using End marker instead of F/G):
- * - xnf(φ₁ U φ₂) = xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))
- * - xnf(φ₁ R φ₂) = (xnf(φ₂) ∨ End) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
+ * Key transformation rules:
+ * - xnf(φ₁ U φ₂) = xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))  // Until: CANNOT accept empty string
+ * - xnf(φ₁ R φ₂) = xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))  // Release: CAN accept empty string
  *
  * Where:
- * - X is strong next (implicitly !End)
- * - For Release, the Next allows End termination (WX semantics via End marker)
+ * - X is strong next (implicitly !End) - cannot accept empty string
+ * - For Release, empty string acceptance is checked during transition generation
+ *   (when φ₂ is satisfied, Release can terminate)
  *
  * CRITICAL: The inner Until/Release inside Next is NOT recursively expanded!
  * This is handled by rmnext progression during DFA construction.
@@ -79,30 +80,25 @@ Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
 
         case Formula::OpType::Release: {
             // DUAL TRANSFORMATION:
-            // xnf(φ₁ R φ₂) = (xnf(φ₂) ∨ End) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
+            // xnf(φ₁ R φ₂) = xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
             //
-            // Where End allows termination (WX semantics)
+            // Release CAN accept empty string when φ₂ is satisfied
+            // Empty string check is done during transition generation
             // And the inner φ₁ R φ₂ is NOT recursively transformed!
 
             Formula* left_xnf = left_->xnf_with_tail(pool);   // xnf(φ₁)
             Formula* right_xnf = right_->xnf_with_tail(pool);  // xnf(φ₂)
 
-            // End marker - allows termination for Release
-            Formula* end = pool.create_end();
-
-            // xnf(φ₂) ∨ End
-            Formula* right_part = pool.create_or(right_xnf, end);
-
             // xnf(φ₁) ∨ X(φ₁ R φ₂)
             // NOTE: Keep original Release formula, do NOT recurse!
-            // The X here allows End termination (WX semantics via End marker handling)
             Formula* next_release = pool.create_next(
                 const_cast<Formula*>(this)  // Original φ₁ R φ₂
             );
             Formula* left_part = pool.create_or(left_xnf, next_release);
 
-            // (xnf(φ₂) ∨ End) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
-            return pool.create_and(right_part, left_part);
+            // xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
+            // No explicit End marker - empty string acceptance is implicit
+            return pool.create_and(right_xnf, left_part);
         }
 
         default:
