@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 
 namespace automata {
 
@@ -414,7 +415,7 @@ TableauState::evaluate_literals(const FormulaSet& formulas, const Assignment& as
 }
 
 std::unique_ptr<TableauState>
-TableauState::next(const Assignment& assignment, formula::FormulaPool& pool) const {
+TableauState::next(const Assignment& assignment, formula::FormulaPool& pool, int num_outputs) const {
     // Step 1: Evaluate literals against assignment
     auto current_formulas = evaluate_literals(formulas_, assignment);
 
@@ -456,8 +457,13 @@ TableauState::next(const Assignment& assignment, formula::FormulaPool& pool) con
 
             // Check if right side is true
             bool right_true = false;
+            bool right_is_input_literal = false;
             if (is_literal(right)) {
                 right_true = literal_value(right, assignment);
+                // Check if this literal is an input variable (for synthesis)
+                if (right->op() == formula::Formula::OpType::Literal) {
+                    right_is_input_literal = right->var_id() >= num_outputs;
+                }
             } else if (right && right->is_true()) {
                 right_true = true;
             } else if (current_formulas.count(right) > 0 && !is_temporal(right)) {
@@ -477,6 +483,11 @@ TableauState::next(const Assignment& assignment, formula::FormulaPool& pool) con
                         next_formulas.insert(right->left());
                     }
                 }
+            } else if (right_is_input_literal) {
+                // Until was "satisfied" by an input literal being true
+                // In synthesis, this is NOT a true satisfaction - system can't guarantee it
+                // Add false to mark this as a bad state
+                next_formulas.insert(pool.create_false());
             }
         }
     }
@@ -582,31 +593,16 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
     }
 
     if (has_temporal) {
-        // For temporal states, first check if there are any input literals
-        // Even in temporal states, input literals cannot be guaranteed by system
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-
-            if (f->op() == formula::Formula::OpType::Literal) {
-                int var_id = f->var_id();
-                if (var_id >= num_outputs_) {
-                    LOG_DEBUG("OnTheFlyDFA: temporal state has input literal v", var_id,
-                              " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
-                    return false;
-                }
-            }
-        }
-
-        // Then check temporal formulas for input dependencies
+        // Check temporal formulas for input dependencies
         // If a temporal formula requires an input to be true, system cannot guarantee it
         for (formula::Formula* f : q->formulas()) {
             if (!f) continue;
 
-            // Check Next: Xψ requires ψ to be true in the next state
+            // Check Until: φ U ψ requires ψ to eventually be true
             // If ψ requires any input to be true, system can't guarantee it
-            if (f->op() == formula::Formula::OpType::Next && f->left()) {
-                if (requires_input_true(f->left(), num_outputs_)) {
-                    LOG_DEBUG("OnTheFlyDFA: temporal Next formula requires input true");
+            if (f->op() == formula::Formula::OpType::Until && f->right()) {
+                if (requires_input_true(f->right(), num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal Until formula requires input true");
                     return false;
                 }
             }
@@ -645,8 +641,15 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
             } else if (f->op() == formula::Formula::OpType::Not) {
                 formula::Formula* child = f->left();
                 if (child && child->op() == formula::Formula::OpType::Literal) {
-                    // If !v where v is input, this is OK (system is OK with input being false)
-                    // But if v is output and we need !v, system can set it false - OK
+                    int var_id = child->var_id();
+                    // If !v where v is input, system cannot guarantee v is false
+                    // Environment can choose v=true, making !v false
+                    if (var_id >= num_outputs_) {
+                        LOG_DEBUG("OnTheFlyDFA: non-temporal state has !v where v is input v", var_id,
+                                  " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
+                        return false;
+                    }
+                    // If !v where v is output, system can set v=false - OK
                 }
             }
         }
@@ -716,6 +719,7 @@ TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignme
     // For synthesis: check if any input literals will be false
     // If an input literal is false, the formula fails → return false state
     bool has_failed_input_literal = false;
+    bool has_failed_negation = false;
     for (formula::Formula* f : q->formulas()) {
         if (!f) continue;
         if (f->op() == formula::Formula::OpType::Literal) {
@@ -731,18 +735,33 @@ TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignme
                     break;
                 }
             }
+        } else if (f->op() == formula::Formula::OpType::Not) {
+            formula::Formula* child = f->left();
+            if (child && child->op() == formula::Formula::OpType::Literal) {
+                int var_id = child->var_id();
+                // Check if !v where v is input and v is true in assignment
+                if (var_id >= num_outputs_) {
+                    bool var_true = assignment.count(var_id) > 0;
+                    if (var_true) {
+                        // !v where v=true → negation fails
+                        has_failed_negation = true;
+                        LOG_DEBUG("OnTheFlyDFA: negation !v", var_id, " fails because v is true");
+                        break;
+                    }
+                }
+            }
         }
     }
 
     // Compute next state
-    auto next_state = q->next(assignment, pool_);
+    auto next_state = q->next(assignment, pool_, num_outputs_);
 
     // Get formulas from next state
     TableauState::FormulaSet next_formulas = std::move(next_state->formulas_);
 
-    // If we had a failed input literal and next state is empty, add false
-    if (has_failed_input_literal && next_formulas.empty()) {
-        LOG_DEBUG("OnTheFlyDFA: failed input literal leads to empty, adding false");
+    // If we had a failed input literal/negation and next state is empty, add false
+    if ((has_failed_input_literal || has_failed_negation) && next_formulas.empty()) {
+        LOG_DEBUG("OnTheFlyDFA: failed input requirement leads to empty, adding false");
         next_formulas.insert(pool_.create_false());
     }
 

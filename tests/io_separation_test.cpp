@@ -84,9 +84,9 @@ TEST(part_file_synthesis_simple) {
 }
 
 TEST(part_file_synthesis_response) {
-    // Test response formula: G(p2 -> F p3)
+    // Test implies formula: p2 -> p3 = !p2 | p3
     // Environment controls p2 (input), system controls p3 (output)
-    // System must respond to p2=true by eventually setting p3=true
+    // Verified with Cosy reference: Realizable
 
     FormulaPool pool;
 
@@ -98,9 +98,7 @@ TEST(part_file_synthesis_response) {
 
     pool.load_from_partition(part_file);
 
-    // G(p2 -> F p3) = G(!p2 | F p3)
-    // Equivalent to: (!p2) U (p3 | (G !p2))... simplified:
-    // For now, test a simpler formula: p2 -> p3 (at current position)
+    // p2 -> p3 = !p2 | p3
     Formula* p2 = pool.create_variable("p2");  // Input
     Formula* p3 = pool.create_variable("p3");  // Output
     Formula* not_p2 = pool.create_not(p2);
@@ -108,7 +106,7 @@ TEST(part_file_synthesis_response) {
 
     bool result = is_realizable_on_the_fly(implies, pool);
 
-    ASSERT_FALSE(result);  // Unrealizable: env chooses p2 AFTER system commits to p3
+    ASSERT_TRUE(result);  // Realizable: verified with Cosy reference
     std::cout << "PASS: part_file_synthesis_response" << std::endl;
 }
 

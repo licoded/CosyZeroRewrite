@@ -203,6 +203,25 @@ TableauState (DFA 状态)
 - 文档记录便于后续继续工作
 - 避免"忘记重新编译"等低级错误重复发生
 
+**记录新知识的习惯**：
+
+当在调试过程中发现新的重要知识时：
+1. **立即记录**到相关文档（CLAUDE.md 或 working_issues）
+2. **标注发现日期和上下文**
+3. **更新测试脚本**以避免重复错误
+
+例如：
+- Cosy partition 文件格式要求（inputs 先写，空 inputs 也要写）
+- 新发现的边界情况
+- 容易犯的错误模式
+
+**交流语言偏好**：
+
+- **主要使用中文**进行交流
+- **专业术语保留英文**（如 REALIZABLE, SCC, tableau）
+- **代码和命令保持原样**（如英文变量名、路径）
+- **输出结果按原样显示**（如日志、错误信息）
+
 ### 任务管理
 
 1. **开始任务前**: 更新 TODO 列表 (TodoWrite + `docs/TODO/*.md`)
@@ -229,10 +248,50 @@ TableauState (DFA 状态)
 ```bash
 # 确保编译成功
 cd build && make 2>&1 | tail -5
-
-# 或强制重新编译
-rm -rf build && cmake -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build
 ```
+
+**使用 Cosy 参考实现验证**：
+
+Cosy 是参考实现，准确率 95%+，可用于验证公式结果：
+
+```bash
+# Cosy 路径
+/home/lic/files/rewrite_ltlf_codes/Cosy_rewrite/Cosy <ltlf_file> <part_file> <comb_idx>
+
+# comb_idx: 0=Individual Composition, 1=Incremental Composition
+# 示例：
+/home/lic/files/rewrite_ltlf_codes/Cosy_rewrite/Cosy /tmp/test.ltlf /tmp/test.part 0
+```
+
+**注意**：
+- Cosy 的答案有 95%+ 准确率
+- 可用于验证边界案例
+- 如果结果不一致，需要分析是 Cosy 的 5% 错误还是我们的实现问题
+
+**⚠️ Cosy Partition 文件格式要求**（重要！）：
+
+Cosy 对 `.part` 文件有严格的格式要求：
+
+1. **顺序要求**：`.inputs:` 必须在 `.outputs:` 之前（上面一行）
+2. **空 inputs 要求**：即使没有 inputs，也必须写 `.inputs: `（空的）
+3. **正确格式**：
+   ```
+   .inputs: p1 p3
+   .outputs: p5 p7
+   ```
+   或
+   ```
+   .inputs:
+   .outputs: p5
+   ```
+
+**错误格式**（Cosy 会返回错误结果）：
+```
+.outputs: p5    # ❌ outputs 不能在 inputs 前面
+.inputs: p1
+```
+
+**快速测试脚本**：使用 `./scripts/quick_test.sh` 进行公式验证，脚本已自动处理格式问题。
 
 **调试顺序**（渐进式测试）：
 
@@ -251,6 +310,7 @@ rm -rf build && cmake -B build -DCMAKE_BUILD_TYPE=Debug && cmake --build build
 **调试方法**：
 - 从**结果正确的案例**组合/变异来找到错误边界
 - 对比正确 vs 错误案例，分析模式差异
+- 使用 Cosy 验证边界案例
 - 不要盲目全量跑，浪费时间
 
 ### 复杂问题协作 (working_issues)

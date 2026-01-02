@@ -109,10 +109,12 @@ public:
      *
      * @param assignment Set of variable IDs that are true
      * @param pool Formula pool for creating new formulas
+     * @param num_outputs Number of output variables (for synthesis)
      * @return Next tableau state
      */
     std::unique_ptr<TableauState> next(const Assignment& assignment,
-                                        formula::FormulaPool& pool) const;
+                                        formula::FormulaPool& pool,
+                                        int num_outputs = 0) const;
 
     /**
      * @brief Get all formulas in this state
