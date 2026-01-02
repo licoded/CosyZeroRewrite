@@ -17,13 +17,17 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+在 CLAUDE.md 中添加了明确的测试流程规范和 Git 提交规范，确保开发过程中遵循正确的测试顺序和提交习惯。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 添加了三阶段测试流程：单元测试 → 小范围抽查 → 全量 benchmark
+- 明确了修改代码后的提交顺序：先提交代码，再运行测试
+- 提供了具体命令示例和注意事项
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 防止在有明显问题的情况下运行全量 benchmark，节省时间
+- 确保每次代码修改都有可回退的 git 快照
+- 提高开发效率和代码质量
 
 ## Changes
 

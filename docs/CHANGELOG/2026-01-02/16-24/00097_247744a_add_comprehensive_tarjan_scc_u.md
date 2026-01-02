@@ -37,13 +37,18 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+添加了全面的 Tarjan SCC 算法单元测试，包含 13 个测试用例覆盖各种图结构。同时添加了算法文档和正确的 on-the-fly 算法说明文档。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 创建 `find_sccs_for_testing()` 作为独立测试接口，避免触发 `expand_state()`
+- 修复 `add_test_transition()` 从替换改为追加后继列表
+- 添加 `docs/ARCHITECTURE/tarjan_scc_algorithm.md` 算法研究文档
+- 重写 `docs/ARCHITECTURE/on_the_fly_algorithm.md` 修正算法理解错误
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 确保 Tarjan SCC 实现正确性
+- 为后续优化（如增量 SCC 算法）提供测试基础
+- 记录了之前的状态传播规则错误和 SCC 分类错误（Bug #003）
 
 ## Changes
 
