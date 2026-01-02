@@ -267,5 +267,12 @@ make
 
 - 使用 TodoWrite 工具记录任务进度
 - 任务开始前标记为 in_progress
-- 任务完成后立即标记为 completed
+- 任务完成后**立即标记为 completed** 并**git commit**
 - 发现新任务及时添加到列表
+
+**TODO 完成后立即提交流程**：
+1. 将 TODO 标记为 completed
+2. 运行 `make` 确保编译通过
+3. `git add` 相关文件
+4. `git commit` 带清晰描述
+5. 继续下一个任务
