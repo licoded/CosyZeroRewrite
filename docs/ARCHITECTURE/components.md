@@ -158,9 +158,13 @@ private:
 
 ```cpp
 struct GameState {
-    TableauState* dfa_state;           // DFA 状态
-    Player player;                     // System 或 Environment
-    Assignment system_chosen_output;   // System 选择的输出（Environment 回合时使用）
+    TableauState* dfa_state;                             // DFA 状态
+    Player player;                                           // System 或 Environment
+    std::optional<Assignment> system_chosen_output;        // System 选择的输出（仅 Environment 回合有值）
+
+    // 不变式约定:
+    // - player == System 时: system_chosen_output = nullopt
+    // - player == Environment 时: system_chosen_output 有值
 
     bool operator==(const GameState& other) const;
     size_t hash() const;

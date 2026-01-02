@@ -58,21 +58,26 @@ inline const char* to_string(StateClass cls) {
  * A game state consists of:
  * - DFA state (tableau state)
  * - Player to move
- * - Output assignment chosen by system (valid during environment's turn)
+ * - Output assignment chosen by system (only valid during environment's turn)
+ *
+ * Invariant:
+ * - When player == System: system_chosen_output is nullopt
+ * - When player == Environment: system_chosen_output has a value
  */
 struct GameState {
     automata::TableauState* dfa_state;
     Player player;
 
     // For environment turn, track the output assignment chosen by system
-    automata::Assignment system_chosen_output;
+    // nullopt when player == System, has value when player == Environment
+    std::optional<automata::Assignment> system_chosen_output;
 
     // Default constructor (for uninitialized states)
     GameState()
-        : dfa_state(nullptr), player(Player::System), system_chosen_output() {}
+        : dfa_state(nullptr), player(Player::System), system_chosen_output(std::nullopt) {}
 
     GameState(automata::TableauState* q, Player p,
-              const automata::Assignment& out = automata::Assignment())
+              const std::optional<automata::Assignment>& out = std::nullopt)
         : dfa_state(q), player(p), system_chosen_output(out) {}
 
     bool operator==(const GameState& other) const {
@@ -95,9 +100,11 @@ struct GameStateHash {
     size_t operator()(const GameState& s) const {
         size_t h = reinterpret_cast<size_t>(s.dfa_state);
         h ^= (static_cast<size_t>(s.player) << 1);
-        // Hash the output assignment
-        for (int v : s.system_chosen_output) {
-            h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        // Hash the output assignment if present
+        if (s.system_chosen_output.has_value()) {
+            for (int v : s.system_chosen_output.value()) {
+                h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+            }
         }
         return h;
     }

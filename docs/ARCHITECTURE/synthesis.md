@@ -733,7 +733,7 @@ if (!dfa.is_accepting(state)) {
 struct GameState {
     TableauState* dfa_state;      // 底层的 DFA 状态
     Player player;                // 谁的回合？
-    Assignment system_chosen_output;    // Environment 回合需要记住 System 的输出
+    std::optional<Assignment> system_chosen_output;    // Environment 回合需要记住 System 的输出
 };
 ```
 
