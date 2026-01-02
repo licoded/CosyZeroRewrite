@@ -1,13 +1,13 @@
-# Bug Report: Low Benchmark Accuracy (64% vs expected ~100%)
+# Bug Report: Low Benchmark Accuracy (56% vs expected ~100%)
 
 **Date**: 2026-01-02 14:05
-**Updated**: 2026-01-02 16:00
+**Updated**: 2026-01-02 15:00
 **Severity**: Critical
-**Status**: PARTIALLY FIXED - Key bugs identified and fixed
+**Status**: INVESTIGATING - New fixes added, accuracy decreased
 
 ## Problem Description
 
-CosyZeroRewrite LTLf synthesis benchmark shows only **64% accuracy** on SMv1000 benchmark, while the reference Cosy implementation achieves **100% accuracy** on the same benchmark.
+CosyZeroRewrite LTLf synthesis benchmark shows only **56.25% accuracy** (50 samples) on SMv1000 benchmark, while the reference Cosy implementation achieves **100% accuracy** on the same benchmark.
 
 ## Test Results
 
@@ -342,3 +342,48 @@ The root cause was that temporal states with Next formulas containing input depe
 - **Always run from project root** - see CLAUDE.md "运行目录规范"
 - Logs go to `logs/benchmark/YYYY-MM-DD/HH-MM/`
 - CSV results go to `results/benchmark/YYYY-MM-DD/HH-MM/`
+
+---
+
+## 调试计划 (2026-01-02 15:00)
+
+### 当前状态
+- **准确率**: 56.25% (50 samples)
+- **False Positives**: 2 (incorrectly Realizable) - 比之前好！
+- **False Negatives**: 19 (incorrectly Unrealizable) - 变差了！
+
+### 已修复
+- f112 `(p5) & (F(p8))`: U ✓
+- f104, f115, f118, f129: 也修复了 ✓
+
+### 新问题
+- 输入字面量检查可能**过于保守**
+- 状态包含 `{p5, F(p6)}` 时直接拒绝，但这可能不总是正确
+
+### 调试策略（渐进式）
+
+1. **Basic Hardcode Cases** - 手工构造简单测试
+   - 构造只含输入/输出的基本公式
+   - 测试各种时态算子的组合
+   - **全部通过后才进入下一步**
+
+2. **从正确案例变异**
+   - 找到 f100, f101, f105, f107 等正确的案例
+   - 分析它们的共同特征
+   - 逐步引入变化，找出失败边界
+
+3. **小范围抽查** (20-50 个)
+   - 正确率 > 70% 才进入全量测试
+
+4. **全量 Benchmark**
+   - 只有前面阶段通过才运行
+
+### 待验证的假设
+1. 是否所有时态状态中的输入字面量都应该拒绝？
+2. Or/And 结构如何影响输入字面量的处理？
+3. NNF 转换后的公式结构是否正确？
+
+### 下一步
+1. 创建 basic_hardcode_test.cpp
+2. 对比正确 vs 错误案例的 NNF 结构
+3. 分析是否需要更精细的输入依赖检查
