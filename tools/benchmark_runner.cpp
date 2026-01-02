@@ -135,16 +135,58 @@ private:
     std::map<std::string, BenchmarkResult> results_;
 };
 
-// Thread-safe output
+// Thread-safe output with file logging
 class ThreadSafeOutput {
 public:
+    ThreadSafeOutput() = default;
+
+    // Initialize log file with organized directory structure
+    void init_log(const std::string& benchmark_dir) {
+        (void)benchmark_dir;  // Suppress unused warning
+        std::lock_guard<std::mutex> lock(mutex_);
+
+        // Create logs directory structure: logs/benchmark/YYYY-MM-DD/HH-MM/
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+
+        std::ostringstream oss;
+        oss << "../logs/benchmark/"
+            << std::put_time(std::localtime(&time_t), "%Y-%m-%d")
+            << "/"
+            << std::put_time(std::localtime(&time_t), "%H-%M");
+
+        log_dir_ = oss.str();
+        fs::create_directories(log_dir_);
+
+        // Create log filename with timestamp
+        std::ostringstream name_oss;
+        name_oss << "benchmark_"
+                 << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S")
+                 << ".log";
+        std::string log_name = name_oss.str();
+
+        log_path_ = log_dir_ + "/" + log_name;
+        log_file_.open(log_path_, std::ios::out);
+
+        if (log_file_.is_open()) {
+            std::cout << "Log file: " << log_path_ << std::endl;
+        } else {
+            std::cerr << "Warning: Could not open log file: " << log_path_ << std::endl;
+        }
+    }
+
     void print(const std::string& msg) {
         std::lock_guard<std::mutex> lock(mutex_);
         std::cout << msg << std::endl;
+        if (log_file_.is_open()) {
+            log_file_ << msg << std::endl;
+            log_file_.flush();
+        }
     }
 
     std::ostream& stream() {
-        // For complex output, acquire the lock and return a locked stream wrapper
+        // For complex output, acquire the lock and return cout
+        // File logging is done via print() method
         lock_ = std::make_unique<std::lock_guard<std::mutex>>(mutex_);
         return std::cout;
     }
@@ -153,9 +195,21 @@ public:
         lock_.reset();
     }
 
+    void close() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (log_file_.is_open()) {
+            log_file_.close();
+        }
+    }
+
+    const std::string& log_path() const { return log_path_; }
+
 private:
     mutable std::mutex mutex_;
     std::unique_ptr<std::lock_guard<std::mutex>> lock_;
+    std::ofstream log_file_;
+    std::string log_dir_;
+    std::string log_path_;
 };
 
 //==============================================================================
@@ -588,6 +642,7 @@ int main(int argc, char* argv[]) {
 
     ResultContainer results;
     ThreadSafeOutput output;
+    output.init_log(benchmark_dir);
     std::vector<PendingRetry> all_pending;
 
     // Progressive timeout stages
@@ -600,9 +655,9 @@ int main(int argc, char* argv[]) {
     for (const auto& [timeout_sec, timeout_name] : stages) {
         std::vector<PendingRetry> pending;
 
-        std::cout << "\n========================================" << std::endl;
-        std::cout << "Stage: " << timeout_name << " timeout" << std::endl;
-        std::cout << "========================================" << std::endl;
+        output.print("\n========================================");
+        output.print(std::string("Stage: ") + timeout_name + " timeout");
+        output.print("========================================");
 
         int stage_idx = &timeout_sec - &stages[0].first;
 
@@ -663,11 +718,13 @@ int main(int argc, char* argv[]) {
             return a.index < b.index;
         });
 
-    std::cout << "\n========================================" << std::endl;
-    std::cout << "FINAL RESULTS" << std::endl;
-    std::cout << "========================================\n";
+    output.print("\n========================================");
+    output.print("FINAL RESULTS");
+    output.print("========================================");
     write_summary(final_results, std::cout, "Final Summary (All Stages)");
-    std::cout << "\nResults saved to: " << output_csv << std::endl;
+    output.print("\nResults saved to: " + output_csv);
+
+    output.close();
 
     return 0;
 }
