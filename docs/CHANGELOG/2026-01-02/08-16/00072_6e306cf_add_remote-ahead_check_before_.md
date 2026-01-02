@@ -10,6 +10,19 @@ Skip auto-push if remote dev is ahead of local (e.g., after
 rebase or rollback). This prevents overwriting remote history
 with local commits that are behind.
 
+## AI Analysis
+
+### 📝 Change Summary
+安全检查：在 auto-push 前检查远程是否领先本地，防止 rebase/rollback 后覆盖远程历史。
+
+### 🔍 Technical Details
+
+**场景**：
+- 执行 rebase 或回退后，本地落后于远程
+- 如果继续 auto-push 会强制覆盖远程历史
+
+**修复**：使用 `git merge-base --is-ancestor` 检查本地是否落后于远程，如果落后则跳过推送。
+
 ## Changes
 
 ### Modified

@@ -28,6 +28,37 @@ Test results (simple tests):
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+关键算法修复：完整修复时态公式输入依赖检查、终端状态分类和失败输入字面量处理，解决 64% benchmark 准确率问题的根本原因。
+
+### 🔍 Technical Details
+
+**核心修复**：
+1. **Next 公式输入依赖检查** (`is_accepting()`):
+   - `X(input)` 现在正确返回 UNREALIZABLE
+   - Next 公式要求输入在下一状态为真时系统无法保证
+
+2. **Release 公式输入依赖检查** (`is_accepting()`):
+   - `G(input)` 现在正确返回 UNREALIZABLE
+   - Release 公式右侧需要输入为真时系统无法保证
+
+3. **终端状态分类** (`on_the_fly_solver.cpp`):
+   - 区分 System/Environment 回合
+   - System 无后继 → Ewin (无法移动)
+   - Environment 无后继 → 接受时 Swin，否则 Ewin
+
+4. **失败输入字面量处理** (`successor()`):
+   - 输入字面量为 false 时添加 false 到下一状态
+   - 防止"坏空"状态被标记为接受
+
+**测试结果**：
+- `X(p6)` 输出: Realizable ✓
+- `X(p5)` 输入: **UNREALIZABLE** ✓ (之前失败)
+- `G(p5)` 输入: **UNREALIZABLE** ✓ (之前失败)
+- `G(p6)` 输出: Realizable ✓
+
 ## Changes
 
 ### Added

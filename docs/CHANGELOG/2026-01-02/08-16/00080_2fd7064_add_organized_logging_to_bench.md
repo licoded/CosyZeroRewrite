@@ -15,6 +15,26 @@
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+日志组织优化：创建按日期/时间组织的日志目录结构 `logs/benchmark/YYYY-MM-DD/HH-MM/`，同时输出到 stdout 和日志文件。
+
+### 🔍 Technical Details
+
+**日志目录结构**：
+```
+logs/benchmark/
+└── YYYY-MM-DD/
+    └── HH-MM/
+        └── benchmark_YYYYMMDD_HHMMSS.log
+```
+
+**特性**：
+- 双输出：stdout + 日志文件
+- 线程安全：多线程环境下文件输出安全
+- 自动刷新：每次写入后 flush 确保保存
+
 ## Changes
 
 ### Modified

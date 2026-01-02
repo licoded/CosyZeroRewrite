@@ -15,6 +15,25 @@
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+结果目录分离：创建 `results/benchmark/` 目录单独存放 CSV 结果，与 `logs/benchmark/` 日志目录分开。
+
+### 🔍 Technical Details
+
+**目录结构**：
+```
+logs/benchmark/YYYY-MM-DD/HH-MM/    # 日志文件
+results/benchmark/YYYY-MM-DD/HH-MM/ # CSV 结果
+build/benchmark_results_latest.csv   # 便捷访问
+```
+
+**好处**：
+- 日志和结果文件分开管理
+- 按时间戳组织便于历史追踪
+- build 目录保留最新结果便于快速访问
+
 ## Changes
 
 ### Modified

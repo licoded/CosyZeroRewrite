@@ -15,6 +15,31 @@ Adds collaborative workflow documentation for complex bug fixing:
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+协作工作流文档：添加 working_issues 目录结构和 bug 报告模板，用于复杂 bug 的追踪和协作修复。
+
+### 🔍 Technical Details
+
+**working_issues/ 目录结构**：
+```
+docs/working_issues/
+└── YYYY-MM-DD_AM/PM_ProblemSummary/
+    └── BUG_REPORT.md
+```
+
+**BUG_REPORT.md 包含**：
+- 问题描述
+- 根因分析
+- 已修复的 bug 列表
+- 进行中的问题
+- 测试结果
+
+**工作流改进**：
+- 更新 CLAUDE.md 添加 git 提交规范
+- 支持分阶段提交便于回滚和代码审查
+
 ## Changes
 
 ### Added

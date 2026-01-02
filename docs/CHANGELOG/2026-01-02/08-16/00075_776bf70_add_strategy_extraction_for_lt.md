@@ -20,6 +20,25 @@ Features:
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+策略提取功能：实现从分类后的游戏图中提取获胜策略，支持 JSON 和 Graphviz DOT 导出。
+
+### 🔍 Technical Details
+
+**核心功能**：
+- `extract_strategy()`: 通过 BFS 从初始状态构建策略图
+- `find_winning_output()`: 识别导致获胜状态的系统输出
+- `to_json()`: 导出策略为 JSON 格式
+- `to_dot()`: 导出策略为 Graphviz DOT 用于可视化
+- `StrategyVerifier`: 验证提取的策略正确性
+
+**应用场景**：
+- 可视化验证 winning strategy
+- 策略调试和验证
+- 生成可执行策略
+
 ## Changes
 
 ### Added

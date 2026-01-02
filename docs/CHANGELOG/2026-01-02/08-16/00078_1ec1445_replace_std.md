@@ -16,6 +16,22 @@
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+修复 std::async 阻塞问题：使用 std::thread + detach() 替代 std::async，避免 future 析构函数阻塞导致挂起。
+
+### 🔍 Technical Details
+
+**问题原因**：
+- `std::future` 析构函数会阻塞直到任务完成
+- 在超时场景下导致程序挂起
+
+**修复方案**：
+- 使用 `std::thread` + `detach()` 替代 `std::async`
+- 轮询间隔从 100ms 减少到 10ms 提高计时精度
+- 计时起点移到线程创建前确保测量准确
+
 ## Changes
 
 ### Modified

@@ -25,6 +25,24 @@ complex formulas more time as needed.
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+渐进式超时策略：实现多阶段超时方法 (1分钟 → 3分钟 → 5分钟)，平衡快速公式完成时间和复杂公式需求。
+
+### 🔍 Technical Details
+
+**三阶段超时**：
+- 阶段 1: 1 分钟超时 (快速公式)
+- 阶段 2: 3 分钟超时 (之前超时的公式)
+- 阶段 3: 5 分钟超时 (剩余超时公式)
+
+**技术实现**：
+- 使用 `std::async` + `wait_for()` 控制超时
+- 跟踪每个阶段超时的公式
+- 生成详细摘要 (含混淆矩阵)
+- 输出超时跟踪和扩展状态计数
+
 ## Changes
 
 ### Modified

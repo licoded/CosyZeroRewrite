@@ -33,6 +33,29 @@
 
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 
+## AI Analysis
+
+### 📝 Change Summary
+新增测试和基准工具：添加 I/O 分离测试、SMv1000 benchmark runner 和可视化脚本，用于验证合成算法准确率。
+
+### 🔍 Technical Details
+
+**io_separation_test.cpp**：
+- 测试 .part 文件解析 (SMv2 格式)
+- 验证变量 ID 排序 (输出在前，输入在后)
+- 测试带 I/O 分离的 synthesis
+
+**benchmark_runner.cpp**：
+- 从 benchmark 目录加载 .ltlf 和 .part 文件
+- 与 results.csv 中的期望结果比较
+- 保存详细结果到 CSV (含时间)
+- 预处理 -> (蕴含) 语法
+
+**visualize_results.py**：
+- 生成混淆矩阵、时间分布图表
+- 创建按文件夹的分析
+- 生成包含所有可视化的 HTML 报告
+
 ## Changes
 
 ### Added

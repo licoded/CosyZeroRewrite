@@ -145,6 +145,21 @@ cat > "$FILEPATH" << EOF
 ${BODY}
 EOF
 
+# Add AI Analysis placeholder
+cat >> "$FILEPATH" << EOF
+
+## AI Analysis
+
+### 📝 Change Summary
+<!-- TODO: Add a brief summary of the change in Chinese or English -->
+
+### 🔍 Technical Details
+<!-- Optional: Add technical details, root cause, or implementation notes -->
+
+### 📊 Impact Analysis
+<!-- Optional: Add impact scope, affected components, or performance notes -->
+EOF
+
 # Add Changes section if there are changes
 if [ -n "$CHANGES" ]; then
     cat >> "$FILEPATH" << EOF
