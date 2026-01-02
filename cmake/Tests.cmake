@@ -37,6 +37,12 @@ if(BUILD_TESTS)
     target_link_libraries(dfa_tests PRIVATE formula catch2)
 
     # ============================================================
+    # Tableau state tests (unit tests for TableauState)
+    # ============================================================
+    add_executable(tableau_state_tests tests/tableau_state_test.cpp)
+    target_link_libraries(tableau_state_tests PRIVATE formula catch2)
+
+    # ============================================================
     # Synthesis tests
     # ============================================================
     add_executable(synthesis_tests tests/synthesis_test.cpp)
@@ -56,6 +62,7 @@ if(BUILD_TESTS)
         target_compile_options(parser_checker_tests PRIVATE /W4)
         target_compile_options(transformation_tests PRIVATE /W4)
         target_compile_options(dfa_tests PRIVATE /W4)
+        target_compile_options(tableau_state_tests PRIVATE /W4)
         target_compile_options(synthesis_tests PRIVATE /W4)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
     else()
@@ -63,6 +70,7 @@ if(BUILD_TESTS)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
         target_compile_options(transformation_tests PRIVATE -Wno-sign-compare)
         target_compile_options(dfa_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(tableau_state_tests PRIVATE -Wno-sign-compare)
         target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
     endif()
@@ -74,10 +82,11 @@ if(BUILD_TESTS)
     add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
     add_test(NAME transformation_tests COMMAND transformation_tests)
     add_test(NAME dfa_tests COMMAND dfa_tests)
+    add_test(NAME tableau_state_tests COMMAND tableau_state_tests)
     add_test(NAME synthesis_tests COMMAND synthesis_tests)
     add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, synthesis_tests, on_the_fly_synthesis_tests")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, tableau_state_tests, synthesis_tests, on_the_fly_synthesis_tests")
 endif()
 
 # ============================================================
