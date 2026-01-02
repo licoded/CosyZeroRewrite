@@ -137,9 +137,11 @@ bool OnTheFlyGameSolver::is_realizable() {
 
         // Add unclassified successors to worklist
         for (const auto& pair : successors_) {
-            const GameState& s = pair.first;
-            if (!classification_.count(s) && !expanded_.count(s)) {
-                worklist_.push_back(s);
+            // pair.first is the source state, pair.second is the list of successors
+            for (const GameState& succ : pair.second) {
+                if (!classification_.count(succ) && !expanded_.count(succ)) {
+                    worklist_.push_back(succ);
+                }
             }
         }
 
@@ -147,6 +149,38 @@ bool OnTheFlyGameSolver::is_realizable() {
         if (iteration > 10000) {
             LOG_WARN("OnTheFlyGameSolver: iteration limit reached");
             break;
+        }
+    }
+
+    // If initial state is still unclassified after main loop,
+    // check if we've exhausted all reachable states
+    if (!is_initial_classified() && worklist_.empty()) {
+        LOG_DEBUG("OnTheFlyGameSolver: worklist empty, checking for terminal classification");
+
+        // Check if there's any unexpanded state reachable from initial state
+        // If not, classify all unclassified states as Ewin and propagate
+        bool has_unexpanded = false;
+        for (const auto& pair : successors_) {
+            const GameState& s = pair.first;
+            if (!expanded_.count(s)) {
+                has_unexpanded = true;
+                break;
+            }
+        }
+
+        if (!has_unexpanded && successors_.size() > 0) {
+            LOG_DEBUG("OnTheFlyGameSolver: all states expanded, classifying remaining as Ewin");
+
+            // Classify all unclassified states as Ewin
+            for (const auto& pair : successors_) {
+                const GameState& s = pair.first;
+                if (!classification_.count(s)) {
+                    classification_[s] = StateClass::Ewin;
+                }
+            }
+
+            // Final propagation
+            propagate_classification();
         }
     }
 
@@ -284,6 +318,7 @@ OnTheFlyGameSolver::try_classify_scc(const std::vector<GameState>& scc) {
     }
 
     // Check if SCC contains an accepting DFA state
+    // In LTLf, accepting states are those where all Until obligations are satisfied
     bool has_accepting = false;
     for (const auto& s : scc) {
         if (dfa_.is_accepting(s.dfa_state)) {
@@ -294,12 +329,14 @@ OnTheFlyGameSolver::try_classify_scc(const std::vector<GameState>& scc) {
 
     // Classification rule from paper:
     // - SCC with accepting state → System winning (Swin)
-    // - SCC without accepting state → Environment winning (Ewin)
     if (has_accepting) {
         return StateClass::Swin;
-    } else {
-        return StateClass::Ewin;
     }
+
+    // For SCCs without accepting states, we need to check if all successors
+    // lead to Ewin states. This check happens in propagate_classification.
+    // For now, return nullopt to indicate this SCC can't be classified yet.
+    return std::nullopt;
 }
 
 bool OnTheFlyGameSolver::propagate_classification() {

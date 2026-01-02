@@ -166,6 +166,42 @@ public:
      */
     const automata::OnTheFlyDFA& dfa() const { return dfa_; }
 
+    /**
+     * @brief Get initial state
+     */
+    const GameState& get_initial_state() const { return initial_state_; }
+
+    /**
+     * @brief Get assignment generators (for strategy extraction)
+     */
+    const automata::AssignmentGenerator& get_output_generator() const {
+        return output_gen_;
+    }
+    const automata::AssignmentGenerator& get_input_generator() const {
+        return input_gen_;
+    }
+
+    /**
+     * @brief Get successors of a state (for strategy extraction)
+     * Returns nullptr if state not expanded
+     */
+    const std::vector<GameState>* get_successors(const GameState& state) const {
+        auto it = successors_.find(state);
+        return (it != successors_.end()) ? &it->second : nullptr;
+    }
+
+    /**
+     * @brief Get all successors map (for strategy extraction)
+     */
+    const std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>&
+    get_all_successors() const { return successors_; }
+
+    /**
+     * @brief Get classification map (for strategy extraction)
+     */
+    const std::unordered_map<GameState, StateClass, GameStateHash, GameStateEqual>&
+    get_classification() const { return classification_; }
+
 private:
     // Formula and pool
     formula::FormulaPool& pool_;

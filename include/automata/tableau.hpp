@@ -136,6 +136,11 @@ public:
      */
     std::string to_string() const;
 
+    /**
+     * @brief Check if a formula is purely temporal (starts with Next/Until/Release)
+     */
+    static bool is_temporal(formula::Formula* f);
+
     // Friend declarations for pool access
     friend class TableauStatePool;
 
@@ -161,11 +166,6 @@ private:
     std::vector<formula::Formula*> get_next_formulas() const;
 
     /**
-     * @brief Check if a formula is purely temporal (starts with Next/Until/Release)
-     */
-    static bool is_temporal(formula::Formula* f);
-
-    /**
      * @brief Evaluate literal formulas against assignment
      *
      * Removes literals that are false given the assignment.
@@ -177,6 +177,13 @@ private:
      */
     static FormulaSet evaluate_literals(const FormulaSet& formulas,
                                         const Assignment& assignment);
+
+    /**
+     * @brief Check if a literal formula is satisfied in current state
+     * @param f Formula to check
+     * @return true if formula is satisfied
+     */
+    bool is_literal_satisfied(formula::Formula* f) const;
 
     FormulaSet formulas_;
     size_t hash_;
@@ -270,8 +277,16 @@ public:
 
     /**
      * @brief Check if a state is accepting
+     *
+     * For synthesis, a non-temporal state is accepting only if
+     * the system can satisfy all formulas using only output variables.
      */
-    bool is_accepting(TableauState* q) const {
+    bool is_accepting(TableauState* q) const;
+
+    /**
+     * @brief Check if a state is accepting (pure tableau, ignoring I/O)
+     */
+    bool is_tableau_accepting(TableauState* q) const {
         return q->is_accepting();
     }
 
@@ -282,7 +297,7 @@ public:
      * @param assignment Variable assignment
      * @return Next state (cached after first computation)
      */
-    TableauState* successor(TableauState* q, const Assignment& assignment);
+    TableauState* successor(TableauState* q, const Assignment& assignment) const;
 
     /**
      * @brief Get all states that have been expanded so far
@@ -302,8 +317,9 @@ public:
 
 private:
     formula::FormulaPool& pool_;
-    TableauStatePool state_pool_;
+    mutable TableauStatePool state_pool_;
     TableauState* initial_state_;
+    int num_outputs_;  // Number of output variables (for synthesis acceptance check)
 
     // Transition cache: (state, assignment) -> next_state
     using CacheKey = std::pair<TableauState*, Assignment>;
@@ -320,10 +336,18 @@ private:
         }
     };
 
-    std::unordered_map<CacheKey, TableauState*, CacheKeyHash, CacheKeyEqual> transition_cache_;
+    mutable std::unordered_map<CacheKey, TableauState*, CacheKeyHash, CacheKeyEqual> transition_cache_;
 
     // Set of states that have been expanded (successors computed)
-    std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual> expanded_states_;
+    mutable std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual> expanded_states_;
+
+    /**
+     * @brief Check if formula requires an input variable to be true
+     * @param f Formula to check
+     * @param num_outputs Number of output variables
+     * @return true if formula requires some input variable to be true
+     */
+    bool requires_input_true(formula::Formula* f, int num_outputs) const;
 };
 
 /**

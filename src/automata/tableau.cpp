@@ -92,7 +92,24 @@ bool literal_value(formula::Formula* f, const Assignment& assignment) {
 
 std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formula::FormulaPool& pool) {
     FormulaSet formulas;
-    formulas.insert(phi);
+
+    // Helper function to expand all subformulas
+    std::function<void(formula::Formula*)> expand = [&](formula::Formula* f) {
+        if (!f) return;
+
+        // Add this formula
+        formulas.insert(f);
+
+        // Recursively expand subformulas
+        if (f->left()) {
+            expand(f->left());
+        }
+        if (f->right()) {
+            expand(f->right());
+        }
+    };
+
+    expand(phi);
     return std::unique_ptr<TableauState>(new TableauState(std::move(formulas)));
 }
 
@@ -102,9 +119,23 @@ TableauState::TableauState(FormulaSet formulas)
 
 bool TableauState::is_locally_consistent() const {
     // Rule: false in state → inconsistent
+    // EXCEPT: when false is part of a Release formula (false R ψ)
+    // In LTLf, G(ψ) = (false R ψ), and false appears in the state
+    bool has_release_with_false = false;
     for (formula::Formula* f : formulas_) {
-        if (f && f->is_false()) {
-            return false;
+        if (f && f->op() == formula::Formula::OpType::Release) {
+            if (f->left() && f->left()->is_false()) {
+                has_release_with_false = true;
+                break;
+            }
+        }
+    }
+
+    if (!has_release_with_false) {
+        for (formula::Formula* f : formulas_) {
+            if (f && f->is_false()) {
+                return false;
+            }
         }
     }
 
@@ -193,16 +224,47 @@ bool TableauState::is_locally_consistent() const {
 }
 
 bool TableauState::is_accepting() const {
-    // Check for false
+    // Check for false (but NOT if it's part of a Release formula structure)
+    // In LTLf, G(p) = (false R p), which introduces false into the state
+    // This false is not an inconsistency - it's part of the Release semantics
+    bool has_release_with_false = false;
     for (formula::Formula* f : formulas_) {
-        if (f && f->is_false()) {
-            return false;
+        if (f && f->op() == formula::Formula::OpType::Release) {
+            if (f->left() && f->left()->is_false()) {
+                has_release_with_false = true;
+                break;
+            }
+        }
+    }
+
+    // Only reject false if it's NOT part of a Release structure
+    if (!has_release_with_false) {
+        for (formula::Formula* f : formulas_) {
+            if (f && f->is_false()) {
+                return false;
+            }
         }
     }
 
     // Check for local consistency - inconsistent states are not accepting
     if (!is_locally_consistent()) {
         return false;
+    }
+
+    // Check if state has only non-temporal formulas
+    // In LTLf, a state with no temporal obligations is accepting
+    // (system can satisfy it by choosing appropriate output)
+    bool has_temporal = false;
+    for (formula::Formula* f : formulas_) {
+        if (f && is_temporal(f)) {
+            has_temporal = true;
+            break;
+        }
+    }
+
+    if (!has_temporal) {
+        // No temporal obligations - this is a terminal accepting state
+        return true;
     }
 
     // Check Until formulas: in LTLf, all Until must have right side satisfied
@@ -217,7 +279,61 @@ bool TableauState::is_accepting() const {
         }
     }
 
+    // Check Release formulas: in LTLf, Release is satisfied if right side is true
+    // (ψ1 R ψ2) means "ψ2 holds now and ψ1 has held continuously"
+    // In finite traces, Release becomes true at the end if ψ2 is true
+    // So a state with only Release obligations (no Until/Next) where all
+    // Release right sides are satisfied is accepting
+    bool has_until_or_next = false;
+    for (formula::Formula* f : formulas_) {
+        if (f && (f->op() == formula::Formula::OpType::Until ||
+                  f->op() == formula::Formula::OpType::Next)) {
+            has_until_or_next = true;
+            break;
+        }
+    }
+
+    if (!has_until_or_next) {
+        // Only Release (and non-temporal) formulas remain
+        // Check if all Release right sides are satisfied
+        bool all_release_satisfied = true;
+        for (formula::Formula* f : formulas_) {
+            if (f && f->op() == formula::Formula::OpType::Release) {
+                formula::Formula* right = f->right();
+                if (right && right->is_true()) {
+                    // (ψ1 R true) is always satisfied
+                    continue;
+                }
+                // Check if right side is in state (satisfied)
+                if (formulas_.count(right) == 0 && !is_literal_satisfied(right)) {
+                    all_release_satisfied = false;
+                    break;
+                }
+            }
+        }
+        if (all_release_satisfied) {
+            // All Release obligations satisfied - accepting in LTLf
+            return true;
+        }
+    }
+
     return true;
+}
+
+// Helper: check if a literal is satisfied in current state
+bool TableauState::is_literal_satisfied(formula::Formula* f) const {
+    if (!f) return true;
+    if (f->op() == formula::Formula::OpType::Literal) {
+        return formulas_.count(f) > 0;
+    }
+    if (f->op() == formula::Formula::OpType::True) {
+        return true;
+    }
+    if (f->op() == formula::Formula::OpType::False) {
+        return false;
+    }
+    // For complex formulas, check if they're in the state
+    return formulas_.count(f) > 0;
 }
 
 std::vector<formula::Formula*> TableauState::get_old_formulas() const {
@@ -352,6 +468,15 @@ TableauState::next(const Assignment& assignment, formula::FormulaPool& pool) con
             if (!right_true) {
                 // ψ2 not true, keep (ψ1 U ψ2) for next iteration
                 next_formulas.insert(f);
+
+                // Extract temporal obligations from right side
+                // If right is X(ψ), we need to add ψ to the next state
+                if (right && right->op() == formula::Formula::OpType::Next) {
+                    // X(ψ) → ψ obligation for next state
+                    if (right->left()) {
+                        next_formulas.insert(right->left());
+                    }
+                }
             }
         }
     }
@@ -426,6 +551,7 @@ void TableauStatePool::clear() {
 
 OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
     : pool_(pool),
+      num_outputs_(pool.num_outputs()),
       transition_cache_(16, CacheKeyHash{}, CacheKeyEqual{}) {
     LOG_DEBUG("OnTheFlyDFA: constructing from formula: ", phi->to_string());
 
@@ -440,7 +566,105 @@ OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
     LOG_DEBUG("OnTheFlyDFA: initial state: ", initial_state_->to_string());
 }
 
-TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignment) {
+bool OnTheFlyDFA::is_accepting(TableauState* q) const {
+    // First check tableau-level acceptance (no false, local consistency)
+    if (!q->is_accepting()) {
+        return false;
+    }
+
+    // For non-temporal states, check if system can satisfy using only outputs
+    bool has_temporal = false;
+    for (formula::Formula* f : q->formulas()) {
+        if (f && TableauState::is_temporal(f)) {
+            has_temporal = true;
+            break;
+        }
+    }
+
+    if (!has_temporal) {
+        // Non-temporal state: check if system can satisfy all formulas
+        // A non-temporal state is accepting for synthesis if there exists
+        // an output assignment that satisfies all propositional formulas,
+        // regardless of input values.
+
+        // For now, use a simpler check:
+        // If the state contains any literal that is an input variable,
+        // the system cannot guarantee satisfaction (environment controls it).
+        for (formula::Formula* f : q->formulas()) {
+            if (!f) continue;
+
+            if (f->op() == formula::Formula::OpType::Literal) {
+                int var_id = f->var_id();
+                // If this literal is an input variable required to be true,
+                // system cannot guarantee it
+                if (var_id >= num_outputs_) {
+                    // Input variable found - system cannot guarantee satisfaction
+                    LOG_DEBUG("OnTheFlyDFA: non-temporal state has input literal v", var_id,
+                              " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
+                    return false;
+                }
+            } else if (f->op() == formula::Formula::OpType::Not) {
+                formula::Formula* child = f->left();
+                if (child && child->op() == formula::Formula::OpType::Literal) {
+                    // If !v where v is input, this is OK (system is OK with input being false)
+                    // But if v is output and we need !v, system can set it false - OK
+                }
+            }
+        }
+
+        // Also need to check And/Or formulas for input dependencies
+        // For simplicity: if there's any And that requires an input literal, fail
+        for (formula::Formula* f : q->formulas()) {
+            if (!f) continue;
+
+            if (f->op() == formula::Formula::OpType::And) {
+                // Check if any side of the And requires an input to be true
+                if (requires_input_true(f, num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: non-temporal state has And requiring input true");
+                    return false;
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+bool OnTheFlyDFA::requires_input_true(formula::Formula* f, int num_outputs) const {
+    if (!f) return false;
+
+    switch (f->op()) {
+    case formula::Formula::OpType::Literal:
+        // Positive literal that is an input
+        return f->var_id() >= num_outputs;
+
+    case formula::Formula::OpType::Not: {
+        formula::Formula* child = f->left();
+        if (child && child->op() == formula::Formula::OpType::Literal) {
+            // Negative literal !v - this doesn't require v to be true
+            return false;
+        }
+        return requires_input_true(child, num_outputs);
+    }
+
+    case formula::Formula::OpType::And:
+        // Both sides must be true, so check both
+        return requires_input_true(f->left(), num_outputs) ||
+               requires_input_true(f->right(), num_outputs);
+
+    case formula::Formula::OpType::Or:
+        // At least one side must be true
+        // Only problematic if BOTH sides require input
+        return requires_input_true(f->left(), num_outputs) &&
+               requires_input_true(f->right(), num_outputs);
+
+    default:
+        // Temporal operators don't appear in non-temporal states
+        return false;
+    }
+}
+
+TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignment) const {
     // Check cache
     auto key = std::make_pair(q, assignment);
     auto it = transition_cache_.find(key);
