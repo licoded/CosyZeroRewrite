@@ -37,8 +37,19 @@
 ### Added
 - file3
 
-### Deleted
-- file4
+## AI Analysis
+
+### 📝 Change Summary
+[AI 分析的改动摘要]
+
+### 🔍 Technical Details
+[关键技术细节]
+
+### 📊 Impact Analysis
+[影响分析，可能包含 mermaid 图表]
+
+### ⚠️ Notes
+[注意事项]
 
 ## Stats
 
@@ -46,6 +57,45 @@
 - Y insertions(+)
 - Z deletions(-)
 ```
+
+## AI 智能分析
+
+除了基础的 git 信息记录，CHANGELOG 还支持 **AI 深度分析**：
+
+### 工作流程
+
+```bash
+# 1. 正常提交代码
+git commit -m "feat: xxx"
+# → 基础 CHANGELOG 自动生成
+
+# 2. 让 Claude 分析代码改动
+make ai-changelog
+# → Claude 读取 diff，生成技术报告并追加到 CHANGELOG
+```
+
+### AI 分析内容
+
+| 改动规模 | 输出内容 |
+|---------|---------|
+| 小改动 (<50 行) | 简洁摘要 |
+| 中改动 (50-200 行) | 完整格式 + 技术细节 |
+| 大改动 (200+ 行) | 详细分析 + 代码示例 + 流程图 |
+
+### 流程图类型
+
+根据改动类型自动选择合适的 mermaid 图表：
+
+| 改动类型 | 图表类型 |
+|---------|---------|
+| 架构变更 | `graph TB`, `C4Context` |
+| 流程变更 | `flowchart TD` |
+| 类结构变更 | `classDiagram` |
+| 调用时序变更 | `sequenceDiagram` |
+
+### 示例
+
+参见 `00030_97e2f8f_correct_accepting_state_condit.md` 的 AI Analysis 部分，包含 Until 语义的流程图说明。
 
 ## 自动生成
 
