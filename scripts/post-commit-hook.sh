@@ -17,7 +17,8 @@ CHANGEGEN_SCRIPT="$PROJECT_ROOT/scripts/changelog.sh"
 SUBJECT=$(git log -1 --format=%s HEAD)
 
 # Skip if this is a CHANGELOG-only commit (prevents infinite loop)
-if [[ "$SUBJECT" =~ ^(docs:|chore:).*CHANGELOG ]] || [[ "$SUBJECT" =~ ^docs:\ add\ CHANGELOG\ for ]]; then
+# Matches: "docs: add CHANGELOG for..." or "docs: update CHANGELOG for..."
+if [[ "$SUBJECT" =~ ^docs:\ (add|update)\ CHANGELOG\ for ]] || [[ "$SUBJECT" =~ ^chore:\ (add|update)\ CHANGELOG\ for ]]; then
     echo "[CHANGELOG] Skipping CHANGELOG-only commit"
     exit 0
 fi
