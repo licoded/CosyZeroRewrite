@@ -9,6 +9,7 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+BLUE='\033[0;34m'
 
 # Project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,6 +33,24 @@ AUTHOR_NAME=$(git log -1 --format=%an "$COMMIT")
 AUTHOR_EMAIL=$(git log -1 --format=%ae "$COMMIT")
 DATE=$(git log -1 --format=%ci "$COMMIT")
 DATE_ONLY=$(git log -1 --format=%cd --date=short "$COMMIT")
+
+# Extract hour for time slot calculation
+HOUR=$(git log -1 --format=%ci "$COMMIT" | cut -d' ' -f2 | cut -d: -f1)
+HOUR=${HOUR#0}  # Remove leading zero
+
+# Determine time slot
+if [ "$HOUR" -lt 8 ]; then
+    TIME_SLOT="00-08"
+elif [ "$HOUR" -lt 16 ]; then
+    TIME_SLOT="08-16"
+else
+    TIME_SLOT="16-24"
+fi
+
+# Create directory path: CHANGELOG_DIR/YYYY-MM-DD/HH-HH/
+DATE_DIR="$CHANGELOG_DIR/$DATE_ONLY"
+SLOT_DIR="$DATE_DIR/$TIME_SLOT"
+mkdir -p "$SLOT_DIR"
 
 # Get commit message
 SUBJECT=$(git log -1 --format=%s "$COMMIT")
@@ -68,7 +87,7 @@ COUNTER_FMT=$(printf "%05d" "$((COUNTER + 1))")
 
 # Create filename (tentative)
 FILENAME="${COUNTER_FMT}_${HASH}_${DESC_CLEAN}.md"
-FILEPATH="$CHANGELOG_DIR/$FILENAME"
+FILEPATH="$SLOT_DIR/$FILENAME"
 
 # Check if file already exists - if so, skip entirely
 if [ -f "$FILEPATH" ]; then
@@ -83,7 +102,7 @@ COUNTER_FMT=$(printf "%05d" "$COUNTER")
 
 # Update filename with confirmed counter
 FILENAME="${COUNTER_FMT}_${HASH}_${DESC_CLEAN}.md"
-FILEPATH="$CHANGELOG_DIR/$FILENAME"
+FILEPATH="$SLOT_DIR/$FILENAME"
 
 # Get file changes
 CHANGES=$(git diff-tree --no-commit-id --name-status -r "$COMMIT" | sort)
@@ -161,4 +180,6 @@ echo -e "  ${GREEN}→ ${FILEPATH}${NC}"
 
 # Also print a summary
 echo ""
+echo -e "\n         ${BLUE}📁 ${DATE_ONLY}/${TIME_SLOT}${NC}"
+
 echo -e "Summary: ${YELLOW}[${COUNTER}]${NC} ${HASH} ${SUBJECT}"
