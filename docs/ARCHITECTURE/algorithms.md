@@ -135,6 +135,58 @@ X(φ) → v_next   (where v_next = next(φ))
 
 ---
 
+## 4. BMC (Bounded Model Checking) 实现
+
+### 4.1 增量检查策略
+
+**算法**: 时间展开 + 指数增量
+
+```
+bound = 2
+while (not proved && bound < max_bound) {
+    check_with_bound(bound)
+    if (timeout) break
+    bound *= 2  # 指数增长: 2, 4, 8, 16, ...
+}
+```
+
+**参数配置**:
+- **初始边界**: 2
+- **增长因子**: 2x (指数)
+- **默认乘数**: 8x (auto-detected bound × 8)
+- **单步超时**: min(timeout_ms / 4, 30000ms)
+
+### 4.2 时间估算
+
+**模型**: 幂律拟合 `time = c * bound^k`
+
+```cpp
+// 拟合参数
+double k = estimate_exponent(sample_times);  // 通常 k ≈ 1.5-2.5
+double c = fit_constant(sample_times, k);
+
+// 预测
+double predicted_time = c * pow(target_bound, k);
+```
+
+**用途**: 提前预估复杂公式的检查时间
+
+### 4.3 超时处理
+
+| 场景 | 处理方式 |
+|------|---------|
+| 单步超时 | 记录 PASS，日志记录详细 |
+| 整体超时 | 终止，返回 INCONCLUSIVE |
+| 超时日志 | `logs/timeouts_YYYYMMDD_HHMMSS.csv` |
+
+**超时日志格式**:
+```csv
+timestamp,formula1,formula2,bound,timeout_ms,elapsed_ms,result
+2026-01-02T02:30:00,"X(X(a U b))","X(X(a U b))",32,30000,1523,TIMEOUT
+```
+
+---
+
 ## 5. 优化方向
 
 ### 5.1 BDD 符号化

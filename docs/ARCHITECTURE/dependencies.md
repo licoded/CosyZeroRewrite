@@ -45,11 +45,23 @@ target_link_libraries(formula PRIVATE Z3::Z3)
 
 **当前状态**: 已内嵌 header-only 版本到 `include/spdlog/`
 
+**配置**:
+| 输出 | 级别 | 格式 | 说明 |
+|------|------|------|------|
+| 控制台 | INFO | 彩色 | 实时查看 |
+| 文件 | TRACE | 纯文本 | 详细追踪 |
+
+**文件日志**:
+- **目录**: `logs/formula_YYYYMMDD_HHMMSS.log`
+- **轮转**: 单文件最大 5MB，最多保留 3 个文件
+- **级别**: TRACE (最详细，包含所有 DEBUG/INFO)
+
 **使用**:
 ```cpp
 #include "spdlog/spdlog.h"
 LOG_INFO("Formula parsed: {}", formula_str);
 LOG_ERROR("Parse error: {}", error_msg);
+LOG_TRACE("Internal state: {}", debug_info);
 ```
 
 ### Catch2 (Testing)
