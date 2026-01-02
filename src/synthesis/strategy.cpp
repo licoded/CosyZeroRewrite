@@ -98,7 +98,7 @@ std::string Strategy::to_dot(const formula::FormulaPool& pool) const {
         // Create node label
         std::ostringstream label;
         label << state_id << "\\n";
-        label << "[" << StrategyExtractor::assignment_to_string(state.current_output, pool) << "]";
+        label << "[" << StrategyExtractor::assignment_to_string(state.system_chosen_output, pool) << "]";
         state_labels[state_id] = label.str();
 
         oss << "  \"" << state_id << "\" [label=\"" << label.str() << "\"];\n";

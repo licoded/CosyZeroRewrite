@@ -19,10 +19,10 @@ std::string GameState::to_string() const {
     std::ostringstream oss;
     oss << "{dfa=" << dfa_state << ", player="
         << (player == Player::System ? "Sys" : "Env");
-    if (!current_output.empty()) {
+    if (!system_chosen_output.empty()) {
         oss << ", out={";
         bool first = true;
-        for (int v : current_output) {
+        for (int v : system_chosen_output) {
             if (!first) oss << ",";
             oss << v;
             first = false;
@@ -246,7 +246,7 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
 
         for (const auto& in : inputs) {
             // Combine output and input into full assignment
-            automata::Assignment full = state.current_output;
+            automata::Assignment full = state.system_chosen_output;
 
             // Offset input variable IDs by number of outputs
             for (int v : in) {

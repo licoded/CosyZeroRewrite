@@ -303,7 +303,7 @@ flowchart TD
 │                      GameState                               │
 │  dfa_state: TableauState*                                  │
 │  player: System | Environment                              │
-│  current_output: Assignment (仅Environment回合有值)           │
+│  system_chosen_output: Assignment (仅Environment回合有值)           │
 │                                                             │
 │  successors: vector<GameState>                             │
 │    System回合: 后继是所有可能的 (环境选择输入后的DFA状态)     │
@@ -348,7 +348,7 @@ System 回合:
 
 Environment 回合:
   inputs_gen 生成所有输入赋值 (2^num_inputs 种)
-  合并 current_output + input → full_assignment
+  合并 system_chosen_output + input → full_assignment
   full_assignment → next DFA state
 ```
 
@@ -733,7 +733,7 @@ if (!dfa.is_accepting(state)) {
 struct GameState {
     TableauState* dfa_state;      // 底层的 DFA 状态
     Player player;                // 谁的回合？
-    Assignment current_output;    // Environment 回合需要记住 System 的输出
+    Assignment system_chosen_output;    // Environment 回合需要记住 System 的输出
 };
 ```
 
