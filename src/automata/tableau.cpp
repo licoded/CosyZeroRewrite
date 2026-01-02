@@ -94,26 +94,33 @@ bool literal_value(formula::Formula* f, const Assignment& assignment) {
 std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formula::FormulaPool& pool) {
     FormulaSet formulas;
 
-    // Helper function to expand all subformulas
-    // Note: For Not formulas, we don't expand the child - !v should only contain !v, not v
-    std::function<void(formula::Formula*)> expand = [&](formula::Formula* f) {
+    // XNF-based initial state construction:
+    // Only add the top-level components (direct children of And/Or)
+    // Don't recursively expand all subformulas
+    // Each component (including X(p1)) is treated as an independent "constraint"
+
+    std::function<void(formula::Formula*)> add_component = [&](formula::Formula* f) {
         if (!f) return;
 
-        // Add this formula
-        formulas.insert(f);
+        switch (f->op()) {
+            case formula::Formula::OpType::And:
+            case formula::Formula::OpType::Or:
+            case formula::Formula::OpType::Until:
+            case formula::Formula::OpType::Release:
+                // Binary operators: add both sides as components
+                if (f->left()) add_component(f->left());
+                if (f->right()) add_component(f->right());
+                break;
 
-        // Recursively expand subformulas, but NOT for Not
-        if (f->op() != formula::Formula::OpType::Not) {
-            if (f->left()) {
-                expand(f->left());
-            }
-            if (f->right()) {
-                expand(f->right());
-            }
+            default:
+                // Literals, Not, Next, True, False, End: add as-is
+                // These are the "atomic" components that won't be further decomposed
+                formulas.insert(f);
+                break;
         }
     };
 
-    expand(phi);
+    add_component(phi);
     return std::unique_ptr<TableauState>(new TableauState(std::move(formulas)));
 }
 
@@ -419,97 +426,97 @@ TableauState::evaluate_literals(const FormulaSet& formulas, const Assignment& as
 
 std::unique_ptr<TableauState>
 TableauState::next(const Assignment& assignment, formula::FormulaPool& pool, int num_outputs) const {
-    // Step 1: Evaluate literals against assignment
-    auto current_formulas = evaluate_literals(formulas_, assignment);
-
-    // Step 2: Build next state formula set
-    // Γ' = old(Γ) ∪ next(Γ)
+    // XNF-based next state computation:
+    // Each component in the current state is processed independently
+    // - Literals (p1, !p1): evaluate against assignment
+    // - Next(X(p1)): expand to p1 (for next state)
+    // - Until/Release: handle according to tableau rules
 
     FormulaSet next_formulas;
 
-    // Check if there are any temporal formulas (X, U, R)
-    // If not, this is a terminal state in LTLf - return empty next state
-    bool has_temporal = false;
-    for (formula::Formula* f : current_formulas) {
-        if (is_temporal(f)) {
-            has_temporal = true;
-            break;
-        }
-    }
+    // Process each formula in the current state
+    for (formula::Formula* f : formulas_) {
+        if (!f) continue;
 
-    if (!has_temporal) {
-        // Purely propositional state - terminal in LTLf
-        // Return empty state set to indicate no successors
-        // The game solver will handle this as a terminal state
-        return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
-    }
-
-    // Add old formulas (non-temporal)
-    for (formula::Formula* f : current_formulas) {
-        if (!is_temporal(f)) {
-            next_formulas.insert(f);
-        }
-    }
-
-    // Add next formulas (under Next, released by Release)
-    for (formula::Formula* f : current_formulas) {
-        if (f->op() == formula::Formula::OpType::Next) {
-            // ○ψ → ψ
-            if (f->left()) {
-                next_formulas.insert(f->left());
-            }
-        } else if (f->op() == formula::Formula::OpType::Release) {
-            // (ψ1 R ψ2) → ψ2 AND (ψ1 R ψ2) continues
-            // Release must keep both right side and the Release itself
-            if (f->right()) {
-                next_formulas.insert(f->right());
-            }
-            // Keep the Release formula for next iteration
-            next_formulas.insert(f);
-        }
-    }
-
-    // Until formulas are handled specially:
-    // (ψ1 U ψ2) in Γ means: either ψ2 is true (until satisfied), or ψ1 continues
-    for (formula::Formula* f : current_formulas) {
-        if (f->op() == formula::Formula::OpType::Until) {
-            formula::Formula* right = f->right();  // ψ2
-
-            // Check if right side is true
-            bool right_true = false;
-            bool right_is_input_literal = false;
-            if (is_literal(right)) {
-                right_true = literal_value(right, assignment);
-                // Check if this literal is an input variable (for synthesis)
-                if (right->op() == formula::Formula::OpType::Literal) {
-                    right_is_input_literal = right->var_id() >= num_outputs;
+        switch (f->op()) {
+            case formula::Formula::OpType::Literal: {
+                // p1: only keep if true in assignment
+                if (assignment.count(f->var_id()) > 0) {
+                    next_formulas.insert(f);
                 }
-            } else if (right && right->is_true()) {
-                right_true = true;
-            } else if (current_formulas.count(right) > 0 && !is_temporal(right)) {
-                // right is in current formulas (non-temporal)
-                right_true = true;
+                // If p1 is false, don't add to next state (constraint not satisfied)
+                break;
             }
 
-            if (!right_true) {
-                // ψ2 not true, keep (ψ1 U ψ2) for next iteration
-                next_formulas.insert(f);
+            case formula::Formula::OpType::Not: {
+                formula::Formula* child = f->left();
+                if (child && child->op() == formula::Formula::OpType::Literal) {
+                    // !p1: only keep if p1 is NOT in assignment
+                    if (assignment.count(child->var_id()) == 0) {
+                        next_formulas.insert(f);
+                    }
+                } else {
+                    // Keep non-literal negations as-is
+                    next_formulas.insert(f);
+                }
+                break;
+            }
 
-                // Extract temporal obligations from right side
-                // If right is X(ψ), we need to add ψ to the next state
-                if (right && right->op() == formula::Formula::OpType::Next) {
-                    // X(ψ) → ψ obligation for next state
-                    if (right->left()) {
+            case formula::Formula::OpType::Next: {
+                // X(p1) → p1 (unfolds to next state)
+                if (f->left()) {
+                    next_formulas.insert(f->left());
+                }
+                break;
+            }
+
+            case formula::Formula::OpType::Until: {
+                // p1 U p2: tableau rule
+                // - Either p2 is true (until satisfied)
+                // - Or (p1 U p2) continues
+                formula::Formula* right = f->right();
+
+                // Check if right side is true
+                bool right_true = false;
+                if (is_literal(right)) {
+                    right_true = literal_value(right, assignment);
+                } else if (right && right->is_true()) {
+                    right_true = true;
+                }
+
+                if (!right_true) {
+                    // p2 not true, keep (p1 U p2) for next iteration
+                    next_formulas.insert(f);
+
+                    // If right is X(psi), add psi to next state
+                    if (right && right->op() == formula::Formula::OpType::Next && right->left()) {
                         next_formulas.insert(right->left());
                     }
                 }
-            } else if (right_is_input_literal) {
-                // Until was "satisfied" by an input literal being true
-                // In synthesis, this is NOT a true satisfaction - system can't guarantee it
-                // Add false to mark this as a bad state
-                next_formulas.insert(pool.create_false());
+                // If right is true, until is satisfied - don't add Until to next state
+                break;
             }
+
+            case formula::Formula::OpType::Release: {
+                // p1 R p2: p2 must hold, and (p1 R p2) continues
+                // Add both p2 and (p1 R p2)
+                if (f->right()) {
+                    next_formulas.insert(f->right());
+                }
+                next_formulas.insert(f);
+                break;
+            }
+
+            default:
+                // True, False, End: keep as-is
+                next_formulas.insert(f);
+                break;
         }
+    }
+
+    // If no formulas remain, return empty state (terminal)
+    if (next_formulas.empty()) {
+        return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
     }
 
     return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
