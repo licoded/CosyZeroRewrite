@@ -205,14 +205,14 @@ bool TableauState::is_accepting() const {
         return false;
     }
 
-    // Check Until formulas: (ψ1 U ψ2) → ψ2 must eventually become true
+    // Check Until formulas: in LTLf, all Until must have right side satisfied
+    // If ψ1 U ψ2 is in state but ψ2 is not, the Until is still waiting
     for (formula::Formula* f : formulas_) {
         if (f && f->op() == formula::Formula::OpType::Until) {
-            formula::Formula* left = f->left();
             formula::Formula* right = f->right();
-            // Need either right in formulas OR left in formulas
-            if (formulas_.count(right) == 0 && formulas_.count(left) == 0) {
-                return false;
+            // If Until is still in state, right side must be satisfied
+            if (formulas_.count(right) == 0) {
+                return false;  // Until still waiting for right side
             }
         }
     }
