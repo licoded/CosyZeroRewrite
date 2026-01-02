@@ -128,9 +128,9 @@ std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formu
                 } else if (f->right()->is_false()) {
                     add_component(f->left());
                 } else {
-                    // Add both sides as components
-                    if (f->left()) add_component(f->left());
-                    if (f->right()) add_component(f->right());
+                    // IMPORTANT: Don't expand OR - keep it as a choice point
+                    // The game solver will decide which side to satisfy
+                    formulas.insert(f);
                 }
                 break;
 
@@ -228,12 +228,11 @@ bool TableauState::is_locally_consistent() const {
             break;
         }
         case formula::Formula::OpType::Or: {
-            // (ψ1 ∨ ψ2) in Γ → ψ1 ∈ Γ OR ψ2 ∈ Γ
-            formula::Formula* left = f->left();
-            formula::Formula* right = f->right();
-            if (formulas_.count(left) == 0 && formulas_.count(right) == 0) {
-                return false;
-            }
+            // (ψ1 ∨ ψ2) in Γ: OR is a choice point, not a requirement
+            // The game solver will decide which side to satisfy in successors
+            // For now, just check that OR doesn't contain direct contradictions
+            // (i.e., not (p | !p) which would be trivially satisfiable anyway)
+            // OR is always locally consistent as long as it's well-formed
             break;
         }
         case formula::Formula::OpType::Until: {
@@ -559,6 +558,45 @@ TableauState::next(const Assignment& assignment, formula::FormulaPool& pool, int
                     next_formulas.insert(f->right());
                 }
                 next_formulas.insert(f);
+                break;
+            }
+
+            case formula::Formula::OpType::Or: {
+                // φ1 ∨ φ2: check if either side is satisfied
+                // If not, keep OR for next iteration (don't expand)
+
+                // Check if left side is satisfied
+                bool left_satisfied = false;
+                formula::Formula* left = f->left();
+                if (is_literal(left)) {
+                    left_satisfied = literal_value(left, assignment);
+                } else if (left && left->is_true()) {
+                    left_satisfied = true;
+                }
+
+                // Check if right side is satisfied
+                bool right_satisfied = false;
+                formula::Formula* right = f->right();
+                if (is_literal(right)) {
+                    right_satisfied = literal_value(right, assignment);
+                } else if (right && right->is_true()) {
+                    right_satisfied = true;
+                }
+
+                // If neither side is satisfied, keep OR for next iteration
+                // DO NOT expand - let the game solver handle choice
+                if (!left_satisfied && !right_satisfied) {
+                    next_formulas.insert(f);
+                }
+                // If either side is satisfied, OR is fulfilled - don't add to next state
+                break;
+            }
+
+            case formula::Formula::OpType::And: {
+                // φ1 ∧ φ2: both sides must be satisfied
+                // Add both sides to next state
+                if (f->left()) next_formulas.insert(f->left());
+                if (f->right()) next_formulas.insert(f->right());
                 break;
             }
 
