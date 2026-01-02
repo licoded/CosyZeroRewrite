@@ -103,7 +103,10 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```bash
 git commit -m "feat: add new feature"
 # → 自动生成: docs/CHANGELOG/00004_abc123_add_new_feature.md
+# → 自动提交: docs: add CHANGELOG for abc123
 ```
+
+**防无限循环机制**：Hook 会检测 CHANGELOG-only 提交（commit message 包含 `CHANGELOG`），跳过再次生成，避免递归。
 
 ### 3.2 文件命名
 
