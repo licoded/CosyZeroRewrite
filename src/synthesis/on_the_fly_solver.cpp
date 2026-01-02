@@ -124,6 +124,9 @@ bool OnTheFlyGameSolver::is_realizable() {
                 // Classify all states in SCC
                 for (const auto& s : scc) {
                     classification_[s] = *cls;
+                    if (s == initial_state_) {
+                        LOG_DEBUG("OnTheFlyGameSolver: INITIAL STATE classified as ", to_string(*cls), " via SCC!");
+                    }
                 }
 
                 // Propagate backward
@@ -172,20 +175,29 @@ bool OnTheFlyGameSolver::is_realizable() {
             LOG_DEBUG("OnTheFlyGameSolver: all states expanded, classifying remaining as Ewin");
 
             // Classify all unclassified states as Ewin
+            int classified_count = 0;
             for (const auto& pair : successors_) {
                 const GameState& s = pair.first;
                 if (!classification_.count(s)) {
                     classification_[s] = StateClass::Ewin;
+                    classified_count++;
+                    if (s == initial_state_) {
+                        LOG_DEBUG("OnTheFlyGameSolver: INITIAL STATE classified as Ewin via terminal!");
+                    }
                 }
             }
+            LOG_DEBUG("OnTheFlyGameSolver: classified ", classified_count, " states as Ewin");
 
             // Final propagation
             propagate_classification();
+        } else {
+            LOG_DEBUG("OnTheFlyGameSolver: terminal condition NOT met: has_unexpanded=", has_unexpanded, " successors=", successors_.size());
         }
     }
 
     StateClass result = get_initial_classification();
     LOG_DEBUG("OnTheFlyGameSolver: final classification: ", to_string(result));
+    LOG_DEBUG("OnTheFlyGameSolver: is_realizable returning ", (result == StateClass::Swin ? "TRUE" : "FALSE"));
 
     return result == StateClass::Swin;
 }

@@ -572,6 +572,15 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
         return false;
     }
 
+    // For synthesis, empty states should NOT be accepting
+    // An empty state means "trace can end", but in synthesis with an adversary,
+    // this allows the environment to force the system into a winning position
+    // by making literals false (ending the trace early).
+    if (q->formulas().empty()) {
+        LOG_DEBUG("OnTheFlyDFA: empty state is NOT accepting for synthesis");
+        return false;
+    }
+
     // For non-temporal states, check if system can satisfy using only outputs
     bool has_temporal = false;
     for (formula::Formula* f : q->formulas()) {
@@ -581,7 +590,40 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
         }
     }
 
-    if (!has_temporal) {
+    if (has_temporal) {
+        // For temporal states, check if they depend on input variables
+        // If a temporal formula requires an input to be true, system cannot guarantee it
+        for (formula::Formula* f : q->formulas()) {
+            if (!f) continue;
+
+            // Check Release: φ R ψ requires ψ to be true until φ is true
+            // If ψ requires any input to be true, system can't guarantee it
+            if (f->op() == formula::Formula::OpType::Release && f->right()) {
+                if (requires_input_true(f->right(), num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal Release formula requires input true");
+                    return false;
+                }
+            }
+
+            // Check Until: φ U ψ requires ψ to eventually become true
+            // If ψ requires any input to be true, system can't guarantee it
+            if (f->op() == formula::Formula::OpType::Until && f->right()) {
+                if (requires_input_true(f->right(), num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal Until formula requires input true");
+                    return false;
+                }
+            }
+
+            // Check Next: X φ requires φ to be true in the next state
+            // If φ requires any input to be true, system can't guarantee it
+            if (f->op() == formula::Formula::OpType::Next && f->left()) {
+                if (requires_input_true(f->left(), num_outputs_)) {
+                    LOG_DEBUG("OnTheFlyDFA: temporal Next formula requires input true");
+                    return false;
+                }
+            }
+        }
+    } else {
         // Non-temporal state: check if system can satisfy all formulas
         // A non-temporal state is accepting for synthesis if there exists
         // an output assignment that satisfies all propositional formulas,
