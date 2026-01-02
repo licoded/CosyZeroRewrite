@@ -416,6 +416,43 @@ Cosy 对 `.part` 文件有严格的格式要求：
 Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ```
 
+**⚠️ 重要：CHANGELOG 占位符必须替换！**
+
+每次 git commit 后，系统会自动生成 CHANGELOG 文件（在 `docs/CHANGELOG/` 目录下）。
+**必须立即手动替换占位符**：
+
+```markdown
+## AI Analysis
+
+### 📝 Change Summary
+<!-- TODO: Add a brief summary of the change in Chinese or English -->
+```
+
+**替换为**（用中文或英文填写）：
+
+```markdown
+## AI Analysis
+
+### 📝 Change Summary
+这里用一两句话描述这次修改做了什么
+
+### 🔍 Technical Details
+- 关键技术点 1
+- 关键技术点 2
+
+### 📊 Impact Analysis
+- 影响范围/组件
+- 性能影响（如有）
+```
+
+**检查方法**：
+```bash
+# 查看 latest CHANGELOG
+ls -lt docs/CHANGELOG/2026-*/ | head -5
+# 打开最新文件，搜索 TODO
+grep -r "<!-- TODO:" docs/CHANGELOG/
+```
+
 详见: [提交规范](./docs/WORKFLOWS/commit_practice.md)
 
 ---

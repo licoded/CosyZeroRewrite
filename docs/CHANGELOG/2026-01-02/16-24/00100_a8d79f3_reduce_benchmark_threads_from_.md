@@ -15,13 +15,15 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+将 benchmark runner 的并发线程数从 8 降低到 6，以提高系统稳定性。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 修改 `tools/benchmark_runner.cpp` 中的 `NUM_THREADS` 常量
+- 6 线程是更好的系统资源平衡
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 降低系统负载，避免资源争抢
+- 提高长时间运行的稳定性
 
 ## Changes
 
