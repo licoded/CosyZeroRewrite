@@ -288,18 +288,18 @@ BenchmarkResult run_benchmark_with_timeout(
         formula_str = replace_implication(formula_str);
         result.formula = formula_str;
 
-        // Create pool and load partition
-        formula::FormulaPool pool;
+        // Create pool on heap with shared_ptr to keep it alive for detached threads
+        auto pool_ptr = std::make_shared<formula::FormulaPool>();
 
         if (fs::exists(part_path)) {
-            pool.load_from_partition(part_path.string());
+            pool_ptr->load_from_partition(part_path.string());
         } else {
             result.error_msg = "Cannot open .part file";
             return result;
         }
 
-        result.num_inputs = pool.num_inputs();
-        result.num_outputs = pool.num_outputs();
+        result.num_inputs = pool_ptr->num_inputs();
+        result.num_outputs = pool_ptr->num_outputs();
 
         // Get expected result
         std::string key = folder + "/" + filename;
@@ -312,7 +312,7 @@ BenchmarkResult run_benchmark_with_timeout(
         }
 
         // Parse formula
-        formula::FormulaParser parser(pool);
+        formula::FormulaParser parser(*pool_ptr);
         formula::Formula* phi = parser.parse(formula_str);
 
         if (!phi) {
@@ -321,27 +321,29 @@ BenchmarkResult run_benchmark_with_timeout(
         }
 
         // Run synthesis with timeout using thread (not async to avoid destructor blocking)
-        std::pair<bool, size_t> syn_result{false, 0};
-        std::atomic<bool> done{false};
+        // Use shared_ptr to keep pool, phi, syn_result, and done alive for detached threads
+        auto syn_result_ptr = std::make_shared<std::pair<bool, size_t>>(false, 0);
+        auto done_ptr = std::make_shared<std::atomic<bool>>(false);
         auto start = std::chrono::high_resolution_clock::now();
 
-        std::thread solver_thread([&]() {
-            synthesis::OnTheFlyGameSolver solver(phi, pool, pool.num_outputs(), pool.num_inputs());
-            syn_result.first = solver.is_realizable();
-            syn_result.second = solver.num_expanded_states();
-            done.store(true);
+        std::thread solver_thread([pool_ptr, phi, syn_result_ptr, done_ptr]() {
+            synthesis::OnTheFlyGameSolver solver(phi, *pool_ptr, pool_ptr->num_outputs(), pool_ptr->num_inputs());
+            syn_result_ptr->first = solver.is_realizable();
+            syn_result_ptr->second = solver.num_expanded_states();
+            done_ptr->store(true);
         });
 
         // Wait for result or timeout with minimal polling overhead
         auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
-        while (!done.load() && std::chrono::steady_clock::now() < deadline) {
+        while (!done_ptr->load() && std::chrono::steady_clock::now() < deadline) {
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
 
         auto end = std::chrono::high_resolution_clock::now();
 
-        if (!done.load()) {
+        if (!done_ptr->load()) {
             // Timeout - detach the thread and let it run in background
+            // shared_ptr will keep pool and results alive until thread completes
             solver_thread.detach();
             result.error_msg = "Timeout (> " + std::to_string(timeout_seconds) + "s)";
             result.success = false;
@@ -351,7 +353,7 @@ BenchmarkResult run_benchmark_with_timeout(
 
         // Task completed, join the thread
         solver_thread.join();
-        auto [realizable, states] = syn_result;
+        auto [realizable, states] = *syn_result_ptr;
 
         result.computed_realizable = realizable;
         result.matches = (result.expected_realizable == realizable);
