@@ -128,23 +128,22 @@ make
 ./formula_tests
 ```
 
-### 禁止事项
+---
 
-- 不要在单个 commit 中混合多个无关的修改
-- 不要提交调试代码或临时文件
-- 提交前必须运行 `make` 确保编译通过
-- 特殊情况（编译不通过但需提交）必须在 commit message 中说明原因
+## 快速链接
 
-### 提交流程
+| 内容 | 位置 |
+|------|------|
+| **设计文档** | `migrationDocs/formula_redesign/` |
+| **Tableau DFA** | `migrationDocs/on_the_fly_synthesis/TABLEAU_DFA.md` |
+| **待办事项** | `docs/TODO/` (按模块分类) |
+| **已知 Bug** | `docs/BUGS/open.md` |
+| **已修复 Bug** | `docs/BUGS/fixed.md` |
+| **示例公式** | `examples/` |
 
-1. 完成一个功能模块
-2. 运行 `make` 确保编译通过
-3. 运行相关测试确保通过
-4. `git add` 相关文件
-5. `git commit` 带清晰描述
-6. 继续下一个功能
+---
 
-## 待办事项
+## Git 提交规范
 
 ### 1. LTLf Synthesis 模块分析
 
@@ -254,56 +253,9 @@ make
 3. 符号化执行优化
 4. 策略提取和可视化
 
-### 2. 其他待办任务
+---
 
-- [ ] 添加集成测试
-- [ ] 添加性能基准测试
-- [ ] 完善文档和 Doxygen 注释
-- [ ] 记录设计决策到新文档文件夹
-
-### 3. 已知问题 (Bugs & Limitations)
-
-#### 解析器 Bug：单字符操作符优先级问题
-
-**位置**: `src/formula/formula_parser.cpp` tokenize() 函数
-
-**问题**: 词法分析器在读取字母时，优先匹配单字符操作符：
-- `r` → Release 操作符 (R)
-- `f` → Finally 操作符 (F)
-- `g` → Globally 操作符 (G)
-
-**影响**: 变量名以 `r`/`f`/`g` 开头会被错误解析：
-- `req` → 被解析为 `R` + `eq` (错误)
-- `fact` → 被解析为 `F` + `act` (错误)
-- `goal` → 被解析为 `G` + `oal` (错误)
-
-**临时解决方案**: 使用不以 `r`/`f`/`g` 开头的变量名：
-- `req` → `quest` / `request`
-- `fact` → `stmt` / `truth`
-- `goal` → `target` / `aim`
-
-**修复方案**: 修改 tokenize() 逻辑：
-```cpp
-// 当前 (错误):
-case 'r': token.type = TokenType::Release;
-
-// 修复后:
-case 'r':
-    // 先检查后面是否有字母（多字符标识符）
-    if (i+1 < input.size() && isalpha(input[i+1])) {
-        // 继续读取完整标识符，然后判断是否为 "r"
-    } else {
-        token.type = TokenType::Release;
-    }
-```
-
-**优先级**: 中等（影响用户体验，但有绕过方法）
-
-**相关文件**:
-- `src/formula/formula_parser.cpp:133-136`
-- `examples/response.ltlf` (使用 workaround)
-
-### 工作习惯
+## 工作习惯
 
 **重要：每次开始新任务前，必须先更新 TODO 列表**
 
@@ -320,7 +272,7 @@ case 'r':
 5. 继续下一个任务
 
 **Bug 记录原则**：
-- 发现 bug 后**立即记录**到 CLAUDE.md "已知问题" 部分
+- 发现 bug 后**立即记录**到 `docs/BUGS/open.md`
 - 必须包含：位置、问题描述、影响范围、临时解决方案、修复方案
 - 如果有临时 workaround，在相关代码中添加注释
-- 优先级标记：高/中/低
+- 修复后移动到 `docs/BUGS/fixed.md` 并记录修复方法
