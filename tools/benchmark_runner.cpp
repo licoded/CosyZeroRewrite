@@ -1,12 +1,16 @@
 /**
  * @file benchmark_runner.cpp
- * @brief SMv1000 benchmark runner for LTLf synthesis with progressive timeout
+ * @brief SMv1000 benchmark runner for LTLf synthesis with progressive timeout and multi-threading
  *
  * Strategy:
  *   1. First pass: 1 minute timeout per formula
  *   2. Report results, then retry timeouts with 3 minute timeout
  *   3. Report results, then retry remaining timeouts with 5 minute timeout
  *   4. Final report with all results
+ *
+ * Multi-threading:
+ *   - Uses 8 concurrent threads for parallel benchmark execution
+ *   - Thread-safe output and result collection
  *
  * Usage:
  *   ./benchmark_runner [benchmark_dir] [start] [end]
@@ -27,8 +31,13 @@
 #include <future>
 #include <thread>
 #include <mutex>
+#include <atomic>
+#include <condition_variable>
 
 namespace fs = std::filesystem;
+
+// Number of concurrent threads
+constexpr int NUM_THREADS = 8;
 
 //==============================================================================
 // Result Tracking
@@ -47,7 +56,8 @@ struct BenchmarkResult {
     size_t expanded_states;
     bool success;
     std::string error_msg;
-    int timeout_stage;  // 0=first pass, 1=3min retry, 2=5min retry, -1=not timed out
+    int timeout_stage;
+    int index;  // Original index for ordered output
 
     std::string to_csv() const {
         std::ostringstream oss;
@@ -67,13 +77,85 @@ struct BenchmarkResult {
     }
 };
 
-// Track pending retries
 struct PendingRetry {
     std::string folder;
     std::string filename;
     fs::path ltlf_path;
     fs::path part_path;
     int previous_stage;
+    int index;
+};
+
+// Thread-safe result container
+class ResultContainer {
+public:
+    void set_result(const std::string& key, const BenchmarkResult& result) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        results_[key] = result;
+    }
+
+    bool get_result(const std::string& key, BenchmarkResult& result) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = results_.find(key);
+        if (it != results_.end()) {
+            result = it->second;
+            return true;
+        }
+        return false;
+    }
+
+    std::vector<BenchmarkResult> get_all() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<BenchmarkResult> all;
+        all.reserve(results_.size());
+        for (const auto& [key, result] : results_) {
+            all.push_back(result);
+        }
+        return all;
+    }
+
+    size_t size() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return results_.size();
+    }
+
+    std::vector<std::pair<std::string, BenchmarkResult>> get_timeouts_at_stage(int stage) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<std::pair<std::string, BenchmarkResult>> timeouts;
+        for (const auto& [key, result] : results_) {
+            if (!result.success && result.timeout_stage == stage) {
+                timeouts.push_back({key, result});
+            }
+        }
+        return timeouts;
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::map<std::string, BenchmarkResult> results_;
+};
+
+// Thread-safe output
+class ThreadSafeOutput {
+public:
+    void print(const std::string& msg) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::cout << msg << std::endl;
+    }
+
+    std::ostream& stream() {
+        // For complex output, acquire the lock and return a locked stream wrapper
+        lock_ = std::make_unique<std::lock_guard<std::mutex>>(mutex_);
+        return std::cout;
+    }
+
+    void release() {
+        lock_.reset();
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::unique_ptr<std::lock_guard<std::mutex>> lock_;
 };
 
 //==============================================================================
@@ -183,13 +265,15 @@ BenchmarkResult run_benchmark_with_timeout(
     const fs::path& part_path,
     const std::map<std::string, bool>& expected_results,
     int timeout_seconds,
-    int stage
+    int stage,
+    int index
 ) {
     BenchmarkResult result;
     result.folder = folder;
     result.filename = filename;
     result.success = false;
     result.timeout_stage = stage;
+    result.index = index;
 
     try {
         // Read formula
@@ -236,26 +320,38 @@ BenchmarkResult run_benchmark_with_timeout(
             return result;
         }
 
-        // Run synthesis with timeout using async
-        auto task = std::async(std::launch::async, [&]() -> std::pair<bool, size_t> {
-            synthesis::OnTheFlyGameSolver solver(phi, pool, pool.num_outputs(), pool.num_inputs());
-            bool realizable = solver.is_realizable();
-            size_t states = solver.num_expanded_states();
-            return {realizable, states};
-        });
-
+        // Run synthesis with timeout using thread (not async to avoid destructor blocking)
+        std::pair<bool, size_t> syn_result{false, 0};
+        std::atomic<bool> done{false};
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Wait for result or timeout
-        if (task.wait_for(std::chrono::seconds(timeout_seconds)) == std::future_status::timeout) {
+        std::thread solver_thread([&]() {
+            synthesis::OnTheFlyGameSolver solver(phi, pool, pool.num_outputs(), pool.num_inputs());
+            syn_result.first = solver.is_realizable();
+            syn_result.second = solver.num_expanded_states();
+            done.store(true);
+        });
+
+        // Wait for result or timeout with minimal polling overhead
+        auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeout_seconds);
+        while (!done.load() && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+
+        auto end = std::chrono::high_resolution_clock::now();
+
+        if (!done.load()) {
+            // Timeout - detach the thread and let it run in background
+            solver_thread.detach();
             result.error_msg = "Timeout (> " + std::to_string(timeout_seconds) + "s)";
             result.success = false;
             result.time_ms = timeout_seconds * 1000.0;
             return result;
         }
 
-        auto end = std::chrono::high_resolution_clock::now();
-        auto [realizable, states] = task.get();
+        // Task completed, join the thread
+        solver_thread.join();
+        auto [realizable, states] = syn_result;
 
         result.computed_realizable = realizable;
         result.matches = (result.expected_realizable == realizable);
@@ -337,6 +433,97 @@ void write_summary(const std::vector<BenchmarkResult>& results, std::ostream& ou
 }
 
 //==============================================================================
+// Parallel Benchmark Execution
+//==============================================================================
+
+void run_stage_parallel(
+    const std::vector<PendingRetry>& pending,
+    const std::map<std::string, bool>& expected_results,
+    int timeout_seconds,
+    int stage,
+    ResultContainer& results,
+    std::ofstream& out_csv,
+    ThreadSafeOutput& output
+) {
+    std::atomic<int> completed(0);
+    std::atomic<int> passed(0);
+    std::atomic<int> failed(0);
+    std::atomic<int> timed_out(0);
+    const int total = static_cast<int>(pending.size());
+
+    // Process in batches
+    for (size_t batch_start = 0; batch_start < pending.size(); batch_start += NUM_THREADS) {
+        std::vector<std::future<BenchmarkResult>> futures;
+
+        // Create batch of futures
+        size_t batch_end = std::min(batch_start + NUM_THREADS, pending.size());
+        for (size_t i = batch_start; i < batch_end; ++i) {
+            const auto& p = pending[i];
+            std::string key = p.folder + "/" + p.filename;
+
+            // Capture by value to avoid dangling reference
+            futures.push_back(std::async(std::launch::async,
+                [folder = p.folder, filename = p.filename, ltlf_path = p.ltlf_path,
+                 part_path = p.part_path, idx = p.index,
+                 &expected_results, timeout_seconds, stage]() {
+                    return run_benchmark_with_timeout(
+                        folder, filename, ltlf_path, part_path,
+                        expected_results, timeout_seconds, stage, idx
+                    );
+                }));
+        }
+
+        // Wait for batch completion and collect results
+        for (size_t i = 0; i < futures.size(); ++i) {
+            size_t orig_idx = batch_start + i;
+            const auto& p = pending[orig_idx];
+            std::string key = p.folder + "/" + p.filename;
+
+            BenchmarkResult result = futures[i].get();
+            results.set_result(key, result);
+
+            int done = ++completed;
+            int current_stage_num = stage + 1;
+
+            if (result.success) {
+                out_csv << result.to_csv() << "\n";
+                out_csv.flush();
+
+                if (result.matches) {
+                    ++passed;
+                    std::ostringstream msg;
+                    msg << "[" << current_stage_num << "][" << done << "/" << total << "] "
+                        << p.folder << "/" << p.filename << ": "
+                        << (result.computed_realizable ? "R" : "U")
+                        << " (" << std::fixed << std::setprecision(1) << result.time_ms << " ms)";
+                    output.print(msg.str());
+                } else {
+                    ++failed;
+                    std::ostringstream msg;
+                    msg << "[" << current_stage_num << "][" << done << "/" << total << "] "
+                        << p.folder << "/" << p.filename << ": MISMATCH "
+                        << "(expected " << (result.expected_realizable ? "R" : "U")
+                        << ", got " << (result.computed_realizable ? "R" : "U") << ")";
+                    output.print(msg.str());
+                }
+            } else {
+                ++timed_out;
+                std::ostringstream msg;
+                msg << "[" << current_stage_num << "][" << done << "/" << total << "] "
+                    << p.folder << "/" << p.filename << ": TIMEOUT (" << result.error_msg << ")";
+                output.print(msg.str());
+            }
+        }
+    }
+
+    // Print batch summary
+    std::ostringstream summary;
+    summary << "Stage " << (stage + 1) << " completed: "
+            << passed << " passed, " << failed << " failed, " << timed_out << " timed out";
+    output.print(summary.str());
+}
+
+//==============================================================================
 // Main
 //==============================================================================
 
@@ -356,10 +543,11 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "========================================" << std::endl;
-    std::cout << "SMv1000 Benchmark Runner (Progressive)" << std::endl;
+    std::cout << "SMv1000 Benchmark Runner (Progressive + Multi-thread)" << std::endl;
     std::cout << "========================================" << std::endl;
     std::cout << "Benchmark directory: " << benchmark_dir << std::endl;
     std::cout << "Range: " << start_idx << " to " << end_idx << std::endl;
+    std::cout << "Threads: " << NUM_THREADS << std::endl;
     std::cout << "Timeout strategy: 1min -> 3min -> 5min" << std::endl;
     std::cout << "========================================" << std::endl;
 
@@ -396,9 +584,9 @@ int main(int argc, char* argv[]) {
     std::ofstream out_csv(output_csv);
     write_csv_header(out_csv);
 
-    // Results storage
-    std::vector<BenchmarkResult> all_results;
-    std::map<std::string, BenchmarkResult> results_map;  // Key: folder/filename
+    ResultContainer results;
+    ThreadSafeOutput output;
+    std::vector<PendingRetry> all_pending;
 
     // Progressive timeout stages
     std::vector<std::pair<int, const char*>> stages = {
@@ -423,26 +611,22 @@ int main(int argc, char* argv[]) {
                 const auto& [folder, ltlf_path] = files[i];
                 std::string filename = ltlf_path.stem().string();
                 fs::path part_path = ltlf_path.parent_path() / (filename + ".part");
-                pending.push_back({folder, filename, ltlf_path, part_path, -1});
+                pending.push_back({folder, filename, ltlf_path, part_path, -1, i});
+                all_pending.push_back({folder, filename, ltlf_path, part_path, -1, i});
             }
         } else {
             // Subsequent stages: only run previous timeouts
-            for (const auto& [folder, filename, ltlf_path, part_path, prev_stage] : pending) {
-                // Skip if already succeeded
-                std::string key = folder + "/" + filename;
-                if (results_map.count(key) > 0 && results_map[key].success) {
-                    continue;
-                }
-                pending.push_back({folder, filename, ltlf_path, part_path, prev_stage});
-            }
-            // Clear pending and rebuild from results_map
-            pending.clear();
-            for (const auto& [key, result] : results_map) {
-                if (!result.success && result.timeout_stage == stage_idx - 1) {
-                    // Re-add to pending with correct paths
-                    fs::path ltlf_path = benchmark_dir + "/" + result.folder + "/" + result.filename + ".ltlf";
-                    fs::path part_path = benchmark_dir + "/" + result.folder + "/" + result.filename + ".part";
-                    pending.push_back({result.folder, result.filename, ltlf_path, part_path, stage_idx - 1});
+            auto timeouts = results.get_timeouts_at_stage(stage_idx - 1);
+            for (const auto& [key, timeout_result] : timeouts) {
+                // Find the original pending entry
+                for (const auto& orig : all_pending) {
+                    std::string orig_key = orig.folder + "/" + orig.filename;
+                    if (orig_key == key) {
+                        fs::path ltlf_path = benchmark_dir + "/" + orig.folder + "/" + orig.filename + ".ltlf";
+                        fs::path part_path = benchmark_dir + "/" + orig.folder + "/" + orig.filename + ".part";
+                        pending.push_back({orig.folder, orig.filename, ltlf_path, part_path, stage_idx - 1, orig.index});
+                        break;
+                    }
                 }
             }
         }
@@ -452,40 +636,13 @@ int main(int argc, char* argv[]) {
             break;
         }
 
-        std::cout << "Running " << pending.size() << " benchmarks..." << std::endl;
+        std::cout << "Running " << pending.size() << " benchmarks (using " << NUM_THREADS << " threads)..." << std::endl;
 
-        // Run benchmarks for this stage
-        for (const auto& [folder, filename, ltlf_path, part_path, prev_stage] : pending) {
-            std::string key = folder + "/" + filename;
-            std::cout << "[" << stage_idx + 1 << "] " << folder << "/" << filename << "...";
-
-            auto result = run_benchmark_with_timeout(
-                folder, filename, ltlf_path, part_path,
-                expected_results, timeout_sec, stage_idx
-            );
-
-            // Update results
-            results_map[key] = result;
-
-            if (result.success) {
-                out_csv << result.to_csv() << "\n";
-                if (result.matches) {
-                    std::cout << " " << (result.computed_realizable ? "R" : "U")
-                             << " (" << std::fixed << std::setprecision(1) << result.time_ms << " ms)" << std::endl;
-                } else {
-                    std::cout << " MISMATCH (expected " << (result.expected_realizable ? "R" : "U")
-                             << ", got " << (result.computed_realizable ? "R" : "U") << ")" << std::endl;
-                }
-            } else {
-                std::cout << " TIMEOUT (" << result.error_msg << ")" << std::endl;
-            }
-        }
+        // Run benchmarks in parallel
+        run_stage_parallel(pending, expected_results, timeout_sec, stage_idx, results, out_csv, output);
 
         // Collect all results for summary
-        all_results.clear();
-        for (const auto& [key, result] : results_map) {
-            all_results.push_back(result);
-        }
+        auto all_results = results.get_all();
 
         // Write stage summary
         std::ostringstream stage_title;
@@ -496,10 +653,18 @@ int main(int argc, char* argv[]) {
     out_csv.close();
 
     // Final summary
+    auto final_results = results.get_all();
+
+    // Sort by index for ordered final summary
+    std::sort(final_results.begin(), final_results.end(),
+        [](const BenchmarkResult& a, const BenchmarkResult& b) {
+            return a.index < b.index;
+        });
+
     std::cout << "\n========================================" << std::endl;
     std::cout << "FINAL RESULTS" << std::endl;
     std::cout << "========================================\n";
-    write_summary(all_results, std::cout, "Final Summary (All Stages)");
+    write_summary(final_results, std::cout, "Final Summary (All Stages)");
     std::cout << "\nResults saved to: " << output_csv << std::endl;
 
     return 0;
