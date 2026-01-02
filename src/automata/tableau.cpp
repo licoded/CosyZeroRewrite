@@ -717,9 +717,30 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
     }
 
     // For non-temporal states, check if system can satisfy using only outputs
+    // Check if state has any temporal operators (including nested ones)
+    std::function<bool(formula::Formula*)> has_nested_temporal =
+        [&](formula::Formula* f) -> bool {
+        if (!f) return false;
+        if (TableauState::is_temporal(f)) return true;
+        // Recursively check children based on operator type
+        auto op = f->op();
+        if (op == formula::Formula::OpType::Not ||
+            op == formula::Formula::OpType::Next) {
+            return has_nested_temporal(f->left());
+        }
+        if (op == formula::Formula::OpType::And ||
+            op == formula::Formula::OpType::Or ||
+            op == formula::Formula::OpType::Until ||
+            op == formula::Formula::OpType::Release) {
+            return has_nested_temporal(f->left()) || has_nested_temporal(f->right());
+        }
+        // Literal, True, False don't have children
+        return false;
+    };
+
     bool has_temporal = false;
     for (formula::Formula* f : q->formulas()) {
-        if (f && TableauState::is_temporal(f)) {
+        if (f && has_nested_temporal(f)) {
             has_temporal = true;
             break;
         }
@@ -800,36 +821,125 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
         //
         // IMPORTANT: We need to be careful with OR formulas:
         // - For (A | B), we only reject if BOTH A and B require input
-        // - We should NOT recursively check both sides of OR
+        // - This includes BOTH "requires input true" AND "has !input"
         //
         // For nested temporal ops inside Next, we DO need to check them
         // because XNF transformation preserves the original Until/Release.
+
+        // Helper: check if formula has !input (negated input literal)
+        // Use std::function to allow recursive calls
+        std::function<bool(formula::Formula*)> has_negated_input_check =
+            [&](formula::Formula* formula) -> bool {
+            if (!formula) return false;
+
+            auto op = formula->op();
+
+            // Check !v where v is input
+            if (op == formula::Formula::OpType::Not) {
+                formula::Formula* child = formula->left();
+                if (child && child->op() == formula::Formula::OpType::Literal) {
+                    int var_id = child->var_id();
+                    if (var_id >= num_outputs_) {
+                        return true;
+                    }
+                }
+                // Also check recursively
+                return has_negated_input_check(child);
+            }
+
+            // For AND: check both sides
+            if (op == formula::Formula::OpType::And) {
+                return has_negated_input_check(formula->left()) ||
+                       has_negated_input_check(formula->right());
+            }
+
+            // For OR: don't check (handled by caller)
+            if (op == formula::Formula::OpType::Or) {
+                return false;
+            }
+
+            // For Until/Release: check both sides
+            if (op == formula::Formula::OpType::Until ||
+                op == formula::Formula::OpType::Release) {
+                if (has_negated_input_check(formula->left())) return true;
+                if (formula->right() && has_negated_input_check(formula->right())) return true;
+            }
+
+            // For Next: check inside
+            if (op == formula::Formula::OpType::Next) {
+                return has_negated_input_check(formula->left());
+            }
+
+            return false;
+        };
+
         std::function<bool(formula::Formula*)> check_temporal_dependencies =
             [&](formula::Formula* formula) -> bool {
                 if (!formula) return false;
 
                 auto op = formula->op();
 
-                // For OR: only problematic if BOTH sides require input
+                // For OR: check if BOTH sides have input dependencies
+                // (either "requires input true" OR "has !input")
                 if (op == formula::Formula::OpType::Or) {
+                    // Check left side
                     bool left_requires = check_temporal_dependencies(formula->left());
+                    bool left_has_negated = has_negated_input_check(formula->left());
+                    bool left_has_dep = left_requires || left_has_negated;
+
+                    // Check right side
                     bool right_requires = check_temporal_dependencies(formula->right());
-                    return left_requires && right_requires;
+                    bool right_has_negated = has_negated_input_check(formula->right());
+                    bool right_has_dep = right_requires || right_has_negated;
+
+                    // Only reject if BOTH sides have some input dependency
+                    return left_has_dep && right_has_dep;
                 }
 
                 // Check Until: φ U ψ requires ψ to eventually be true
-                if (op == formula::Formula::OpType::Until && formula->right()) {
-                    if (requires_input_true(formula->right(), num_outputs_)) {
-                        LOG_DEBUG("OnTheFlyDFA: temporal Until formula requires input true");
-                        return true;
+                // AND φ must be true until ψ is true
+                // So BOTH sides can have input dependencies
+                if (op == formula::Formula::OpType::Until) {
+                    // Check right side ψ
+                    if (formula->right()) {
+                        bool right_requires = requires_input_true(formula->right(), num_outputs_);
+                        bool right_has_negated = has_negated_input_check(formula->right());
+                        if (right_requires || right_has_negated) {
+                            LOG_DEBUG("OnTheFlyDFA: temporal Until right side has input dependency");
+                            return true;
+                        }
+                    }
+                    // Check left side φ (must be satisfied until ψ)
+                    if (formula->left()) {
+                        bool left_requires = requires_input_true(formula->left(), num_outputs_);
+                        bool left_has_negated = has_negated_input_check(formula->left());
+                        if (left_requires || left_has_negated) {
+                            LOG_DEBUG("OnTheFlyDFA: temporal Until left side has input dependency");
+                            return true;
+                        }
                     }
                 }
 
                 // Check Release: φ R ψ requires ψ to be true until φ is true
-                if (op == formula::Formula::OpType::Release && formula->right()) {
-                    if (requires_input_true(formula->right(), num_outputs_)) {
-                        LOG_DEBUG("OnTheFlyDFA: temporal Release formula requires input true");
-                        return true;
+                // So BOTH sides can have input dependencies
+                if (op == formula::Formula::OpType::Release) {
+                    // Check right side ψ
+                    if (formula->right()) {
+                        bool right_requires = requires_input_true(formula->right(), num_outputs_);
+                        bool right_has_negated = has_negated_input_check(formula->right());
+                        if (right_requires || right_has_negated) {
+                            LOG_DEBUG("OnTheFlyDFA: temporal Release right side has input dependency");
+                            return true;
+                        }
+                    }
+                    // Check left side φ
+                    if (formula->left()) {
+                        bool left_requires = requires_input_true(formula->left(), num_outputs_);
+                        bool left_has_negated = has_negated_input_check(formula->left());
+                        if (left_requires || left_has_negated) {
+                            LOG_DEBUG("OnTheFlyDFA: temporal Release left side has input dependency");
+                            return true;
+                        }
                     }
                 }
 
@@ -936,8 +1046,9 @@ bool OnTheFlyDFA::requires_input_true(formula::Formula* f, int num_outputs) cons
     case formula::Formula::OpType::Not: {
         formula::Formula* child = f->left();
         if (child && child->op() == formula::Formula::OpType::Literal) {
-            // Negative literal !v - this doesn't require v to be true
-            return false;
+            // Negative literal !v where v is an input
+            // This requires v to be false, which is also an input dependency
+            return child->var_id() >= num_outputs;
         }
         return requires_input_true(child, num_outputs);
     }
@@ -953,8 +1064,20 @@ bool OnTheFlyDFA::requires_input_true(formula::Formula* f, int num_outputs) cons
         return requires_input_true(f->left(), num_outputs) &&
                requires_input_true(f->right(), num_outputs);
 
+    case formula::Formula::OpType::Until:
+    case formula::Formula::OpType::Release:
+        // Check both sides for input dependencies
+        // Until: φ U ψ requires both φ (temporal obligation) and ψ (eventual truth)
+        // Release: φ R ψ requires both φ (release condition) and ψ (obligation until φ)
+        return requires_input_true(f->left(), num_outputs) ||
+               requires_input_true(f->right(), num_outputs);
+
+    case formula::Formula::OpType::Next:
+        // X φ - check inside
+        return requires_input_true(f->left(), num_outputs);
+
     default:
-        // Temporal operators don't appear in non-temporal states
+        // Unknown operator
         return false;
     }
 }

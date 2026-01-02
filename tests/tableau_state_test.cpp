@@ -240,7 +240,7 @@ TEST_CASE("TableauState: And with both operands is consistent",
     REQUIRE(state->is_locally_consistent());
 }
 
-TEST_CASE("TableauState: Or without either operand is NOT consistent",
+TEST_CASE("TableauState: Or without either operand IS consistent (choice point)",
           "[tableau][consistency]") {
     FormulaPool pool;
     pool.declare_variables({"p1", "p2"}, {});
@@ -250,9 +250,10 @@ TEST_CASE("TableauState: Or without either operand is NOT consistent",
     Formula* or_f = pool.create_or(p1, p2);
 
     // Only have the Or, not p1 or p2
+    // OR is a choice point - system can choose to satisfy either side later
     auto state = make_state(pool, {or_f});
 
-    REQUIRE_FALSE(state->is_locally_consistent());
+    REQUIRE(state->is_locally_consistent());
 }
 
 TEST_CASE("TableauState: Or with one operand is consistent",
