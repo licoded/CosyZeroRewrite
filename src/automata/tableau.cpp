@@ -739,10 +739,13 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
 
                     auto op = formula->op();
 
-                    // If top-level is OR, !input is NOT problematic
-                    // System can satisfy the other side
+                    // For OR: check if BOTH sides have !input (then it's problematic)
+                    // If only one side has !input, the other side might be satisfiable
                     if (op == formula::Formula::OpType::Or) {
-                        return false;
+                        bool left_has = has_negated_input(formula->left());
+                        bool right_has = has_negated_input(formula->right());
+                        // Only reject if BOTH sides have !input
+                        return left_has && right_has;
                     }
 
                     // If top-level is AND, check both sides
