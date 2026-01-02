@@ -232,6 +232,80 @@ TableauState (DFA 状态)
 
 详见: [TODO 管理流程](./docs/WORKFLOWS/todo_management.md)
 
+### ⚠️ 重要：测试流程规范（必须遵守！）
+
+**修改代码后的测试顺序**：
+
+1. **单元测试/自定义测试** - 先验证基本功能
+   ```bash
+   make test  # 运行所有单元测试
+   ```
+   - 确保所有单元测试通过
+   - 确保没有引入回归问题
+
+2. **小范围抽查** (20-50 个随机案例)
+   ```bash
+   ./build/benchmark_runner benchmarks/sm1000 1 50
+   ```
+   - 验证基本逻辑在大范围内的稳定性
+   - 发现问题立即修复，不要继续
+
+3. **全量 Benchmark** (1000 个案例)
+   ```bash
+   ./build/benchmark_runner benchmarks/sm1000 1 1000
+   ```
+   - 只有在前面阶段通过后才运行
+   - 避免浪费时间在明显有问题的代码上
+
+**重要提醒**：
+- ❌ **不要**修改代码后直接跑全量 benchmark
+- ❌ **不要**跳过单元测试直接跑 benchmark
+- ✅ **必须**按顺序：单元测试 → 小范围抽查 → 全量测试
+
+### ⚠️ 重要：Git 提交规范（修改代码后）
+
+**每次修改代码后的提交顺序**：
+
+1. **先提交代码**，再运行测试
+   ```bash
+   git add -A
+   git commit -m "..."
+   ```
+
+2. **然后按测试顺序运行测试**
+   - 单元测试 → 小范围抽查 → 全量 benchmark
+
+3. **如果测试发现问题**
+   - 修复问题
+   - 再次提交（小改动也要提交）
+   - 重新测试
+
+**原因**：
+- 每次提交都是一个可回退的快照
+- 便于理解每个改动的效果
+- 出问题时可以快速回滚到正确的版本
+
+**示例**：
+```bash
+# 1. 修改代码
+vim src/synthesis/xxx.cpp
+
+# 2. 编译
+cd build && make
+
+# 3. 先提交！
+git add -A && git commit -m "fix: xxx"
+
+# 4. 运行单元测试
+make test
+
+# 5. 小范围测试
+./build/benchmark_runner benchmarks/sm1000 1 50
+
+# 6. 全量测试（只有前面通过后）
+./build/benchmark_runner benchmarks/sm1000 1 1000
+```
+
 ### Bug 处理
 
 1. **记录**: `docs/BUGS/open.md`
