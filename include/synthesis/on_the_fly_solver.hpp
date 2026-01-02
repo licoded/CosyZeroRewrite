@@ -1,0 +1,274 @@
+/**
+ * @file on_the_fly_solver.hpp
+ * @brief On-the-fly game solver for LTLf synthesis
+ *
+ * Based on: arXiv:2408.07324 - "On-the-fly Synthesis for LTL over Finite Traces"
+ *
+ * The solver constructs the game graph on-demand and uses SCC decomposition
+ * to classify states as winning (Swin) or losing (Ewin) for the system.
+ */
+
+#ifndef SYNTHESIS_ON_THE_FLY_SOLVER_HPP
+#define SYNTHESIS_ON_THE_FLY_SOLVER_HPP
+
+#include "automata/tableau.hpp"
+#include "formula/formula_pool.hpp"
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+#include <functional>
+#include <optional>
+
+namespace synthesis {
+
+/**
+ * @brief Player in the synthesis game
+ */
+enum class Player {
+    System,      // System controls output variables
+    Environment  // Environment controls input variables
+};
+
+/**
+ * @brief Classification of game states
+ */
+enum class StateClass {
+    Unknown,  // Not yet classified
+    Swin,     // System winning (system can force a win)
+    Ewin,     // Environment winning (environment can force system loss)
+    Draw      // Not applicable for LTLf (finite traces)
+};
+
+/**
+ * @brief Convert StateClass to string
+ */
+inline const char* to_string(StateClass cls) {
+    switch (cls) {
+        case StateClass::Unknown: return "Unknown";
+        case StateClass::Swin: return "Swin";
+        case StateClass::Ewin: return "Ewin";
+        case StateClass::Draw: return "Draw";
+    }
+    return "?";
+}
+
+/**
+ * @brief Game state in the synthesis game
+ *
+ * A game state consists of:
+ * - DFA state (tableau state)
+ * - Player to move
+ * - Current output assignment (chosen by system, valid during environment's turn)
+ */
+struct GameState {
+    automata::TableauState* dfa_state;
+    Player player;
+
+    // For environment turn, track the output assignment chosen by system
+    automata::Assignment current_output;
+
+    // Default constructor (for uninitialized states)
+    GameState()
+        : dfa_state(nullptr), player(Player::System), current_output() {}
+
+    GameState(automata::TableauState* q, Player p,
+              const automata::Assignment& out = automata::Assignment())
+        : dfa_state(q), player(p), current_output(out) {}
+
+    bool operator==(const GameState& other) const {
+        return dfa_state == other.dfa_state &&
+               player == other.player &&
+               current_output == other.current_output;
+    }
+
+    bool operator!=(const GameState& other) const {
+        return !(*this == other);
+    }
+
+    std::string to_string() const;
+};
+
+/**
+ * @brief Hash function for GameState
+ */
+struct GameStateHash {
+    size_t operator()(const GameState& s) const {
+        size_t h = reinterpret_cast<size_t>(s.dfa_state);
+        h ^= (static_cast<size_t>(s.player) << 1);
+        // Hash the output assignment
+        for (int v : s.current_output) {
+            h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        }
+        return h;
+    }
+};
+
+/**
+ * @brief Equality function for GameState
+ */
+struct GameStateEqual {
+    bool operator()(const GameState& a, const GameState& b) const {
+        return a == b;
+    }
+};
+
+/**
+ * @brief On-the-fly game solver for LTLf synthesis
+ *
+ * Algorithm (from paper, Algorithm 2):
+ * 1. Start from initial state (DFA initial, system's turn)
+ * 2. Expand states on-demand, computing successors
+ * 3. Run SCC decomposition on current subgraph
+ * 4. Classify SCCs (Swin if contains accepting DFA state, Ewin otherwise)
+ * 5. Propagate classification backward
+ * 6. Early exit if initial state is classified
+ */
+class OnTheFlyGameSolver {
+public:
+    /**
+     * @brief Construct solver
+     * @param phi LTLf formula to synthesize
+     * @param pool Formula pool
+     * @param num_outputs Number of output variables
+     * @param num_inputs Number of input variables
+     */
+    OnTheFlyGameSolver(formula::Formula* phi,
+                       formula::FormulaPool& pool,
+                       int num_outputs,
+                       int num_inputs);
+
+    /**
+     * @brief Run the on-the-fly synthesis algorithm
+     * @return true if the formula is realizable
+     */
+    bool is_realizable();
+
+    /**
+     * @brief Get classification of a state
+     */
+    StateClass get_classification(const GameState& s) const {
+        auto it = classification_.find(s);
+        return it != classification_.end() ? it->second : StateClass::Unknown;
+    }
+
+    /**
+     * @brief Get number of expanded states
+     */
+    size_t num_expanded_states() const { return successors_.size(); }
+
+    /**
+     * @brief Get number of SCCs found
+     */
+    size_t num_sccs_found() const { return num_sccs_found_; }
+
+    /**
+     * @brief Get the DFA
+     */
+    const automata::OnTheFlyDFA& dfa() const { return dfa_; }
+
+private:
+    // Formula and pool
+    formula::FormulaPool& pool_;
+    formula::Formula* original_formula_;
+
+    // DFA and assignment generation
+    automata::OnTheFlyDFA dfa_;
+    automata::AssignmentGenerator output_gen_;
+    automata::AssignmentGenerator input_gen_;
+
+    // Game state classification
+    std::unordered_map<GameState, StateClass, GameStateHash, GameStateEqual> classification_;
+
+    // Successor map: state -> list of successors
+    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual> successors_;
+
+    // Worklist for expansion
+    std::vector<GameState> worklist_;
+
+    // Visited states (for expansion tracking)
+    std::unordered_set<GameState, GameStateHash, GameStateEqual> expanded_;
+
+    // Statistics
+    size_t num_sccs_found_;
+
+    // Initial state
+    GameState initial_state_;
+
+    /**
+     * @brief Expand a game state (compute successors)
+     */
+    void expand_state(const GameState& state);
+
+    /**
+     * @brief Get successors of a state (computes if not cached)
+     */
+    const std::vector<GameState>& get_successors(const GameState& state);
+
+    /**
+     * @brief Run Tarjan SCC algorithm on current graph
+     * @return List of SCCs (each is a list of game states)
+     */
+    std::vector<std::vector<GameState>> find_sccs();
+
+    /**
+     * @brief Try to classify an SCC
+     * @return Classification if determined, nullopt otherwise
+     */
+    std::optional<StateClass> try_classify_scc(const std::vector<GameState>& scc);
+
+    /**
+     * @brief Propagate classification backward from classified states
+     * @return true if initial state became classified
+     */
+    bool propagate_classification();
+
+    /**
+     * @brief Check if initial state is classified
+     */
+    bool is_initial_classified() const {
+        auto it = classification_.find(initial_state_);
+        return it != classification_.end();
+    }
+
+    /**
+     * @brief Get initial state classification
+     */
+    StateClass get_initial_classification() const {
+        auto it = classification_.find(initial_state_);
+        return it != classification_.end() ? it->second : StateClass::Unknown;
+    }
+
+    /**
+     * @brief Create system turn state
+     */
+    GameState system_state(automata::TableauState* q) {
+        return GameState(q, Player::System);
+    }
+
+    /**
+     * @brief Create environment turn state with output
+     */
+    GameState environment_state(automata::TableauState* q,
+                                const automata::Assignment& out) {
+        return GameState(q, Player::Environment, out);
+    }
+
+    /**
+     * @brief Count variables in formula
+     */
+    static int count_variables(formula::Formula* phi);
+};
+
+/**
+ * @brief Convenience function: check if formula is realizable using on-the-fly solver
+ *
+ * @param phi LTLf formula
+ * @param pool Formula pool (must have variables declared)
+ * @return true if realizable
+ */
+bool is_realizable_on_the_fly(formula::Formula* phi,
+                              formula::FormulaPool& pool);
+
+} // namespace synthesis
+
+#endif // SYNTHESIS_ON_THE_FLY_SOLVER_HPP
