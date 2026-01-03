@@ -24,13 +24,25 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+
+修复 FormulaParser 对运算符的大小写敏感性，现在只有大写的 X, U, R, F, G 被识别为 LTL 时序运算符，小写字母可以用作变量名。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+
+**问题根因**: 原词法分析器将小写 'x', 'u', 'r', 'f', 'g' 也识别为运算符，导致无法使用这些字母作为变量名。
+
+**修改位置**: `src/formula/formula_parser.cpp:tokenize()`
+
+**关键改动**:
+1. 单字符运算符 case 只保留大写 X 和 U
+2. 移除 'r', 'f', 'g' 的小写分支，只保留大写
+3. 移除关键字比较的 tolower() 转换，直接比较 "F" 和 "G"
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+
+- **影响范围**: 所有使用 FormulaParser 的公式解析
+- **测试覆盖**: prop_atoms_test 新增 3 个 parser 集成测试
+- **兼容性**: 现有公式使用大写运算符，无破坏性变更
 
 ## Changes
 
