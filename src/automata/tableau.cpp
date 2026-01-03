@@ -965,7 +965,7 @@ bool OnTheFlyDFA::is_accepting(TableauState* q) const {
                 // - If ψ (right side) has input dependencies → reject (can't guarantee ψ)
                 // - If φ (left side) has input dependencies but ψ doesn't → OK (system can keep ψ forever)
                 if (op == formula::Formula::OpType::Release) {
-                    // First, check right side ψ
+                    // Check right side ψ
                     // If ψ has input dependencies, the system can't guarantee it stays true
                     if (formula->right()) {
                         bool right_requires = requires_input_true(formula->right(), num_outputs_);
