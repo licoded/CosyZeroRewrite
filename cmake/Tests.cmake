@@ -83,7 +83,6 @@ endif()
 if(BUILD_TESTS)
     add_cosy_test(nnf_test transformation tests/transformation/nnf.cpp)
     add_cosy_test(xnf_test transformation tests/transformation/xnf.cpp)
-    add_cosy_test(next_test transformation tests/transformation/next.cpp)
 endif()
 
 # ============================================================================
@@ -92,6 +91,7 @@ endif()
 if(BUILD_TESTS)
     add_cosy_test(dfa_test automata tests/automata/dfa.cpp)
     add_cosy_test(tarjan_test automata tests/automata/tarjan.cpp)
+    add_cosy_test(progression_test automata tests/automata/progression.cpp)
 endif()
 
 # ============================================================================
@@ -157,11 +157,11 @@ if(BUILD_TESTS)
     # Transformation tests
     add_test(NAME nnf_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/nnf_test)
     add_test(NAME xnf_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/xnf_test)
-    add_test(NAME next_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/next_test)
 
     # Automata tests
     add_test(NAME dfa_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/dfa_test)
     add_test(NAME tarjan_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/tarjan_test)
+    add_test(NAME progression_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/progression_test)
 
     # Synthesis tests
     add_test(NAME synthesis_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/synthesis_test)
@@ -173,8 +173,8 @@ if(BUILD_TESTS)
     message(STATUS "=== Test Structure ===")
     message(STATUS "  tests/formula/     - formula_test, transformation_test")
     message(STATUS "  tests/parser/      - parser_test")
-    message(STATUS "  tests/transformation/ - nnf_test, xnf_test, next_test")
-    message(STATUS "  tests/automata/    - dfa_test, tarjan_test")
+    message(STATUS "  tests/transformation/ - nnf_test, xnf_test")
+    message(STATUS "  tests/automata/    - dfa_test, tarjan_test, progression_test")
     message(STATUS "  tests/synthesis/   - synthesis_test, on_the_fly_test")
     message(STATUS "  tests/integration/ - prop_atoms_test, io_separation_test, strategy_test")
     message(STATUS "  tests/fuzz/        - nnf_fuzz, xnf_fuzz, random_fuzz")
