@@ -61,6 +61,12 @@ if(BUILD_TESTS)
     target_link_libraries(xnf_tests PRIVATE formula catch2)
 
     # ============================================================
+    # Propositional Atoms (compute_prop_atoms) tests
+    # ============================================================
+    add_executable(prop_atoms_test tests/prop_atoms_test.cpp)
+    target_link_libraries(prop_atoms_test PRIVATE formula catch2)
+
+    # ============================================================
     # Next operator tests
     # ============================================================
     add_executable(next_tests tests/next_tests.cpp)
@@ -120,6 +126,7 @@ if(BUILD_TESTS)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
         target_compile_options(nnf_tests PRIVATE /W4)
         target_compile_options(xnf_tests PRIVATE /W4)
+        target_compile_options(prop_atoms_test PRIVATE /W4)
         target_compile_options(next_tests PRIVATE /W4)
         target_compile_options(nnf_fuzz_test PRIVATE /W4)
         target_compile_options(xnf_fuzz_test PRIVATE /W4)
@@ -136,6 +143,7 @@ if(BUILD_TESTS)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(nnf_tests PRIVATE -Wno-sign-compare)
         target_compile_options(xnf_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(prop_atoms_test PRIVATE -Wno-sign-compare)
         target_compile_options(next_tests PRIVATE -Wno-sign-compare)
         target_compile_options(nnf_fuzz_test PRIVATE -Wno-sign-compare)
         target_compile_options(xnf_fuzz_test PRIVATE -Wno-sign-compare)

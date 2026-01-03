@@ -139,19 +139,6 @@ public:
      */
     static bool is_temporal(formula::Formula* f);
 
-    // Friend declarations for pool access
-    friend class TableauStatePool;
-    friend class OnTheFlyDFA;
-
-private:
-    /**
-     * @brief Private constructor - use initial() or next() factory methods
-     * @param phi Original formula
-     * @param xnf_phi XNF form of phi
-     * @param prop_atoms PA(xnf_phi) - propositional atoms
-     */
-    TableauState(formula::Formula* phi, formula::Formula* xnf_phi, FormulaSet prop_atoms);
-
     /**
      * @brief Compute PA(φ) - Propositional Atoms
      *
@@ -165,6 +152,19 @@ private:
      * @param result Output set for accumulated atoms
      */
     static void compute_prop_atoms(formula::Formula* phi, FormulaSet& result);
+
+    // Friend declarations for pool access
+    friend class TableauStatePool;
+    friend class OnTheFlyDFA;
+
+private:
+    /**
+     * @brief Private constructor - use initial() or next() factory methods
+     * @param phi Original formula
+     * @param xnf_phi XNF form of phi
+     * @param prop_atoms PA(xnf_phi) - propositional atoms
+     */
+    TableauState(formula::Formula* phi, formula::Formula* xnf_phi, FormulaSet prop_atoms);
 
     formula::Formula* phi_;        // Original formula (used for hash and empty-string check)
     formula::Formula* xnf_phi_;    // XNF form (used for formula progression)
