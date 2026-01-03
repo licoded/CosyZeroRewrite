@@ -15,22 +15,66 @@
 using namespace formula;
 using namespace synthesis;
 
-// Simple test framework
+// Simple test framework with better output
 #define TEST(name) void test_##name()
+
+static int total_tests = 0;
+static int passed_tests = 0;
+static int skipped_tests = 0;
+static const char* current_test_name = nullptr;
+static std::string current_formula_str;
+
+// Helper to start a test
+#define TEST_START(name, formula) do { \
+    current_test_name = #name; \
+    total_tests++; \
+    std::cout << "[" << total_tests << "] TEST: " << #name << std::endl; \
+    std::cout << "  Formula: " << (formula) << std::endl; \
+} while(0)
+
+// Helper to end a test (passed)
+#define TEST_PASS() do { \
+    passed_tests++; \
+    std::cout << "  Result: PASS" << std::endl; \
+    std::cout << std::endl; \
+} while(0)
+
+// Helper to skip a test
+#define TEST_SKIP(reason) do { \
+    skipped_tests++; \
+    std::cout << "  Result: SKIP - " << reason << std::endl; \
+    std::cout << std::endl; \
+} while(0)
 
 static bool test_assertion_failed = false;
 
 #define ASSERT_TRUE(cond) do { \
     if (!(cond)) { \
-        std::cerr << "FAILED: " << #cond << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
+        std::cerr << "  Result: FAIL" << std::endl; \
+        std::cerr << "    Expected: true" << std::endl; \
+        std::cerr << "    Got: " << (#cond) << " = false" << std::endl; \
         test_assertion_failed = true; \
         return; \
     } \
 } while(0)
-#define ASSERT_FALSE(cond) ASSERT_TRUE(!(cond))
+
+#define ASSERT_FALSE(cond) do { \
+    if ((cond)) { \
+        std::cerr << "  Result: FAIL" << std::endl; \
+        std::cerr << "    Expected: false" << std::endl; \
+        std::cerr << "    Got: " << (#cond) << " = true" << std::endl; \
+        test_assertion_failed = true; \
+        return; \
+    } \
+} while(0)
+
 #define ASSERT_EQ(a, b) do { \
-    if ((a) != (b)) { \
-        std::cerr << "FAILED: " << #a << " == " << #b << " (" << (a) << " vs " << (b) << ") at " << __FILE__ << ":" << __LINE__ << std::endl; \
+    auto av = (a); \
+    auto bv = (b); \
+    if (av != bv) { \
+        std::cerr << "  Result: FAIL" << std::endl; \
+        std::cerr << "    Expected: " << #b << " = " << bv << std::endl; \
+        std::cerr << "    Got: " << #a << " = " << av << std::endl; \
         test_assertion_failed = true; \
         return; \
     } \
@@ -55,27 +99,30 @@ TEST(true_formula) {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* phi = pool.create_true();
+    TEST_START(true_formula, "true");
     bool result = is_realizable_on_the_fly(phi, pool);
     ASSERT_TRUE(result);
-    std::cout << "PASS: true_formula" << std::endl;
+    TEST_PASS();
 }
 
 TEST(false_formula) {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* phi = pool.create_false();
+    TEST_START(false_formula, "false");
     bool result = is_realizable_on_the_fly(phi, pool);
     ASSERT_FALSE(result);
-    std::cout << "PASS: false_formula" << std::endl;
+    TEST_PASS();
 }
 
 TEST(single_literal) {
     FormulaPool pool;
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
+    TEST_START(single_literal, "p1");
     bool result = is_realizable_on_the_fly(p1, pool);
     ASSERT_TRUE(result);  // p1 is realizable (system sets p1 = true)
-    std::cout << "PASS: single_literal" << std::endl;
+    TEST_PASS();
 }
 
 TEST(not_literal) {
@@ -83,9 +130,10 @@ TEST(not_literal) {
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
     Formula* not_p1 = pool.create_not(p1);
+    TEST_START(not_literal, "!p1");
     bool result = is_realizable_on_the_fly(not_p1, pool);
     ASSERT_TRUE(result);  // !p1 is realizable (system sets p1 = false)
-    std::cout << "PASS: not_literal" << std::endl;
+    TEST_PASS();
 }
 
 //==============================================================================
@@ -97,9 +145,10 @@ TEST(next_literal) {
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
     Formula* next_p1 = pool.create_next(p1);
+    TEST_START(next_literal, "X p1");
     bool result = is_realizable_on_the_fly(next_p1, pool);
     ASSERT_TRUE(result);  // X p1 is realizable
-    std::cout << "PASS: next_literal" << std::endl;
+    TEST_PASS();
 }
 
 TEST(eventually_literal) {
@@ -109,9 +158,10 @@ TEST(eventually_literal) {
     Formula* p1 = pool.create_variable("p1");
     Formula* true_f = pool.create_true();
     Formula* fp1 = pool.create_until(true_f, p1);
+    TEST_START(eventually_literal, "F p1 (true U p1)");
     bool result = is_realizable_on_the_fly(fp1, pool);
     ASSERT_TRUE(result);  // F p1 is realizable (eventually set p1 = true)
-    std::cout << "PASS: eventually_literal" << std::endl;
+    TEST_PASS();
 }
 
 TEST(always_literal) {
@@ -121,9 +171,10 @@ TEST(always_literal) {
     Formula* p1 = pool.create_variable("p1");
     Formula* false_f = pool.create_false();
     Formula* gp1 = pool.create_release(false_f, p1);
+    TEST_START(always_literal, "G p1 (false R p1)");
     bool result = is_realizable_on_the_fly(gp1, pool);
     ASSERT_TRUE(result);  // G p1 is realizable (always set p1 = true)
-    std::cout << "PASS: always_literal" << std::endl;
+    TEST_PASS();
 }
 
 TEST(until_formula) {
@@ -133,9 +184,10 @@ TEST(until_formula) {
     Formula* p1 = pool.create_variable("p1");
     Formula* p2 = pool.create_variable("p2");
     Formula* until = pool.create_until(p1, p2);
+    TEST_START(until_formula, "p1 U p2");
     bool result = is_realizable_on_the_fly(until, pool);
     ASSERT_TRUE(result);  // p1 U p2 is realizable
-    std::cout << "PASS: until_formula" << std::endl;
+    TEST_PASS();
 }
 
 //==============================================================================
@@ -149,9 +201,10 @@ TEST(contradiction) {
     Formula* p1 = pool.create_variable("p1");
     Formula* not_p1 = pool.create_not(p1);
     Formula* and_f = pool.create_and(p1, not_p1);
+    TEST_START(contradiction, "p1 & !p1");
     bool result = is_realizable_on_the_fly(and_f, pool);
     ASSERT_FALSE(result);  // Contradiction is unrealizable
-    std::cout << "PASS: contradiction" << std::endl;
+    TEST_PASS();
 }
 
 TEST(eventually_contradiction) {
@@ -163,9 +216,10 @@ TEST(eventually_contradiction) {
     Formula* and_f = pool.create_and(p1, not_p1);
     Formula* true_f = pool.create_true();
     Formula* fand = pool.create_until(true_f, and_f);
+    TEST_START(eventually_contradiction, "F (p1 & !p1)");
     bool result = is_realizable_on_the_fly(fand, pool);
     ASSERT_FALSE(result);  // Eventually impossible is unrealizable
-    std::cout << "PASS: eventually_contradiction" << std::endl;
+    TEST_PASS();
 }
 
 //==============================================================================
@@ -183,9 +237,10 @@ TEST(response_formula) {
     // (!req) U ack
     Formula* not_req = pool.create_not(req);
     Formula* response = pool.create_until(not_req, ack);
+    TEST_START(response_formula, "(!req) U ack");
     bool result = is_realizable_on_the_fly(response, pool);
     ASSERT_TRUE(result);
-    std::cout << "PASS: response_formula" << std::endl;
+    TEST_PASS();
 }
 
 TEST(sequence) {
@@ -199,10 +254,8 @@ TEST(sequence) {
     Formula* p2 = pool.create_variable("p2");
     Formula* next_p2 = pool.create_next(p2);
     Formula* seq = pool.create_and(p1, next_p2);
-    bool result = is_realizable_on_the_fly(seq, pool);
-    // ASSERT_TRUE(result);  // TODO: Fix this
-    (void)result;  // Suppress unused warning
-    std::cout << "SKIP: sequence (known issue)" << std::endl;
+    TEST_START(sequence, "p1 & X p2");
+    TEST_SKIP("known issue with SCC classification");
 }
 
 //==============================================================================
@@ -270,19 +323,13 @@ int main() {
     std::cout << "========================================" << std::endl;
     std::cout << "On-the-Fly Synthesis Tests" << std::endl;
     std::cout << "========================================" << std::endl;
-
-    int passed = 0;
-    int total = 0;
+    std::cout << std::endl;
 
     // Run all tests
     #define RUN_TEST(name) do { \
-        total++; \
         test_assertion_failed = false; \
         try { \
             test_##name(); \
-            if (!test_assertion_failed) { \
-                passed++; \
-            } \
         } catch (...) { \
             std::cerr << "EXCEPTION in test_" << #name << std::endl; \
         } \
@@ -307,8 +354,13 @@ int main() {
     // RUN_TEST(compare_with_existing_until);
 
     std::cout << "========================================" << std::endl;
-    std::cout << "Results: " << passed << "/" << total << " tests passed" << std::endl;
+    std::cout << "Summary" << std::endl;
+    std::cout << "========================================" << std::endl;
+    std::cout << "Total:   " << total_tests << std::endl;
+    std::cout << "Passed:  " << passed_tests << std::endl;
+    std::cout << "Skipped: " << skipped_tests << std::endl;
+    std::cout << "Failed:  " << (total_tests - passed_tests - skipped_tests) << std::endl;
     std::cout << "========================================" << std::endl;
 
-    return (passed == total) ? 0 : 1;
+    return ((total_tests - passed_tests - skipped_tests) == 0) ? 0 : 1;
 }
