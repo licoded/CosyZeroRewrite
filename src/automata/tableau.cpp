@@ -21,7 +21,7 @@ namespace {
 
     void init_debug_log() {
         if (!g_debug_log_initialized) {
-            g_debug_log.open("/tmp/tableau_debug.log", std::ios::out | std::ios::trunc);
+            g_debug_log.open("logs/tableau_debug.log", std::ios::out | std::ios::trunc);
             g_debug_log_initialized = true;
         }
     }
@@ -142,9 +142,11 @@ std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formu
 namespace {
 
 /**
- * @brief Formula progression fp(φ, σ)
+ * @brief Formula progression fp(φ, σ) with immediate simplification
  *
  * Based on AAAI2019 Li et al. with simplified handling of ♢true/□false.
+ * Includes immediate simplification to prevent formula explosion:
+ * - (true & false) → false, (false | anything) → anything, etc.
  *
  * @param phi Formula to progress (must be in XNF)
  * @param sigma Assignment σ (set of true variables)
@@ -186,6 +188,15 @@ formula::Formula* formula_progression(
 
             // For complex ¬φ, compute ¬fp(φ, σ)
             formula::Formula* child_prog = formula_progression(child, sigma, pool);
+
+            // Immediate simplification: !!φ → φ
+            if (child_prog->op() == formula::Formula::OpType::Not) {
+                return child_prog->left();
+            }
+            // Immediate simplification: !true → false, !false → true
+            if (child_prog->is_true()) return pool.create_false();
+            if (child_prog->is_false()) return pool.create_true();
+
             return pool.create_not(child_prog);
         }
 
@@ -193,6 +204,16 @@ formula::Formula* formula_progression(
             // fp(φ₁ ∧ φ₂, σ) = fp(φ₁, σ) ∧ fp(φ₂, σ)
             formula::Formula* left_prog = formula_progression(phi->left(), sigma, pool);
             formula::Formula* right_prog = formula_progression(phi->right(), sigma, pool);
+
+            // Immediate simplification for And
+            // (false & anything) → false, (anything & false) → false
+            if (left_prog->is_false() || right_prog->is_false()) return pool.create_false();
+            // (true & true) → true
+            if (left_prog->is_true() && right_prog->is_true()) return pool.create_true();
+            // (true & φ) → φ, (φ & true) → φ
+            if (left_prog->is_true()) return right_prog;
+            if (right_prog->is_true()) return left_prog;
+
             return pool.create_and(left_prog, right_prog);
         }
 
@@ -200,6 +221,16 @@ formula::Formula* formula_progression(
             // fp(φ₁ ∨ φ₂, σ) = fp(φ₁, σ) ∨ fp(φ₂, σ)
             formula::Formula* left_prog = formula_progression(phi->left(), sigma, pool);
             formula::Formula* right_prog = formula_progression(phi->right(), sigma, pool);
+
+            // Immediate simplification for Or
+            // (true | anything) → true, (anything | true) → true
+            if (left_prog->is_true() || right_prog->is_true()) return pool.create_true();
+            // (false | false) → false
+            if (left_prog->is_false() && right_prog->is_false()) return pool.create_false();
+            // (false | φ) → φ, (φ | false) → φ
+            if (left_prog->is_false()) return right_prog;
+            if (right_prog->is_false()) return left_prog;
+
             return pool.create_or(left_prog, right_prog);
         }
 
