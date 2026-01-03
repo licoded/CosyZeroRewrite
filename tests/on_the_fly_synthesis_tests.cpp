@@ -11,6 +11,7 @@
 #include <iostream>
 #include <cassert>
 #include <string>
+#include <cstdlib>  // for std::getenv
 
 using namespace formula;
 using namespace synthesis;
@@ -24,46 +25,69 @@ static int skipped_tests = 0;
 static const char* current_test_name = nullptr;
 static std::string current_formula_str;
 
+// Verbose mode: show all test details (enabled via COSY_TEST_VERBOSE=1)
+static inline bool is_verbose() {
+    static const bool verbose = (std::getenv("COSY_TEST_VERBOSE") != nullptr);
+    return verbose;
+}
+
 // Helper to start a test
 #define TEST_START(name, formula) do { \
     current_test_name = #name; \
     total_tests++; \
-    std::cout << "[" << total_tests << "] TEST: " << #name << std::endl; \
-    std::cout << "  Formula: " << (formula) << std::endl; \
+    if (is_verbose()) { \
+        std::cout << "[" << total_tests << "] TEST: " << #name << std::endl; \
+        std::cout << "  Formula: " << (formula) << std::endl; \
+    } \
 } while(0)
 
 // Helper to end a test (passed)
 #define TEST_PASS() do { \
     passed_tests++; \
-    std::cout << "  Result: PASS" << std::endl; \
-    std::cout << std::endl; \
+    if (is_verbose()) { \
+        std::cout << "  Result: PASS" << std::endl; \
+        std::cout << std::endl; \
+    } else { \
+        std::cout << "." << std::flush; \
+    } \
 } while(0)
 
 // Helper to skip a test
 #define TEST_SKIP(reason) do { \
     skipped_tests++; \
-    std::cout << "  Result: SKIP - " << reason << std::endl; \
-    std::cout << std::endl; \
+    if (is_verbose()) { \
+        std::cout << "  Result: SKIP - " << reason << std::endl; \
+        std::cout << std::endl; \
+    } else { \
+        std::cout << "\n[" << total_tests << "] SKIP: " << current_test_name << " - " << reason << std::endl; \
+    } \
 } while(0)
 
 static bool test_assertion_failed = false;
 
+// Helper: print failure header (only needed in non-verbose mode)
+#define PRINT_FAIL_HEADER() do { \
+    if (!is_verbose()) { \
+        std::cerr << "\n[" << total_tests << "] FAIL: " << current_test_name << std::endl; \
+    } \
+} while(0)
+
 #define ASSERT_TRUE(cond) do { \
     if (!(cond)) { \
-        std::cerr << "  Result: FAIL" << std::endl; \
+        test_assertion_failed = true; \
+        PRINT_FAIL_HEADER(); \
         std::cerr << "    Expected: true" << std::endl; \
         std::cerr << "    Got: " << (#cond) << " = false" << std::endl; \
-        test_assertion_failed = true; \
         return; \
     } \
 } while(0)
 
 #define ASSERT_FALSE(cond) do { \
     if ((cond)) { \
-        std::cerr << "  Result: FAIL" << std::endl; \
+        test_assertion_failed = true; \
+        PRINT_FAIL_HEADER(); \
         std::cerr << "    Expected: false" << std::endl; \
         std::cerr << "    Got: " << (#cond) << " = true" << std::endl; \
-        test_assertion_failed = true; \
         return; \
     } \
 } while(0)
@@ -72,10 +96,10 @@ static bool test_assertion_failed = false;
     auto av = (a); \
     auto bv = (b); \
     if (av != bv) { \
-        std::cerr << "  Result: FAIL" << std::endl; \
+        test_assertion_failed = true; \
+        PRINT_FAIL_HEADER(); \
         std::cerr << "    Expected: " << #b << " = " << bv << std::endl; \
         std::cerr << "    Got: " << #a << " = " << av << std::endl; \
-        test_assertion_failed = true; \
         return; \
     } \
 } while(0)
@@ -323,7 +347,11 @@ int main() {
     std::cout << "========================================" << std::endl;
     std::cout << "On-the-Fly Synthesis Tests" << std::endl;
     std::cout << "========================================" << std::endl;
-    std::cout << std::endl;
+    if (!is_verbose()) {
+        std::cout << "Running tests... (use COSY_TEST_VERBOSE=1 for details)" << std::endl;
+    } else {
+        std::cout << std::endl;
+    }
 
     // Run all tests
     #define RUN_TEST(name) do { \
@@ -331,7 +359,7 @@ int main() {
         try { \
             test_##name(); \
         } catch (...) { \
-            std::cerr << "EXCEPTION in test_" << #name << std::endl; \
+            std::cerr << "\nEXCEPTION in test_" << #name << std::endl; \
         } \
     } while(0)
 
@@ -352,6 +380,11 @@ int main() {
     // RUN_TEST(compare_with_existing_false);
     // RUN_TEST(compare_with_existing_next);
     // RUN_TEST(compare_with_existing_until);
+
+    // Add newline after dots in non-verbose mode
+    if (!is_verbose()) {
+        std::cout << std::endl;
+    }
 
     std::cout << "========================================" << std::endl;
     std::cout << "Summary" << std::endl;
