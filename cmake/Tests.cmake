@@ -46,7 +46,7 @@ if(BUILD_TESTS)
     # On-the-fly synthesis tests
     # ============================================================
     add_executable(on_the_fly_synthesis_tests tests/on_the_fly_synthesis_tests.cpp)
-    target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula)
+    target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula catch2)
 
     # ============================================================
     # Tarjan SCC algorithm tests
