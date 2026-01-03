@@ -537,49 +537,101 @@ bool OnTheFlyGameSolver::propagate_classification() {
             }
 
             if (state.player == Player::System) {
-                // System wins if ANY successor is Swin
-                // System loses if ALL successors are Ewin
-                bool has_swin = false;
-                bool all_ewin = true;
+                // System's turn: System chooses output
+                // Swin: exists sys move such that ALL env moves from it are Swin
+                // Ewin: for ALL sys moves, exists env move to Ewin
+                bool exist_swin = false;
 
                 for (const auto& succ : succs) {
-                    auto it = classification_.find(succ);
-                    if (it != classification_.end()) {
-                        if (it->second == StateClass::Swin) {
-                            has_swin = true;
-                        } else if (it->second == StateClass::Ewin) {
-                            // Continue checking
-                        } else {
-                            all_ewin = false;
+                    // succ is an Environment state
+                    // Check if all env moves from succ are Swin
+                    bool all_env_swin = true;
+                    auto succ_it = classification_.find(succ);
+
+                    if (succ_it == classification_.end() || succ_it->second == StateClass::Unknown) {
+                        // Need to check env moves from succ
+                        const auto& env_succs = successors_[succ];
+                        for (const auto& env_succ : env_succs) {
+                            auto env_it = classification_.find(env_succ);
+                            if (env_it == classification_.end() || env_it->second != StateClass::Swin) {
+                                all_env_swin = false;
+                                break;
+                            }
                         }
+                        // If all env moves are Swin, classify succ as Swin
+                        if (all_env_swin && !env_succs.empty()) {
+                            classification_[succ] = StateClass::Swin;
+                        }
+                    } else if (succ_it->second == StateClass::Swin) {
+                        // succ is already Swin
                     } else {
-                        all_ewin = false;
+                        all_env_swin = false;
+                    }
+
+                    // Now check if this sys move leads to Swin
+                    if (classification_[succ] == StateClass::Swin) {
+                        exist_swin = true;
+                        break;
                     }
                 }
 
-                if (has_swin) {
+                if (exist_swin) {
                     classification_[state] = StateClass::Swin;
                     changed = true;
                     LOG_DEBUG("OnTheFlyGameSolver: propagate: system state -> Swin (has Swin succ)");
-                } else if (all_ewin && !succs.empty()) {
+                    continue;  // Skip Ewin check if Swin found
+                }
+
+                // Check Ewin: for ALL sys moves, exists env move to Ewin
+                bool all_ewin = !succs.empty();
+                for (const auto& succ : succs) {
+                    // succ is an Environment state
+                    // Check if exists env move from succ to Ewin
+                    bool exist_env_ewin = false;
+                    auto succ_it = classification_.find(succ);
+
+                    if (succ_it == classification_.end() || succ_it->second == StateClass::Unknown) {
+                        // Need to check env moves from succ
+                        const auto& env_succs = successors_[succ];
+                        for (const auto& env_succ : env_succs) {
+                            auto env_it = classification_.find(env_succ);
+                            if (env_it != classification_.end() && env_it->second == StateClass::Ewin) {
+                                exist_env_ewin = true;
+                                break;
+                            }
+                        }
+                        // If exists env move to Ewin, classify succ as Ewin
+                        if (exist_env_ewin) {
+                            classification_[succ] = StateClass::Ewin;
+                        }
+                    } else if (succ_it->second == StateClass::Ewin) {
+                        exist_env_ewin = true;
+                    }
+
+                    if (!exist_env_ewin) {
+                        all_ewin = false;
+                        break;
+                    }
+                }
+
+                if (all_ewin) {
                     classification_[state] = StateClass::Ewin;
-                    changed = true;
                     LOG_DEBUG("OnTheFlyGameSolver: propagate: system state -> Ewin (all Ewin succs)");
                 }
             } else {
                 // Environment's turn: Environment chooses input
-                // Environment wants System to lose, so will choose input leading to Ewin
-                // If ANY successor is Ewin → Environment chooses it → current is Ewin
-                // If ALL successors are Swin → Environment cannot avoid → current is Swin
-                bool has_ewin = false;
-                bool all_swin = true;
+                // Ewin: exists env move to Ewin
+                // Swin: ALL env moves are Swin
+                bool exist_ewin = false;
+                bool all_swin = !succs.empty();
 
                 for (const auto& succ : succs) {
+                    // succ is a System state
                     auto it = classification_.find(succ);
                     if (it != classification_.end()) {
                         if (it->second == StateClass::Ewin) {
-                            has_ewin = true;
-                            all_swin = false;
+                            exist_ewin = true;
+                            break;
                         } else if (it->second == StateClass::Swin) {
                             // Continue checking
                         } else {
@@ -590,11 +642,10 @@ bool OnTheFlyGameSolver::propagate_classification() {
                     }
                 }
 
-                if (has_ewin) {
+                if (exist_ewin) {
                     classification_[state] = StateClass::Ewin;
-                    changed = true;
                     LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Ewin (has Ewin succ)");
-                } else if (all_swin && !succs.empty()) {
+                } else if (all_swin) {
                     classification_[state] = StateClass::Swin;
                     changed = true;
                     LOG_DEBUG("OnTheFlyGameSolver: propagate: environment state -> Swin (all Swin succs)");
