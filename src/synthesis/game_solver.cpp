@@ -254,15 +254,28 @@ void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& s
 
             // Check if this node can be classified as Swin (Winning)
             // Swin condition: all successors are Winning
-            bool all_swin = true;
+            bool exist_swin = false;
             for (size_t succ : node.successors) {
-                const GameNode& succ_node = graph.get_node(succ);
-                if (succ_node.status != StateStatus::Winning) {
-                    all_swin = false;
+                GameNode& succ_node = graph.get_node(succ);
+                if (succ_node.status == StateStatus::Unknown) {
+                    bool all_env_move_swin = true;
+                    for (size_t env_move_succ : succ_node.successors) {
+                        const GameNode& env_succ_node = graph.get_node(env_move_succ);
+                        if (env_succ_node.status != StateStatus::Winning) {
+                            all_env_move_swin = false;
+                            break;
+                        }
+                    }
+                    if (all_env_move_swin) {
+                        succ_node.status = StateStatus::Winning;
+                    }
+                }
+                if (succ_node.status == StateStatus::Winning) {
+                    exist_swin = true;
                     break;
                 }
             }
-            if (all_swin && !node.successors.empty()) {
+            if (exist_swin) {
                 node.status = StateStatus::Winning;
                 changed = true;
                 continue;  // Swin found, no need to check Ewin
@@ -270,15 +283,28 @@ void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& s
 
             // Check if this node can be classified as Ewin (Losing)
             // Ewin condition: exists a successor that is Losing
-            bool has_ewin_succ = false;
+            bool all_ewin = true;
             for (size_t succ : node.successors) {
-                const GameNode& succ_node = graph.get_node(succ);
-                if (succ_node.status == StateStatus::Losing) {
-                    has_ewin_succ = true;
+                GameNode& succ_node = graph.get_node(succ);
+                if (succ_node.status == StateStatus::Unknown) {
+                    bool exist_env_move_ewin = false;
+                    for (size_t env_move_succ : succ_node.successors) {
+                        const GameNode& env_succ_node = graph.get_node(env_move_succ);
+                        if (env_succ_node.status != StateStatus::Winning) {
+                            exist_env_move_ewin = true;
+                            break;
+                        }
+                    }
+                    if (exist_env_move_ewin) {
+                        succ_node.status = StateStatus::Losing;
+                    }
+                }
+                if (succ_node.status != StateStatus::Losing) {
+                    all_ewin = false;
                     break;
                 }
             }
-            if (has_ewin_succ) {
+            if (all_ewin) {
                 node.status = StateStatus::Losing;
                 // Note: Ewin doesn't set changed=true
             }
