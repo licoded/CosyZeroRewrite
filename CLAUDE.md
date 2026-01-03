@@ -237,6 +237,36 @@ TableauState (DFA 状态)
 4. **验证**: `make` + `make test`
 5. **提交**: 标记 completed + `git commit`
 
+### ⚠️ Git 提交规范（编译通过后）
+
+**重要：每次代码修改能编译通过后，必须立即提交到 git！**
+
+**原因**：
+- 每次编译通过都是一个可回退的稳定点
+- 便于理解每个改动的效果
+- 出问题时可以快速回滚到正确的版本
+
+**提交流程**：
+1. 代码修改完成
+2. `cd build && make` 编译通过
+3. `git add -A && git commit -m "..."`
+4. 然后进行测试和调试
+
+**示例**：
+```bash
+# 1. 修改代码
+vim src/automata/tableau.cpp
+
+# 2. 编译
+cd build && make
+
+# 3. 编译通过后立即提交！
+git add -A && git commit -m "refactor: xxx"
+
+# 4. 然后运行测试
+./build/debug_eventually_contradiction
+```
+
 详见: [TODO 管理流程](./docs/WORKFLOWS/todo_management.md)
 
 ### ⚠️ 重要：测试流程规范（必须遵守！）

@@ -10,8 +10,29 @@
 #include <sstream>
 #include <iomanip>
 #include <iostream>
+#include <fstream>
 
 namespace automata {
+
+// Debug log file (shared across all calls)
+namespace {
+    std::ofstream g_debug_log;
+    bool g_debug_log_initialized = false;
+
+    void init_debug_log() {
+        if (!g_debug_log_initialized) {
+            g_debug_log.open("/tmp/tableau_debug.log", std::ios::out | std::ios::trunc);
+            g_debug_log_initialized = true;
+        }
+    }
+
+    void debug_log(const std::string& msg) {
+        init_debug_log();
+        std::cerr << msg;
+        g_debug_log << msg;
+        g_debug_log.flush();
+    }
+}
 
 //==============================================================================
 // FormulaEqual implementation
@@ -203,8 +224,18 @@ formula::Formula* formula_progression(
 // TableauStatePool::get_or_create() to obtain the actual TableauState.
 formula::Formula* TableauState::next_phi(const Assignment& assignment,
                                           formula::FormulaPool& pool) const {
+    // DEBUG: Log input
+    debug_log("DEBUG next_phi:\n");
+    debug_log("  xnf_phi_ = " + (xnf_phi_ ? xnf_phi_->to_string() : "null") + "\n");
+    debug_log("  assignment = {");
+    for (int v : assignment) debug_log(std::to_string(v) + " ");
+    debug_log("}\n");
+
     // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
     formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
+
+    // DEBUG: Log output
+    debug_log("  next_phi = " + (next_phi ? next_phi->to_string() : "null") + "\n");
 
     // TODO: Simplify the result (currently disabled)
     // formula::Formula* next_phi_simplified = next_phi->simplify(pool);
@@ -261,6 +292,9 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     // Check if phi is null
     if (!phi) return nullptr;
 
+    // DEBUG: Log input
+    debug_log("DEBUG get_or_create: phi = " + phi->to_string() + "\n");
+
     // Create a temporary state to check for existence
     // We need the xnf and prop_atoms, but for checking existence we just need phi hash
     auto temp = std::unique_ptr<TableauState>(new TableauState(phi, phi, {}));
@@ -268,6 +302,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     // Check if equivalent state exists (based on phi hash)
     auto it = states_.find(temp.get());
     if (it != states_.end()) {
+        debug_log("  -> found existing state\n");
         return *it;
     }
 
@@ -276,9 +311,15 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     formula::Formula* nnf_phi = phi->nnf(pool);
     formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool);
 
+    // DEBUG: Log NNF and XNF
+    debug_log("  nnf_phi = " + nnf_phi->to_string() + "\n");
+    debug_log("  xnf_phi = " + xnf_phi->to_string() + "\n");
+
     // Compute PA(xnf_phi)
     TableauState::FormulaSet prop_atoms;
     TableauState::compute_prop_atoms(xnf_phi, prop_atoms);
+
+    debug_log("  prop_atoms size = " + std::to_string(prop_atoms.size()) + "\n");
 
     // Create the actual state
     auto actual_state = std::unique_ptr<TableauState>(
@@ -289,7 +330,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     states_.insert(raw_ptr);
     storage_.push_back(std::move(actual_state));
 
-    LOG_DEBUG("TableauStatePool: created new state, total=", states_.size());
+    debug_log("  -> created new state, total states = " + std::to_string(states_.size()) + "\n");
 
     return raw_ptr;
 }
