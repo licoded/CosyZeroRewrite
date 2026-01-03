@@ -492,9 +492,13 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         // Empty-string accepting states are Swin seeds
         // (no U/X obligations, no contradictions)
         bool esa = is_empty_string_accepting(s.dfa_state);
-        std::cerr << "DEBUG classify_scc: state=" << s.to_string()
-                  << ", phi=" << (s.dfa_state ? s.dfa_state->phi()->to_string() : "null")
-                  << ", esa=" << esa << std::endl;
+        // Debug output (controlled by COSY_DEBUG_CLASSIFY environment variable)
+        static const bool debug_classify = (std::getenv("COSY_DEBUG_CLASSIFY") != nullptr);
+        if (debug_classify) {
+            std::cerr << "DEBUG classify_scc: state=" << s.to_string()
+                      << ", phi=" << (s.dfa_state ? s.dfa_state->phi()->to_string() : "null")
+                      << ", esa=" << esa << std::endl;
+        }
         if (esa) {
             swin_states.insert(s);
             classification_[s] = StateClass::Swin;

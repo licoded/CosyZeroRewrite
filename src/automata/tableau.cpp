@@ -6,6 +6,7 @@
 #include "automata/tableau.hpp"
 #include "log/logger.hpp"
 #include <algorithm>
+#include <cstdlib>  // for std::getenv
 #include <functional>
 #include <sstream>
 #include <iomanip>
@@ -20,9 +21,19 @@ namespace automata {
 namespace {
     std::ofstream g_debug_log;
     bool g_debug_log_initialized = false;
+    bool g_debug_enabled = false;  // Default OFF
 
     void init_debug_log() {
         if (!g_debug_log_initialized) {
+            // Check environment variable to enable debug output
+            const char* debug_env = std::getenv("COSY_DEBUG_TABLEAU");
+            g_debug_enabled = (debug_env != nullptr && std::string(debug_env) == "1");
+
+            if (!g_debug_enabled) {
+                g_debug_log_initialized = true;  // Mark as initialized but disabled
+                return;
+            }
+
             // Create log path: logs/tableau/YYYY-MM-DD/period/tableau_debug.log
             namespace fs = std::filesystem;
             auto now = std::chrono::system_clock::now();
@@ -55,9 +66,11 @@ namespace {
 
     void debug_log(const std::string& msg) {
         init_debug_log();
-        std::cerr << msg;
-        g_debug_log << msg;
-        g_debug_log.flush();
+        if (g_debug_enabled) {
+            std::cerr << msg;
+            g_debug_log << msg;
+            g_debug_log.flush();
+        }
     }
 }
 
