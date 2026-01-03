@@ -222,6 +222,33 @@ TableauState (DFA 状态)
 - 新发现的边界情况
 - 容易犯的错误模式
 
+### Formula 字符串表示规范 (2026-01-04)
+
+**问题**: Formula 对象存储的是 `int var_id_` (整数 ID)，不是字符串变量名。
+
+**存储架构**:
+```
+Formula 对象:
+├── int var_id_          // 整数 ID: 0, 1, 2...
+├── OpType op_           // 操作符类型
+└── Formula* left_/right_ // 子节点
+
+FormulaPool:
+├── vector<string> var_names_     // [0]="p1", [1]="p2", ...
+└── unordered_map<string, int> var_ids_  // ["p1"]=0, ...
+```
+
+**两种字符串方法**:
+
+| 方法 | 用途 | 输出示例 | 参数 |
+|------|------|---------|------|
+| `to_string()` | 内部格式（v0, v1） | `!(v0 & v1)` | 无 |
+| `to_string_with_names(pool)` | 原始变量名 | `!(p1 & p2)` | 需要pool |
+
+**命名约定**: 凡是需要显示给用户看的公式输出，统一使用 `to_string_with_names(pool)`。
+
+**历史**: 原 `to_verbose_string()` 于 2026-01-04 改名为 `to_string_with_names()` 以提高语义清晰度。
+
 **交流语言偏好**：
 
 - **主要使用中文**进行交流
