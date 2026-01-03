@@ -79,6 +79,12 @@ if(BUILD_TESTS)
     target_link_libraries(debug_eventually_contradiction PRIVATE formula)
 
     # ============================================================
+    # Debug test for failing on_the_fly_synthesis_tests
+    # ============================================================
+    add_executable(debug_failing_tests tests/debug_failing_tests.cpp)
+    target_link_libraries(debug_failing_tests PRIVATE formula)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
@@ -105,6 +111,7 @@ if(BUILD_TESTS)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
         target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
         target_compile_options(debug_eventually_contradiction PRIVATE -Wno-sign-compare)
+        target_compile_options(debug_failing_tests PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================

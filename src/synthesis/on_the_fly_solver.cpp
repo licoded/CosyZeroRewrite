@@ -501,7 +501,11 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
 
         // Empty-string accepting states are Swin seeds
         // (no U/X obligations, no contradictions)
-        if (is_empty_string_accepting(s.dfa_state)) {
+        bool esa = is_empty_string_accepting(s.dfa_state);
+        std::cerr << "DEBUG classify_scc: state=" << s.to_string()
+                  << ", phi=" << (s.dfa_state ? s.dfa_state->phi()->to_string() : "null")
+                  << ", esa=" << esa << std::endl;
+        if (esa) {
             swin_states.insert(s);
             classification_[s] = StateClass::Swin;
             accepting_seed_count++;
