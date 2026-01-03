@@ -145,25 +145,29 @@ public:
         (void)benchmark_dir;  // Suppress unused warning
         std::lock_guard<std::mutex> lock(mutex_);
 
-        // Create logs directory structure: logs/benchmark/YYYY-MM-DD/HH-MM/
+        // Create logs directory structure: logs/benchmark/YYYY-MM-DD/period/
         auto now = std::chrono::system_clock::now();
         auto time_t = std::chrono::system_clock::to_time_t(now);
+        struct tm* tm_info = std::localtime(&time_t);
+        int hour = tm_info->tm_hour;
+
+        // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
+        std::string period;
+        if (hour >= 6 && hour < 12) period = "01-morning";
+        else if (hour >= 12 && hour < 18) period = "02-afternoon";
+        else if (hour >= 18) period = "03-evening";
+        else period = "04-night";
 
         std::ostringstream oss;
         oss << "../logs/benchmark/"
-            << std::put_time(std::localtime(&time_t), "%Y-%m-%d")
-            << "/"
-            << std::put_time(std::localtime(&time_t), "%H-%M");
+            << std::put_time(tm_info, "%Y-%m-%d")
+            << "/" << period;
 
         log_dir_ = oss.str();
         fs::create_directories(log_dir_);
 
-        // Create log filename with timestamp
-        std::ostringstream name_oss;
-        name_oss << "benchmark_"
-                 << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S")
-                 << ".log";
-        std::string log_name = name_oss.str();
+        // Create log filename (without timestamp, just basename)
+        std::string log_name = "benchmark.log";
 
         log_path_ = log_dir_ + "/" + log_name;
         log_file_.open(log_path_, std::ios::out);
@@ -640,23 +644,26 @@ int main(int argc, char* argv[]) {
     // Create results directory with same structure as logs
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
+    struct tm* tm_info = std::localtime(&time_t);
+    int hour = tm_info->tm_hour;
+
+    // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
+    std::string period;
+    if (hour >= 6 && hour < 12) period = "01-morning";
+    else if (hour >= 12 && hour < 18) period = "02-afternoon";
+    else if (hour >= 18) period = "03-evening";
+    else period = "04-night";
 
     std::ostringstream results_oss;
     results_oss << "../results/benchmark/"
-                 << std::put_time(std::localtime(&time_t), "%Y-%m-%d")
-                 << "/"
-                 << std::put_time(std::localtime(&time_t), "%H-%M");
+                 << std::put_time(tm_info, "%Y-%m-%d")
+                 << "/" << period;
 
     std::string results_dir = results_oss.str();
     fs::create_directories(results_dir);
 
-    std::ostringstream name_oss;
-    name_oss << "benchmark_results_"
-             << std::put_time(std::localtime(&time_t), "%Y%m%d_%H%M%S")
-             << ".csv";
-
-    // Prepare output file in results directory
-    std::string output_csv = results_dir + "/" + name_oss.str();
+    // Prepare output file (without timestamp in filename)
+    std::string output_csv = results_dir + "/benchmark_results.csv";
     std::ofstream out_csv(output_csv);
     write_csv_header(out_csv);
 

@@ -11,6 +11,8 @@
 #include <iomanip>
 #include <iostream>
 #include <fstream>
+#include <chrono>
+#include <filesystem>
 
 namespace automata {
 
@@ -21,7 +23,30 @@ namespace {
 
     void init_debug_log() {
         if (!g_debug_log_initialized) {
-            g_debug_log.open("logs/tableau_debug.log", std::ios::out | std::ios::trunc);
+            // Create log path: logs/tableau/YYYY-MM-DD/period/tableau_debug.log
+            namespace fs = std::filesystem;
+            auto now = std::chrono::system_clock::now();
+            auto time_t = std::chrono::system_clock::to_time_t(now);
+            struct tm* tm_info = std::localtime(&time_t);
+            int hour = tm_info->tm_hour;
+
+            // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
+            std::string period;
+            if (hour >= 6 && hour < 12) period = "01-morning";
+            else if (hour >= 12 && hour < 18) period = "02-afternoon";
+            else if (hour >= 18) period = "03-evening";
+            else period = "04-night";
+
+            std::ostringstream log_path;
+            log_path << "logs/tableau/"
+                      << std::put_time(tm_info, "%Y-%m-%d")
+                      << "/" << period
+                      << "/tableau_debug.log";
+
+            // Create directory
+            fs::create_directories(fs::path(log_path.str()).parent_path());
+
+            g_debug_log.open(log_path.str(), std::ios::out | std::ios::trunc);
             g_debug_log_initialized = true;
         }
     }
