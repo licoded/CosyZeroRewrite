@@ -158,6 +158,62 @@ def reorganize_transform_logs(base_dir):
             for _, old_filename in files[1:]:
                 os.remove(os.path.join(base_dir, old_filename))
 
+def cleanup_old_formula_logs(base_dir):
+    """Clean up old incremental formula_*.log files in period directories."""
+    print("Cleaning up old incremental formula logs...")
+
+    formula_base = os.path.join(base_dir, "logs", "formula")
+    if not os.path.exists(formula_base):
+        print("  No formula logs directory found")
+        return
+
+    for date_dir in os.listdir(formula_base):
+        date_path = os.path.join(formula_base, date_dir)
+        if not os.path.isdir(date_path):
+            continue
+
+        if not re.match(r'20\d{2}-\d{2}-\d{2}', date_dir):
+            continue
+
+        for period_dir in os.listdir(date_path):
+            period_path = os.path.join(date_path, period_dir)
+            if not os.path.isdir(period_path):
+                continue
+
+            # Check for old incremental files: formula_<numbers>.log or formula_<numbers>_<numbers>.log etc.
+            old_files = []
+            for filename in os.listdir(period_path):
+                if filename == "formula.log":
+                    continue
+                if filename.startswith("formula_") and filename.endswith(".log"):
+                    old_files.append(filename)
+
+            if not old_files:
+                continue
+
+            # Find the largest file (most complete log)
+            largest_file = None
+            largest_size = 0
+            for f in old_files:
+                filepath = os.path.join(period_path, f)
+                size = os.path.getsize(filepath)
+                if size > largest_size:
+                    largest_size = size
+                    largest_file = f
+
+            if largest_file:
+                # If formula.log doesn't exist, create it from the largest file
+                target_log = os.path.join(period_path, "formula.log")
+                if not os.path.exists(target_log):
+                    shutil.move(os.path.join(period_path, largest_file), target_log)
+                    print(f"  {date_dir}/{period_dir}/formula.log <- {largest_file}")
+                    old_files.remove(largest_file)
+
+                # Delete all other old files
+                for f in old_files:
+                    os.remove(os.path.join(period_path, f))
+                    print(f"  deleted {date_dir}/{period_dir}/{f}")
+
 def reorganize_benchmark_results(base_dir):
     """Reorganize results/benchmark from HH-MM to period structure."""
     print("Reorganizing benchmark results...")
@@ -229,6 +285,7 @@ def main():
     reorganize_formula_logs(logs_dir)
     reorganize_failures_logs(logs_dir)
     reorganize_transform_logs(logs_dir)
+    cleanup_old_formula_logs(project_dir)
     reorganize_benchmark_results(project_dir)
     
     print("=" * 60)
