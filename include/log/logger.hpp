@@ -5,6 +5,9 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <filesystem>
+#include <chrono>
+#include <sstream>
+#include <iomanip>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -43,17 +46,30 @@ public:
 private:
     Logger() {
         try {
-            // Create logs directory if it doesn't exist
-            std::filesystem::create_directories("logs");
-
-            // Get current timestamp for log filename
+            // Get current time for directory structure
             auto now = std::chrono::system_clock::now();
             auto time_t = std::chrono::system_clock::to_time_t(now);
-            std::tm tm = *std::localtime(&time_t);
-            char time_buf[64];
-            std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm);
+            std::tm* tm_info = std::localtime(&time_t);
+            int hour = tm_info->tm_hour;
 
-            std::string log_file = "logs/formula_" + std::string(time_buf) + ".log";
+            // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
+            std::string period;
+            if (hour >= 6 && hour < 12) period = "01-morning";
+            else if (hour >= 12 && hour < 18) period = "02-afternoon";
+            else if (hour >= 18) period = "03-evening";
+            else period = "04-night";
+
+            // Create log path: logs/formula/YYYY-MM-DD/period/formula.log
+            std::ostringstream log_path;
+            log_path << "logs/formula/"
+                      << std::put_time(tm_info, "%Y-%m-%d")
+                      << "/" << period
+                      << "/formula.log";
+
+            // Create directory
+            std::filesystem::create_directories(std::filesystem::path(log_path.str()).parent_path());
+
+            std::string log_file = log_path.str();
 
             // Create multi-sink logger
             std::vector<spdlog::sink_ptr> sinks;
