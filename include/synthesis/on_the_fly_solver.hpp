@@ -305,12 +305,6 @@ private:
     bool classify_scc(const std::vector<GameState>& scc);
 
     /**
-     * @brief Propagate classification backward from classified states
-     * @return true if initial state became classified
-     */
-    bool propagate_classification();
-
-    /**
      * @brief Check if initial state is classified
      */
     bool is_initial_classified() const {
