@@ -9,7 +9,7 @@ namespace synthesis {
 
 // ========== GameGraph ==========
 
-GameGraph::GameGraph(const automata::DFA* dfa) {
+GameGraph::GameGraph(const automata::DFA* dfa) : dfa_(dfa) {
     if (!dfa) {
         throw std::invalid_argument("DFA cannot be null");
     }
@@ -215,6 +215,18 @@ std::vector<size_t> GameSolver::get_scc_processing_order(
 }
 
 void GameSolver::classify_states(GameGraph& graph, const std::vector<std::vector<size_t>>& sccs) {
+    // Initialize accepting states as Winning
+    // An accepting state is one that can end the trace successfully
+    // For LTLf synthesis, accepting states are DFA accepting states
+    const automata::DFA* dfa = graph.get_dfa();
+    if (dfa) {
+        for (size_t i = 0; i < graph.num_nodes(); ++i) {
+            if (dfa->is_accepting(i)) {
+                graph.get_node(i).status = StateStatus::Winning;
+            }
+        }
+    }
+
     // Get processing order (reverse topological order of SCC graph)
     std::vector<size_t> order = get_scc_processing_order(graph, sccs);
 
@@ -240,20 +252,35 @@ void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& s
                 continue;
             }
 
-            // Check if any successor is Winning
-            bool has_winning_successor = false;
-            for (size_t succ_id : node.successors) {
-                const GameNode& succ = graph.get_node(succ_id);
-                if (succ.status == StateStatus::Winning) {
-                    has_winning_successor = true;
+            // Check if this node can be classified as Swin (Winning)
+            // Swin condition: all successors are Winning
+            bool all_swin = true;
+            for (size_t succ : node.successors) {
+                const GameNode& succ_node = graph.get_node(succ);
+                if (succ_node.status != StateStatus::Winning) {
+                    all_swin = false;
                     break;
                 }
             }
-
-            // If any successor is Winning, mark this node as Winning
-            if (has_winning_successor) {
+            if (all_swin && !node.successors.empty()) {
                 node.status = StateStatus::Winning;
                 changed = true;
+                continue;  // Swin found, no need to check Ewin
+            }
+
+            // Check if this node can be classified as Ewin (Losing)
+            // Ewin condition: exists a successor that is Losing
+            bool has_ewin_succ = false;
+            for (size_t succ : node.successors) {
+                const GameNode& succ_node = graph.get_node(succ);
+                if (succ_node.status == StateStatus::Losing) {
+                    has_ewin_succ = true;
+                    break;
+                }
+            }
+            if (has_ewin_succ) {
+                node.status = StateStatus::Losing;
+                // Note: Ewin doesn't set changed=true
             }
         }
     }

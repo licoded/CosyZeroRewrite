@@ -88,9 +88,15 @@ public:
      */
     void print() const;
 
+    /**
+     * @brief Get the underlying DFA (for accepting state checks)
+     */
+    const automata::DFA* get_dfa() const { return dfa_; }
+
 private:
     std::vector<GameNode> nodes_;
     size_t initial_node_;
+    const automata::DFA* dfa_;  // Pointer to DFA for accepting state checks
 };
 
 /**
