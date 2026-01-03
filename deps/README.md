@@ -10,6 +10,14 @@ This directory contains third-party libraries used by CosyZeroRewrite.
 **Source**: https://github.com/catchorg/Catch2
 **Usage**: Unit testing (see `tests/` directory)
 
+## spdlog/
+
+**Purpose**: Fast C++ logging library
+**Version**: v1.12.0 (header-only)
+**License**: MIT
+**Source**: https://github.com/gabime/spdlog
+**Usage**: Logging throughout the codebase
+
 ### Adding New Dependencies
 
 1. Create a subdirectory here

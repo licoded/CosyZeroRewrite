@@ -27,9 +27,9 @@ option(USE_SPDLOG "Enable spdlog logging" ON)
 
 if(USE_SPDLOG)
     # First check for local copy in project
-    if(EXISTS "${CMAKE_SOURCE_DIR}/include/spdlog/spdlog.h")
-        message(STATUS "spdlog found: local copy in include/")
-        include_directories("${CMAKE_SOURCE_DIR}/include")
+    if(EXISTS "${CMAKE_SOURCE_DIR}/deps/spdlog/spdlog.h")
+        message(STATUS "spdlog found: local copy in deps/")
+        include_directories("${CMAKE_SOURCE_DIR}/deps")
         add_compile_definitions(FORMULA_USE_LOGGER)
         set(SPDLOG_FOUND TRUE)
     else()
