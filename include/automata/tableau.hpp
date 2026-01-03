@@ -3,9 +3,7 @@
  * @brief On-the-fly tableau construction for LTLf synthesis
  *
  * Based on: arXiv:2408.07324 - "On-the-fly Synthesis for LTL over Finite Traces"
- *
- * Each DFA state is represented as a set of subformulas (Tableau state).
- * States are expanded on-demand during game solving, avoiding full DFA construction.
+ * Formula Progression: AAAI2019 - De Giacomo et al.
  */
 
 #ifndef AUTOMATA_TABLEAU_HPP
@@ -58,10 +56,17 @@ struct FormulaEqual {
 };
 
 /**
- * @brief Tableau state - a set of subformulas
+ * @brief Tableau state - represents a DFA state in LTLf tableau construction
  *
- * Represents a DFA state in the tableau construction.
- * Each state contains a set of subformulas that are "active" at this point.
+ * Based on AAAI2019 Definition 2 (Propositional Atoms):
+ * Each state contains:
+ * - phi: The original formula
+ * - xnf_phi: The formula in XNF form (for progression)
+ * - prop_atoms_: PA(xnf_phi) - propositional atoms, expanded at And/Or,
+ *                stopping at Next/Until/Release formulas
+ *
+ * Example: phi = a U b, xnf_phi = (a & X(a U b)) | b
+ *          prop_atoms_ = {a, X(a U b), b}
  */
 class TableauState {
 public:
@@ -69,67 +74,55 @@ public:
 
     /**
      * @brief Create the initial tableau state from a formula
-     * @param phi The LTLf formula (will be converted to NNF)
+     * @param phi The LTLf formula (will be converted to NNF, then XNF)
      * @param pool Formula pool for creating new formulas
-     * @return Initial tableau state {phi}
+     * @return Initial tableau state
      */
     static std::unique_ptr<TableauState> initial(formula::Formula* phi, formula::FormulaPool& pool);
 
     /**
-     * @brief Check if state is locally consistent (Tableau 1 rules)
-     *
-     * A state is locally consistent if:
-     * - false is NOT in the state
-     * - For each (ψ1 ∧ ψ2) in state: both ψ1 and ψ2 are in state
-     * - For each (ψ1 ∨ ψ2) in state: at least one of ψ1 or ψ2 is in state
-     * - For each (ψ1 U ψ2) in state: ψ2 is in state OR (ψ1 AND (ψ1 U ψ2) are in state)
-     * - For each (ψ1 R ψ2) in state: (ψ1 AND ψ2) are in state OR (ψ2 AND (ψ1 R ψ2) are in state)
-     *
-     * @return true if state is locally consistent
-     */
-    bool is_locally_consistent() const;
-
-    /**
-     * @brief Check if state is accepting (satisfied)
-     *
-     * A state is accepting if:
-     * - false is NOT in the state
-     * - For each (ψ1 U ψ2) in state: ψ2 is in state OR ψ1 is in state
-     *
-     * @return true if state is accepting
-     */
-    bool is_accepting() const;
-
-    /**
      * @brief Expand to next state given an assignment
      *
-     * Computes Γ' = old(Γ) ∪ next(Γ) where:
-     * - old(Γ) = formulas that are not Next, Until, or Release
-     * - next(Γ) = subformulas under Next + released Until formulas
+     * Uses formula progression fp(xnf_phi, assignment) to compute next state.
+     * Based on AAAI2019 Li et al. - Formula Progression for LTLf.
      *
      * @param assignment Set of variable IDs that are true
      * @param pool Formula pool for creating new formulas
-     * @param num_outputs Number of output variables (for synthesis)
      * @return Next tableau state
      */
     std::unique_ptr<TableauState> next(const Assignment& assignment,
-                                        formula::FormulaPool& pool,
-                                        int num_outputs = 0) const;
+                                        formula::FormulaPool& pool) const;
 
     /**
-     * @brief Get all formulas in this state
+     * @brief Get the original formula phi
      */
-    const FormulaSet& formulas() const {
-        return formulas_;
-    }
+    formula::Formula* phi() const { return phi_; }
 
     /**
-     * @brief Get hash value of this state
+     * @brief Get the XNF formula
+     */
+    formula::Formula* xnf_phi() const { return xnf_phi_; }
+
+    /**
+     * @brief Get propositional atoms PA(xnf_phi)
+     *
+     * Per AAAI2019 Definition 2: PA(φ) expands at And/Or,
+     * stops at Next/Until/Release formulas.
+     */
+    const FormulaSet& prop_atoms() const { return prop_atoms_; }
+
+    /**
+     * @brief Get all formulas in this state (backward compatibility alias for prop_atoms)
+     */
+    const FormulaSet& formulas() const { return prop_atoms_; }
+
+    /**
+     * @brief Get hash value of this state (based on phi only)
      */
     size_t hash() const { return hash_; }
 
     /**
-     * @brief Check equality of two tableau states
+     * @brief Check equality of two tableau states (based on phi only)
      */
     bool operator==(const TableauState& other) const;
 
@@ -145,51 +138,35 @@ public:
 
     // Friend declarations for pool access
     friend class TableauStatePool;
-    friend class OnTheFlyDFA;  // Allow access to formulas_ for synthesis
+    friend class OnTheFlyDFA;
 
 private:
     /**
      * @brief Private constructor - use initial() or next() factory methods
+     * @param phi Original formula
+     * @param xnf_phi XNF form of phi
+     * @param prop_atoms PA(xnf_phi) - propositional atoms
      */
-    explicit TableauState(FormulaSet formulas);
+    TableauState(formula::Formula* phi, formula::Formula* xnf_phi, FormulaSet prop_atoms);
 
     /**
-     * @brief Compute hash for the formula set
-     */
-    static size_t compute_hash(const FormulaSet& formulas);
-
-    /**
-     * @brief Get "old" formulas - those without Next, Until, Release at top level
-     */
-    std::vector<formula::Formula*> get_old_formulas() const;
-
-    /**
-     * @brief Get "next" formulas - those under Next or released by Until
-     */
-    std::vector<formula::Formula*> get_next_formulas() const;
-
-    /**
-     * @brief Evaluate literal formulas against assignment
+     * @brief Compute PA(φ) - Propositional Atoms
      *
-     * Removes literals that are false given the assignment.
-     * Keeps literals that are true.
+     * Based on AAAI2019 Definition 2:
+     * - PA(φ) = {φ} if φ is atom, Next, Until, or Release
+     * - PA(¬ψ) = PA(ψ)
+     * - PA(φ₁ ∧ φ₂) = PA(φ₁) ∪ PA(φ₂)
+     * - PA(φ₁ ∨ φ₂) = PA(φ₁) ∪ PA(φ₂)
      *
-     * @param formulas Current formulas
-     * @param assignment Variable assignment
-     * @return Filtered formulas
+     * @param phi Formula to compute PA for
+     * @param result Output set for accumulated atoms
      */
-    static FormulaSet evaluate_literals(const FormulaSet& formulas,
-                                        const Assignment& assignment);
+    static void compute_prop_atoms(formula::Formula* phi, FormulaSet& result);
 
-    /**
-     * @brief Check if a literal formula is satisfied in current state
-     * @param f Formula to check
-     * @return true if formula is satisfied
-     */
-    bool is_literal_satisfied(formula::Formula* f) const;
-
-    FormulaSet formulas_;
-    size_t hash_;
+    formula::Formula* phi_;        // Original formula (used for hash and empty-string check)
+    formula::Formula* xnf_phi_;    // XNF form (used for formula progression)
+    FormulaSet prop_atoms_;         // PA(xnf_phi) - propositional atoms
+    size_t hash_;                   // Hash based on phi only
 };
 
 /**
@@ -217,6 +194,7 @@ struct TableauStateEqual {
  *
  * Ensures that structurally equivalent tableau states are represented
  * by a single object (same pointer).
+ * States are uniquely identified by their phi formula.
  */
 class TableauStatePool {
 public:
@@ -228,15 +206,16 @@ public:
     TableauStatePool& operator=(const TableauStatePool&) = delete;
 
     /**
-     * @brief Get or create a tableau state
+     * @brief Get or create a tableau state from phi
      *
-     * If an equivalent state already exists, return it.
+     * If a state with equivalent phi already exists, return it.
      * Otherwise, create a new one and store it.
      *
-     * @param formulas Set of formulas in the state
+     * @param phi Original formula (used as unique identifier)
+     * @param pool Formula pool for computing XNF and prop atoms
      * @return Pointer to the (possibly new) tableau state
      */
-    TableauState* get_or_create(TableauState::FormulaSet formulas);
+    TableauState* get_or_create(formula::Formula* phi, formula::FormulaPool& pool);
 
     /**
      * @brief Number of unique states in the pool
@@ -279,21 +258,6 @@ public:
     TableauState* initial_state() const { return initial_state_; }
 
     /**
-     * @brief Check if a state is accepting
-     *
-     * For synthesis, a non-temporal state is accepting only if
-     * the system can satisfy all formulas using only output variables.
-     */
-    bool is_accepting(TableauState* q) const;
-
-    /**
-     * @brief Check if a state is accepting (pure tableau, ignoring I/O)
-     */
-    bool is_tableau_accepting(TableauState* q) const {
-        return q->is_accepting();
-    }
-
-    /**
      * @brief Get or compute successor state
      *
      * @param q Current state
@@ -322,7 +286,6 @@ private:
     formula::FormulaPool& pool_;
     mutable TableauStatePool state_pool_;
     TableauState* initial_state_;
-    int num_outputs_;  // Number of output variables (for synthesis acceptance check)
 
     // Transition cache: (state, assignment) -> next_state
     using CacheKey = std::pair<TableauState*, Assignment>;
@@ -343,14 +306,6 @@ private:
 
     // Set of states that have been expanded (successors computed)
     mutable std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual> expanded_states_;
-
-    /**
-     * @brief Check if formula requires an input variable to be true
-     * @param f Formula to check
-     * @param num_outputs Number of output variables
-     * @return true if formula requires some input variable to be true
-     */
-    bool requires_input_true(formula::Formula* f, int num_outputs) const;
 };
 
 /**
