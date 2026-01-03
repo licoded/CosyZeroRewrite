@@ -133,9 +133,7 @@ TEST_CASE("Synthesis: Game graph construction", "[synthesis]") {
     REQUIRE(dfa->num_states() > 0);
 
     // Build game graph
-    std::vector<std::string> outputs = {"p1"};
-    std::vector<std::string> inputs;
-    GameGraph graph(dfa.get(), outputs, inputs, pool);
+    GameGraph graph(dfa.get());
 
     REQUIRE(graph.num_nodes() > 0);
 
@@ -153,14 +151,14 @@ TEST_CASE("Synthesis: Tarjan SCC on simple DFA", "[synthesis]") {
     auto dfa = automata::DFABuilder::build_from_formula(f, pool);
     REQUIRE(dfa != nullptr);
 
-    std::vector<std::string> outputs = {"p1"};
-    std::vector<std::string> inputs;
-    GameGraph graph(dfa.get(), outputs, inputs, pool);
+    GameGraph graph(dfa.get());
 
     // Check that graph was constructed
     REQUIRE(graph.num_nodes() > 0);
 
     // The full realizability check uses SCC internally
+    std::vector<std::string> outputs = {"p1"};
+    std::vector<std::string> inputs;
     auto result = Synthesis::is_realizable_with_partition(f, outputs, inputs, pool);
     REQUIRE(result.has_value());
 

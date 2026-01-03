@@ -88,7 +88,9 @@ std::optional<bool> Synthesis::is_realizable_with_partition(
     const std::vector<std::string>& output_vars,
     const std::vector<std::string>& input_vars,
     formula::FormulaPool& pool) {
-    return GameSolver::is_realizable(f, output_vars, input_vars, pool);
+    (void)output_vars;
+    (void)input_vars;
+    return GameSolver::is_realizable(f, pool);
 }
 
 bool Synthesis::read_benchmark(const std::string& base_dir, int bench_num,

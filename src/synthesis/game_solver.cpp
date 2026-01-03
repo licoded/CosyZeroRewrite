@@ -9,12 +9,7 @@ namespace synthesis {
 
 // ========== GameGraph ==========
 
-GameGraph::GameGraph(
-    const automata::DFA* dfa,
-    const std::vector<std::string>& output_vars,
-    const std::vector<std::string>& input_vars,
-    const formula::FormulaPool& pool
-) {
+GameGraph::GameGraph(const automata::DFA* dfa) {
     if (!dfa) {
         throw std::invalid_argument("DFA cannot be null");
     }
@@ -29,9 +24,7 @@ GameGraph::GameGraph(
 
     initial_node_ = dfa->get_initial_state();
 
-    // Build successor relationships
-    // For simplicity, we create direct transitions based on DFA
-    // A full implementation would handle input/output separation
+    // Build successor relationships based on DFA transitions
     for (size_t i = 0; i < num_dfa_states; ++i) {
         const auto& transitions = dfa->get_transitions(i);
         for (const auto& trans : transitions) {
@@ -45,11 +38,6 @@ GameGraph::GameGraph(
             nodes_[i].successors.push_back(i);
         }
     }
-
-    // Suppress unused warnings
-    (void)output_vars;
-    (void)input_vars;
-    (void)pool;
 }
 
 bool GameGraph::is_realizable() const {
@@ -86,8 +74,6 @@ void GameGraph::print() const {
 
 std::optional<bool> GameSolver::is_realizable(
     formula::Formula* formula,
-    const std::vector<std::string>& output_vars,
-    const std::vector<std::string>& input_vars,
     formula::FormulaPool& pool
 ) {
     try {
@@ -98,7 +84,7 @@ std::optional<bool> GameSolver::is_realizable(
         }
 
         // Step 2: Build game graph
-        GameGraph graph(dfa.get(), output_vars, input_vars, pool);
+        GameGraph graph(dfa.get());
 
         // Step 3: Find SCCs using Tarjan
         auto sccs = find_sccs(graph);
@@ -239,24 +225,6 @@ void GameSolver::classify_states(GameGraph& graph, const std::vector<std::vector
 }
 
 void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& scc) {
-    // Build a set of SCC nodes for fast lookup
-    std::unordered_set<size_t> scc_set(scc.begin(), scc.end());
-
-    // Initial Swin: all successors of SCC nodes that are already Winning
-    // (including successors outside the SCC)
-    std::unordered_set<size_t> swin;
-
-    // Collect all Winning successors
-    for (size_t node_id : scc) {
-        const GameNode& node = graph.get_node(node_id);
-        for (size_t succ_id : node.successors) {
-            const GameNode& succ = graph.get_node(succ_id);
-            if (succ.status == StateStatus::Winning) {
-                swin.insert(succ_id);
-            }
-        }
-    }
-
     // Work list algorithm for backward propagation within SCC
     std::vector<size_t> work_list(scc.begin(), scc.end());
 
@@ -272,26 +240,17 @@ void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& s
                 continue;
             }
 
-            // Check all successors
+            // Check if any successor is Winning
             bool has_winning_successor = false;
-            bool all_successors_known = true;
-            bool has_unknown_successor = false;
-
             for (size_t succ_id : node.successors) {
                 const GameNode& succ = graph.get_node(succ_id);
                 if (succ.status == StateStatus::Winning) {
                     has_winning_successor = true;
-                } else if (succ.status == StateStatus::Unknown) {
-                    has_unknown_successor = true;
-                    all_successors_known = false;
+                    break;
                 }
             }
 
-            // Classification rules:
-            // - If all successors are Winning, this node is Winning (can force win)
-            // - If any successor is Winning and we're in the SCC, mark as Winning
-            // - Otherwise remains Unknown (will be marked Losing at the end)
-
+            // If any successor is Winning, mark this node as Winning
             if (has_winning_successor) {
                 node.status = StateStatus::Winning;
                 changed = true;

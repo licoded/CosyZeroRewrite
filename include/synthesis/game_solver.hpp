@@ -55,16 +55,8 @@ public:
     /**
      * @brief Construct a game graph from a DFA
      * @param dfa The DFA
-     * @param output_vars Output variable names (system controls)
-     * @param input_vars Input variable names (environment controls)
-     * @param pool Formula pool (for variable lookups)
      */
-    GameGraph(
-        const automata::DFA* dfa,
-        const std::vector<std::string>& output_vars,
-        const std::vector<std::string>& input_vars,
-        const formula::FormulaPool& pool
-    );
+    explicit GameGraph(const automata::DFA* dfa);
 
     /**
      * @brief Get number of game nodes
@@ -118,15 +110,11 @@ public:
     /**
      * @brief Check if a formula is realizable
      * @param formula The LTLf formula
-     * @param output_vars Output variable names
-     * @param input_vars Input variable names
      * @param pool Formula pool
      * @return true if realizable, false if not, std::nullopt if unknown
      */
     static std::optional<bool> is_realizable(
         formula::Formula* formula,
-        const std::vector<std::string>& output_vars,
-        const std::vector<std::string>& input_vars,
         formula::FormulaPool& pool
     );
 
