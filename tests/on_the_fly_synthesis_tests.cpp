@@ -174,17 +174,20 @@ int main(int argc, char* argv[]) {
     // Use Catch2's session
     Catch::Session session;
 
-    // First, check if user wants help (before applying our defaults)
+    // Build args starting with program name
+    std::vector<std::string> default_args = {argv[0]};
+
+    // Track if user specified their own reporter
+    bool user_specified_reporter = false;
+
+    // First pass: check for user-provided options
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "-h" || arg == "--help" || arg == "-?" || arg == "--list-reporters") {
-            // Pass through to Catch2 for help output
-            return session.run(argc, argv);
+        // Check if user specified a reporter
+        if (arg == "-r" || arg == "--reporter") {
+            user_specified_reporter = true;
         }
     }
-
-    // Build default args based on environment variable
-    std::vector<std::string> default_args = {argv[0]};
 
     // Check environment variable for verbose mode
     bool verbose = (std::getenv("COSY_TEST_VERBOSE") != nullptr);
@@ -193,17 +196,21 @@ int main(int argc, char* argv[]) {
         default_args.push_back("-s");  // show successful tests
         default_args.push_back("-d");  // show duration (needs value in v2)
         default_args.push_back("0");   // show all durations
-    } else {
-        // Default mode: use compact reporter for cleaner output
+    } else if (!user_specified_reporter) {
+        // Default mode: use compact reporter (only if user didn't specify one)
         default_args.push_back("-r");
         default_args.push_back("compact");
     }
 
-    // Convert to char* array for Catch2
+    // Build final args: defaults + user args
     std::vector<char*> args;
-    args.reserve(default_args.size() + 1);
+    args.reserve(default_args.size() + argc + 1);
     for (auto& arg : default_args) {
         args.push_back(const_cast<char*>(arg.c_str()));
+    }
+    // Append user-provided args
+    for (int i = 1; i < argc; ++i) {
+        args.push_back(argv[i]);
     }
 
     // Run tests
