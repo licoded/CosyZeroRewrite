@@ -14,7 +14,7 @@ GameGraph::GameGraph(
     const std::vector<std::string>& output_vars,
     const std::vector<std::string>& input_vars,
     const formula::FormulaPool& pool
-) : dfa_(dfa) {
+) {
     if (!dfa) {
         throw std::invalid_argument("DFA cannot be null");
     }
@@ -25,7 +25,6 @@ GameGraph::GameGraph(
 
     for (size_t i = 0; i < num_dfa_states; ++i) {
         nodes_.emplace_back(i);
-        dfa_to_game_[i] = i;
     }
 
     initial_node_ = dfa->get_initial_state();
@@ -58,14 +57,6 @@ bool GameGraph::is_realizable() const {
         return false;
     }
     return nodes_[initial_node_].status == StateStatus::Winning;
-}
-
-bool GameGraph::is_dfa_accepting(size_t node_id) const {
-    if (!dfa_ || node_id >= nodes_.size()) {
-        return false;
-    }
-    size_t dfa_state_id = nodes_[node_id].dfa_state_id;
-    return dfa_->is_accepting(dfa_state_id);
 }
 
 void GameGraph::print() const {
@@ -178,43 +169,6 @@ std::vector<std::vector<size_t>> GameSolver::find_sccs(GameGraph& graph) {
     }
 
     return sccs;
-}
-
-bool GameSolver::is_scc_accepting(const GameGraph& graph, const std::vector<size_t>& scc) {
-    // An SCC is accepting if:
-    // 1. All states in the SCC are accepting DFA states (can end the trace)
-    // 2. For sink SCCs (no outgoing edges), the state must be accepting
-
-    // Check if all states in SCC are DFA-accepting
-    for (size_t node_id : scc) {
-        if (!graph.is_dfa_accepting(node_id)) {
-            return false;  // Contains a rejecting DFA state
-        }
-    }
-
-    // A single-node SCC that is accepting in DFA is winning
-    if (scc.size() == 1) {
-        size_t node_id = scc[0];
-        const GameNode& node = graph.get_node(node_id);
-
-        // If it's a sink (only self-loop or no outgoing transitions)
-        bool is_sink = true;
-        for (size_t succ : node.successors) {
-            if (succ != node_id) {
-                is_sink = false;
-                break;
-            }
-        }
-
-        if (is_sink) {
-            // Sink SCC is winning iff DFA state is accepting
-            return graph.is_dfa_accepting(node_id);
-        }
-    }
-
-    // Multi-node SCCs with accepting states are winning
-    // (system can cycle forever)
-    return true;
 }
 
 std::vector<size_t> GameSolver::get_scc_processing_order(

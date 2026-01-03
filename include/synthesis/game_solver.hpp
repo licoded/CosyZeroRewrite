@@ -6,7 +6,6 @@
 #include "formula/formula_pool.hpp"
 #include <vector>
 #include <unordered_set>
-#include <unordered_map>
 #include <optional>
 #include <memory>
 
@@ -93,11 +92,6 @@ public:
     bool is_realizable() const;
 
     /**
-     * @brief Check if a DFA state is accepting
-     */
-    bool is_dfa_accepting(size_t node_id) const;
-
-    /**
      * @brief Debug print
      */
     void print() const;
@@ -105,8 +99,6 @@ public:
 private:
     std::vector<GameNode> nodes_;
     size_t initial_node_;
-    std::unordered_map<size_t, size_t> dfa_to_game_;  // DFA state -> Game node mapping
-    const automata::DFA* dfa_;  // Pointer to DFA for accepting state checks
 };
 
 /**
@@ -163,14 +155,6 @@ private:
      * @param sccs The SCCs from Tarjan
      */
     static void classify_states(GameGraph& graph, const std::vector<std::vector<size_t>>& sccs);
-
-    /**
-     * @brief Check if an SCC is accepting (winning for system)
-     * @param graph The game graph
-     * @param scc The SCC (set of node IDs)
-     * @return true if the SCC is accepting
-     */
-    static bool is_scc_accepting(const GameGraph& graph, const std::vector<size_t>& scc);
 
     /**
      * @brief Propagate winning/losing status backward through an SCC
