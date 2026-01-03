@@ -42,12 +42,84 @@ struct FuzzConfig {
 // ========== XNF Validator ==========
 
 /**
+ * @brief Check NNF rules (negations only before literals)
+ *
+ * This helper checks NNF properties but ALLOWS U/R operators
+ * (unlike the strict is_nnf which rejects U/R entirely).
+ * Used for checking the content inside X(...) in XNF.
+ *
+ * @param f Formula to validate
+ * @param error_msg Optional error message
+ * @return true if NNF rules are satisfied
+ */
+bool check_nnf_rules(Formula* f, std::string* error_msg = nullptr) {
+    if (!f) {
+        if (error_msg) *error_msg = "null formula";
+        return false;
+    }
+
+    auto op = f->op();
+
+    switch (op) {
+        case Formula::OpType::True:
+        case Formula::OpType::False:
+        case Formula::OpType::Literal:
+        case Formula::OpType::End:
+            return true;
+
+        case Formula::OpType::Not: {
+            Formula* child = f->left();
+            if (!child) {
+                if (error_msg) *error_msg = "Not has null child";
+                return false;
+            }
+            // In NNF, negation only applies to literals
+            if (child->op() == Formula::OpType::Literal) {
+                return true;
+            }
+            if (error_msg) {
+                std::ostringstream oss;
+                oss << "Negation before non-literal: !((" << child->op_name() << "))";
+                *error_msg = oss.str();
+            }
+            return false;
+        }
+
+        case Formula::OpType::And:
+        case Formula::OpType::Or:
+        case Formula::OpType::Until:
+        case Formula::OpType::Release: {
+            std::string left_error, right_error;
+            bool left_ok = check_nnf_rules(f->left(), error_msg ? &left_error : nullptr);
+            bool right_ok = check_nnf_rules(f->right(), error_msg ? &right_error : nullptr);
+            if (!left_ok) {
+                if (error_msg) *error_msg = "Left child: " + left_error;
+                return false;
+            }
+            if (!right_ok) {
+                if (error_msg) *error_msg = "Right child: " + right_error;
+                return false;
+            }
+            return true;
+        }
+
+        case Formula::OpType::Next: {
+            // Recurse into child to check NNF rules
+            return check_nnf_rules(f->left(), error_msg);
+        }
+    }
+
+    if (error_msg) *error_msg = "Unknown operator";
+    return false;
+}
+
+/**
  * @brief Validates that a formula is in proper XNF (neXt Normal Form)
  *
  * XNF properties:
  * 1. Must satisfy NNF rules (negations only before literals)
  * 2. Temporal operators (U, R) only appear inside Next (X) operators
- * 3. At the primitive formula level (under AND/OR): only true, false, literals, and X(...)
+ * 3. At the top level (under AND/OR): only true, false, literals, and X(...) are allowed
  *
  * @param f Formula to validate
  * @param pool FormulaPool for variable lookup
@@ -112,16 +184,18 @@ bool is_xnf(Formula* f, FormulaPool& pool, std::string* error_msg = nullptr) {
         }
 
         case Formula::OpType::Next: {
-            // Next operator: the child can be anything (including U, R)
-            // But we still need to check the child's NNF property
-            // Just verify the child exists
+            // Next operator: the child must satisfy NNF rules
+            // (but U/R are allowed inside X)
             if (!f->left()) {
                 if (error_msg) *error_msg = "Next has null child";
                 return false;
             }
-            // The child of X can be any formula (including U, R), so we don't recurse here
-            // We just need to ensure the child itself doesn't have U/R outside of more X's
-            // But actually, in XNF, U/R inside X is allowed, so we just return true
+            // Check NNF rules for the child (allows U/R inside X)
+            std::string child_error;
+            if (!check_nnf_rules(f->left(), error_msg ? &child_error : nullptr)) {
+                if (error_msg) *error_msg = "Child of X violates NNF: " + child_error;
+                return false;
+            }
             return true;
         }
 
