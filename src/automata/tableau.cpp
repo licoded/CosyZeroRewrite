@@ -44,589 +44,192 @@ bool FormulaEqual::operator()(formula::Formula* a, formula::Formula* b) const no
 // TableauState
 //==============================================================================
 
+//------------------------------------------------------------------------------
+// New TableauState Implementation (based on AAAI2019)
+//------------------------------------------------------------------------------
+
+// Compute PA(φ) - Propositional Atoms per AAAI2019 Definition 2
+// PA(φ) = {φ} if φ is atom, Next, Until, or Release
+// PA(¬ψ) = PA(ψ)
+// PA(φ₁ ∧ φ₂) = PA(φ₁) ∪ PA(φ₂)
+// PA(φ₁ ∨ φ₂) = PA(φ₁) ∪ PA(φ₂)
+void TableauState::compute_prop_atoms(formula::Formula* phi, FormulaSet& result) {
+    if (!phi) return;
+
+    auto op = phi->op();
+
+    // Base cases: atom, Next, Until, or Release - add as-is
+    if (op == formula::Formula::OpType::Literal ||
+        op == formula::Formula::OpType::True ||
+        op == formula::Formula::OpType::False ||
+        op == formula::Formula::OpType::Next ||
+        op == formula::Formula::OpType::Until ||
+        op == formula::Formula::OpType::Release) {
+        result.insert(phi);
+        return;
+    }
+
+    // Not: recurse on child
+    if (op == formula::Formula::OpType::Not) {
+        compute_prop_atoms(phi->left(), result);
+        return;
+    }
+
+    // And/Or: union of children's PA
+    if (op == formula::Formula::OpType::And ||
+        op == formula::Formula::OpType::Or) {
+        compute_prop_atoms(phi->left(), result);
+        compute_prop_atoms(phi->right(), result);
+        return;
+    }
+}
+
+// New constructor taking phi, xnf_phi, and prop_atoms
+TableauState::TableauState(formula::Formula* phi, formula::Formula* xnf_phi, FormulaSet prop_atoms)
+    : phi_(phi), xnf_phi_(xnf_phi), prop_atoms_(std::move(prop_atoms)),
+      hash_(phi ? phi->hash() : 0) {}
+
+// Create initial tableau state
+std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formula::FormulaPool& pool) {
+    // Convert to NNF first
+    formula::Formula* nnf_phi = phi->nnf(pool);
+
+    // Convert to XNF for proper state construction
+    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool);
+
+    // Compute PA(xnf_phi) - Propositional Atoms
+    FormulaSet prop_atoms;
+    compute_prop_atoms(xnf_phi, prop_atoms);
+
+    return std::unique_ptr<TableauState>(new TableauState(phi, xnf_phi, std::move(prop_atoms)));
+}
+
+//------------------------------------------------------------------------------
+// Formula Progression fp(φ, σ) per AAAI2019
+// Simplified version (ignoring ♢true and □false):
+// - fp(tt, σ) = tt, fp(ff, σ) = ff
+// - fp(p, σ) = tt if p∈σ, else ff
+// - fp(¬p, σ) = tt if p∉σ, else ff
+// - fp(φ₁ ∧ φ₂, σ) = fp(φ₁, σ) ∧ fp(φ₂, σ)
+// - fp(φ₁ ∨ φ₂, σ) = fp(φ₁, σ) ∨ fp(φ₂, σ)
+// - fp(Xφ, σ) = φ
+// - fp(WXφ, σ) = φ
+// - fp(φ₁ U φ₂, σ) = fp(φ₂, σ) ∨ (fp(φ₁, σ) ∧ fp(X(φ₁ U φ₂), σ))
+// - fp(φ₁ R φ₂, σ) = fp(φ₂, σ) ∧ (fp(φ₁, σ) ∨ fp(WX(φ₁ R φ₂), σ))
+//------------------------------------------------------------------------------
+
 namespace {
 
-// Helper: compute hash for a set of formulas
-size_t compute_formula_set_hash(const TableauState::FormulaSet& formulas) {
-    size_t h = 0;
-    for (formula::Formula* f : formulas) {
-        if (f) {
-            h ^= f->hash() + 0x9e3779b9 + (h << 6) + (h >> 2);
-        }
-    }
-    return h;
-}
+/**
+ * @brief Formula progression fp(φ, σ)
+ *
+ * Based on AAAI2019 Li et al. with simplified handling of ♢true/□false.
+ *
+ * @param phi Formula to progress (must be in XNF)
+ * @param sigma Assignment σ (set of true variables)
+ * @param pool Formula pool for creating new formulas
+ * @return Progressed formula (fp(φ, σ))
+ */
+formula::Formula* formula_progression(
+    formula::Formula* phi,
+    const Assignment& sigma,
+    formula::FormulaPool& pool)
+{
+    if (!phi) return pool.create_false();
 
-// Helper: check if a formula is a literal (positive or negative)
-bool is_literal(formula::Formula* f) {
-    if (!f) return false;
-    if (f->op() == formula::Formula::OpType::Literal) return true;
-    if (f->op() == formula::Formula::OpType::Not) {
-        formula::Formula* child = f->left();
-        return child && child->op() == formula::Formula::OpType::Literal;
-    }
-    return false;
-}
+    auto op = phi->op();
 
-// Helper: evaluate literal against assignment
-// Returns true if the literal should be kept in the next state
-bool literal_value(formula::Formula* f, const Assignment& assignment) {
-    if (!f) return true;  // Keep non-formulas
+    switch (op) {
+        case formula::Formula::OpType::True:
+            return phi;
 
-    if (f->op() == formula::Formula::OpType::Literal) {
-        // Positive literal: true if variable is in assignment
-        return assignment.count(f->var_id()) > 0;
-    }
+        case formula::Formula::OpType::False:
+            return phi;
 
-    if (f->op() == formula::Formula::OpType::Not) {
-        formula::Formula* child = f->left();
-        if (child && child->op() == formula::Formula::OpType::Literal) {
-            // Negative literal !v: true if variable is NOT in assignment
-            return assignment.count(child->var_id()) == 0;
-        }
-    }
+        case formula::Formula::OpType::Literal:
+            // fp(p, σ) = tt if p ∈ σ, else ff
+            return sigma.count(phi->var_id()) > 0
+                ? pool.create_true()
+                : pool.create_false();
 
-    // Non-literals are kept
-    return true;
-}
+        case formula::Formula::OpType::Not: {
+            formula::Formula* child = phi->left();
+            if (!child) return pool.create_true();
 
-} // namespace
-
-std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formula::FormulaPool& pool) {
-    FormulaSet formulas;
-
-    // XNF-based initial state construction with simplification:
-    // Only add the top-level components (direct children of And/Or)
-    // Don't recursively expand all subformulas
-    // Each component (including X(p1)) is treated as an independent "constraint"
-
-    std::function<void(formula::Formula*)> add_component = [&](formula::Formula* f) {
-        if (!f) return;
-
-        switch (f->op()) {
-            case formula::Formula::OpType::And:
-                // Simplify: (true & ψ) → ψ, (false & ψ) → false
-                if (f->left()->is_true()) {
-                    add_component(f->right());
-                } else if (f->right()->is_true()) {
-                    add_component(f->left());
-                } else if (f->left()->is_false() || f->right()->is_false()) {
-                    formulas.insert(pool.create_false());
-                } else {
-                    // Add both sides as components
-                    if (f->left()) add_component(f->left());
-                    if (f->right()) add_component(f->right());
-                }
-                break;
-
-            case formula::Formula::OpType::Or:
-                // Simplify: (true | ψ) → true, (false | ψ) → ψ
-                if (f->left()->is_true() || f->right()->is_true()) {
-                    formulas.insert(pool.create_true());
-                } else if (f->left()->is_false()) {
-                    add_component(f->right());
-                } else if (f->right()->is_false()) {
-                    add_component(f->left());
-                } else {
-                    // IMPORTANT: Don't expand OR - keep it as a choice point
-                    // The game solver will decide which side to satisfy
-                    formulas.insert(f);
-                }
-                break;
-
-            case formula::Formula::OpType::Until:
-            case formula::Formula::OpType::Release:
-                // Binary operators: add both sides as components
-                if (f->left()) add_component(f->left());
-                if (f->right()) add_component(f->right());
-                break;
-
-            default:
-                // Literals, Not, Next, True, False, End: add as-is
-                // These are the "atomic" components that won't be further decomposed
-                formulas.insert(f);
-                break;
-        }
-    };
-
-    add_component(phi);
-    return std::unique_ptr<TableauState>(new TableauState(std::move(formulas)));
-}
-
-TableauState::TableauState(FormulaSet formulas)
-    : formulas_(std::move(formulas)), hash_(compute_formula_set_hash(formulas_)) {
-}
-
-bool TableauState::is_locally_consistent() const {
-    // Rule: false in state → inconsistent
-    // EXCEPT: when false is part of a Release formula (false R ψ)
-    // In LTLf, G(ψ) = (false R ψ), and false appears in the state
-    //
-    // After XNF transformation: false R ψ becomes ψ & (false | X(false R ψ))
-    // So we need to check inside Next for Release with false
-    bool has_release_with_false = false;
-    for (formula::Formula* f : formulas_) {
-        if (f && f->op() == formula::Formula::OpType::Release) {
-            if (f->left() && f->left()->is_false()) {
-                has_release_with_false = true;
-                break;
+            // fp(¬p, σ) = tt if p ∉ σ, else ff
+            if (child->op() == formula::Formula::OpType::Literal) {
+                return sigma.count(child->var_id()) == 0
+                    ? pool.create_true()
+                    : pool.create_false();
             }
-        } else if (f && f->op() == formula::Formula::OpType::Next) {
-            // Check inside Next for Release with false (after XNF transformation)
-            formula::Formula* child = f->left();
-            if (child && child->op() == formula::Formula::OpType::Release) {
-                if (child->left() && child->left()->is_false()) {
-                    has_release_with_false = true;
-                    break;
-                }
-            }
+
+            // For complex ¬φ, compute ¬fp(φ, σ)
+            formula::Formula* child_prog = formula_progression(child, sigma, pool);
+            return pool.create_not(child_prog);
         }
-    }
 
-    if (!has_release_with_false) {
-        for (formula::Formula* f : formulas_) {
-            if (f && f->is_false()) {
-                return false;
-            }
-        }
-    }
-
-    // Check for contradictory literals (p and !p)
-    for (formula::Formula* f : formulas_) {
-        if (!f) continue;
-
-        // Check if this is a positive literal
-        if (f->op() == formula::Formula::OpType::Literal) {
-            int var_id = f->var_id();
-
-            // Check if !var is also in the state
-            for (formula::Formula* g : formulas_) {
-                if (!g) continue;
-                if (g->op() == formula::Formula::OpType::Not) {
-                    formula::Formula* child = g->left();
-                    if (child && child->op() == formula::Formula::OpType::Literal &&
-                        child->var_id() == var_id) {
-                        return false;  // Contradiction: v and !v
-                    }
-                }
-            }
-        }
-    }
-
-    // For each formula, check consistency rules
-    for (formula::Formula* f : formulas_) {
-        if (!f) continue;
-
-        switch (f->op()) {
         case formula::Formula::OpType::And: {
-            // (ψ1 ∧ ψ2) in Γ → ψ1 ∈ Γ AND ψ2 ∈ Γ
-            formula::Formula* left = f->left();
-            formula::Formula* right = f->right();
-            if (formulas_.count(left) == 0 || formulas_.count(right) == 0) {
-                return false;
-            }
-            break;
+            // fp(φ₁ ∧ φ₂, σ) = fp(φ₁, σ) ∧ fp(φ₂, σ)
+            formula::Formula* left_prog = formula_progression(phi->left(), sigma, pool);
+            formula::Formula* right_prog = formula_progression(phi->right(), sigma, pool);
+            return pool.create_and(left_prog, right_prog);
         }
+
         case formula::Formula::OpType::Or: {
-            // (ψ1 ∨ ψ2) in Γ: OR is a choice point, not a requirement
-            // The game solver will decide which side to satisfy in successors
-            // For now, just check that OR doesn't contain direct contradictions
-            // (i.e., not (p | !p) which would be trivially satisfiable anyway)
-            // OR is always locally consistent as long as it's well-formed
-            break;
+            // fp(φ₁ ∨ φ₂, σ) = fp(φ₁, σ) ∨ fp(φ₂, σ)
+            formula::Formula* left_prog = formula_progression(phi->left(), sigma, pool);
+            formula::Formula* right_prog = formula_progression(phi->right(), sigma, pool);
+            return pool.create_or(left_prog, right_prog);
         }
-        case formula::Formula::OpType::Until: {
-            // (ψ1 U ψ2) in Γ → ψ2 ∈ Γ OR (ψ1 ∈ Γ AND (ψ1 U ψ2) ∈ Γ)
-            formula::Formula* left = f->left();
-            formula::Formula* right = f->right();
-            bool has_right = formulas_.count(right) > 0;
-            bool has_left = formulas_.count(left) > 0;
-            if (!has_right && !has_left) {
-                return false;
-            }
-            break;
-        }
-        case formula::Formula::OpType::Release: {
-            // (ψ1 R ψ2) in Γ → ψ2 ∈ Γ (ψ1 will be provided via Release continuation)
-            // Only need to check right side for local consistency
-            formula::Formula* right = f->right();
-            // Special case: if right is false, then this Release is unsatisfiable
-            // unless left is also false (which makes the whole thing equivalent to false)
-            if (right && right->is_false()) {
-                // (ψ1 R false) requires ψ1 to hold forever
-                // For local consistency, we need ψ1 in state OR it will be provided later
-                // The Release continuation will provide ψ1 in subsequent steps
-                // So we only check that we don't have an explicit requirement for !ψ1
-                // For now, let's just say it's consistent (the game will handle it)
-                return true;  // Consistent, but may be unrealizable depending on game
-            }
-            if (formulas_.count(right) == 0) {
-                return false;
-            }
-            break;
-        }
-        default:
-            // Other operators are fine
-            break;
-        }
-    }
 
-    return true;
-}
-
-bool TableauState::is_accepting() const {
-    // Check for false (but NOT if it's part of a Release formula structure)
-    // In LTLf, G(p) = (false R p), which introduces false into the state
-    // This false is not an inconsistency - it's part of the Release semantics
-    //
-    // After XNF transformation: false R p becomes p & (false | X(false R p))
-    // So the false might appear directly, but it's still part of the Release structure
-    bool has_release_with_false = false;
-    for (formula::Formula* f : formulas_) {
-        if (f && f->op() == formula::Formula::OpType::Release) {
-            if (f->left() && f->left()->is_false()) {
-                has_release_with_false = true;
-                break;
-            }
-        } else if (f && f->op() == formula::Formula::OpType::Next) {
-            // Check inside Next for Release with false (after XNF transformation)
-            // XNF produces: p & (false | X(false R p))
-            // So we need to check if X contains a Release with false
-            formula::Formula* child = f->left();
-            if (child && child->op() == formula::Formula::OpType::Release) {
-                if (child->left() && child->left()->is_false()) {
-                    has_release_with_false = true;
-                    break;
-                }
-            }
-        }
-    }
-
-    // Only reject false if it's NOT part of a Release structure
-    if (!has_release_with_false) {
-        for (formula::Formula* f : formulas_) {
-            if (f && f->is_false()) {
-                return false;
-            }
-        }
-    }
-
-    // Check for local consistency - inconsistent states are not accepting
-    if (!is_locally_consistent()) {
-        return false;
-    }
-
-    // Check if state has only non-temporal formulas
-    // In LTLf, a state with no temporal obligations is accepting
-    // (system can satisfy it by choosing appropriate output)
-    bool has_temporal = false;
-    for (formula::Formula* f : formulas_) {
-        if (f && is_temporal(f)) {
-            has_temporal = true;
-            break;
-        }
-    }
-
-    if (!has_temporal) {
-        // No temporal obligations - this is a terminal accepting state
-        return true;
-    }
-
-    // Check Until formulas: in LTLf, all Until must have right side satisfied
-    // If ψ1 U ψ2 is in state but ψ2 is not, the Until is still waiting
-    for (formula::Formula* f : formulas_) {
-        if (f && f->op() == formula::Formula::OpType::Until) {
-            formula::Formula* right = f->right();
-            // If Until is still in state, right side must be satisfied
-            if (formulas_.count(right) == 0) {
-                return false;  // Until still waiting for right side
-            }
-        }
-    }
-
-    // Check Release formulas: in LTLf, Release is satisfied if right side is true
-    // (ψ1 R ψ2) means "ψ2 holds now and ψ1 has held continuously"
-    // In finite traces, Release becomes true at the end if ψ2 is true
-    // So a state with only Release obligations (no Until/Next) where all
-    // Release right sides are satisfied is accepting
-    bool has_until_or_next = false;
-    for (formula::Formula* f : formulas_) {
-        if (f && (f->op() == formula::Formula::OpType::Until ||
-                  f->op() == formula::Formula::OpType::Next)) {
-            has_until_or_next = true;
-            break;
-        }
-    }
-
-    if (!has_until_or_next) {
-        // Only Release (and non-temporal) formulas remain
-        // Check if all Release right sides are satisfied
-        bool all_release_satisfied = true;
-        for (formula::Formula* f : formulas_) {
-            if (f && f->op() == formula::Formula::OpType::Release) {
-                formula::Formula* right = f->right();
-                if (right && right->is_true()) {
-                    // (ψ1 R true) is always satisfied
-                    continue;
-                }
-                // Check if right side is in state (satisfied)
-                if (formulas_.count(right) == 0 && !is_literal_satisfied(right)) {
-                    all_release_satisfied = false;
-                    break;
-                }
-            }
-        }
-        if (all_release_satisfied) {
-            // All Release obligations satisfied - accepting in LTLf
-            return true;
-        }
-    }
-
-    return true;
-}
-
-// Helper: check if a literal is satisfied in current state
-bool TableauState::is_literal_satisfied(formula::Formula* f) const {
-    if (!f) return true;
-    if (f->op() == formula::Formula::OpType::Literal) {
-        return formulas_.count(f) > 0;
-    }
-    if (f->op() == formula::Formula::OpType::True) {
-        return true;
-    }
-    if (f->op() == formula::Formula::OpType::False) {
-        return false;
-    }
-    // For complex formulas, check if they're in the state
-    return formulas_.count(f) > 0;
-}
-
-std::vector<formula::Formula*> TableauState::get_old_formulas() const {
-    std::vector<formula::Formula*> result;
-
-    for (formula::Formula* f : formulas_) {
-        if (!f) continue;
-
-        // Keep formulas that are not purely temporal
-        switch (f->op()) {
-        case formula::Formula::OpType::Next:
-        case formula::Formula::OpType::Until:
-        case formula::Formula::OpType::Release:
-            // Not in old()
-            break;
-        default:
-            // In old()
-            result.push_back(f);
-            break;
-        }
-    }
-
-    return result;
-}
-
-std::vector<formula::Formula*> TableauState::get_next_formulas() const {
-    std::vector<formula::Formula*> result;
-
-    for (formula::Formula* f : formulas_) {
-        if (!f) continue;
-
-        switch (f->op()) {
         case formula::Formula::OpType::Next: {
-            // ○ψ → ψ
-            result.push_back(f->left());
-            break;
+            // fp(Xφ, σ) = φ (ignoring ∧ ♢true)
+            return phi->left();
         }
-        case formula::Formula::OpType::Release: {
-            // (ψ1 R ψ2) → ψ2 (Release continues)
-            result.push_back(f->right());
-            break;
-        }
+
+        // Note: Until/Release are not in XNF form, so shouldn't appear here
+        // They are transformed during XNF conversion
+
         default:
-            break;
-        }
+            // Unknown operator, conservatively return false
+            return pool.create_false();
     }
-
-    return result;
 }
 
-bool TableauState::is_temporal(formula::Formula* f) {
-    if (!f) return false;
-    auto op = f->op();
-    return op == formula::Formula::OpType::Next ||
-           op == formula::Formula::OpType::Until ||
-           op == formula::Formula::OpType::Release;
+} // anonymous namespace
+
+// Compute next phi using formula progression
+// Returns the progressed formula, which should be used with
+// TableauStatePool::get_or_create() to obtain the actual TableauState.
+formula::Formula* TableauState::next_phi(const Assignment& assignment,
+                                          formula::FormulaPool& pool) const {
+    // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
+    formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
+
+    // TODO: Simplify the result (currently disabled)
+    // formula::Formula* next_phi_simplified = next_phi->simplify(pool);
+
+    return next_phi;
 }
 
-TableauState::FormulaSet
-TableauState::evaluate_literals(const FormulaSet& formulas, const Assignment& assignment) {
-    FormulaSet result;
-
-    for (formula::Formula* f : formulas) {
-        if (!f) continue;
-
-        if (is_literal(f)) {
-            // Only keep literal if it evaluates to true
-            if (literal_value(f, assignment)) {
-                result.insert(f);
-            }
-        } else {
-            // Non-literals are always kept
-            result.insert(f);
-        }
-    }
-
-    return result;
-}
-
-std::unique_ptr<TableauState>
-TableauState::next(const Assignment& assignment, formula::FormulaPool& pool, int num_outputs) const {
-    // XNF-based next state computation:
-    // Each component in the current state is processed independently
-    // - Literals (p1, !p1): evaluate against assignment
-    // - Next(X(p1)): expand to p1 (for next state)
-    // - Until/Release: handle according to tableau rules
-
-    FormulaSet next_formulas;
-
-    // Process each formula in the current state
-    for (formula::Formula* f : formulas_) {
-        if (!f) continue;
-
-        switch (f->op()) {
-            case formula::Formula::OpType::Literal: {
-                // p1: only keep if true in assignment
-                if (assignment.count(f->var_id()) > 0) {
-                    next_formulas.insert(f);
-                }
-                // If p1 is false, don't add to next state (constraint not satisfied)
-                break;
-            }
-
-            case formula::Formula::OpType::Not: {
-                formula::Formula* child = f->left();
-                if (child && child->op() == formula::Formula::OpType::Literal) {
-                    // !p1: only keep if p1 is NOT in assignment
-                    if (assignment.count(child->var_id()) == 0) {
-                        next_formulas.insert(f);
-                    }
-                } else {
-                    // Keep non-literal negations as-is
-                    next_formulas.insert(f);
-                }
-                break;
-            }
-
-            case formula::Formula::OpType::Next: {
-                // X(p1) → p1 (unfolds to next state)
-                if (f->left()) {
-                    next_formulas.insert(f->left());
-                }
-                break;
-            }
-
-            case formula::Formula::OpType::Until: {
-                // p1 U p2: tableau rule
-                // - Either p2 is true (until satisfied)
-                // - Or (p1 U p2) continues
-                formula::Formula* right = f->right();
-
-                // Check if right side is true
-                bool right_true = false;
-                if (is_literal(right)) {
-                    right_true = literal_value(right, assignment);
-                } else if (right && right->is_true()) {
-                    right_true = true;
-                }
-
-                if (!right_true) {
-                    // p2 not true, keep (p1 U p2) for next iteration
-                    next_formulas.insert(f);
-
-                    // If right is X(psi), add psi to next state
-                    if (right && right->op() == formula::Formula::OpType::Next && right->left()) {
-                        next_formulas.insert(right->left());
-                    }
-                }
-                // If right is true, until is satisfied - don't add Until to next state
-                break;
-            }
-
-            case formula::Formula::OpType::Release: {
-                // p1 R p2: p2 must hold, and (p1 R p2) continues
-                // Add both p2 and (p1 R p2)
-                if (f->right()) {
-                    next_formulas.insert(f->right());
-                }
-                next_formulas.insert(f);
-                break;
-            }
-
-            case formula::Formula::OpType::Or: {
-                // φ1 ∨ φ2: check if either side is satisfied
-                // If not, keep OR for next iteration (don't expand)
-
-                // Check if left side is satisfied
-                bool left_satisfied = false;
-                formula::Formula* left = f->left();
-                if (is_literal(left)) {
-                    left_satisfied = literal_value(left, assignment);
-                } else if (left && left->is_true()) {
-                    left_satisfied = true;
-                }
-
-                // Check if right side is satisfied
-                bool right_satisfied = false;
-                formula::Formula* right = f->right();
-                if (is_literal(right)) {
-                    right_satisfied = literal_value(right, assignment);
-                } else if (right && right->is_true()) {
-                    right_satisfied = true;
-                }
-
-                // If neither side is satisfied, keep OR for next iteration
-                // DO NOT expand - let the game solver handle choice
-                if (!left_satisfied && !right_satisfied) {
-                    next_formulas.insert(f);
-                }
-                // If either side is satisfied, OR is fulfilled - don't add to next state
-                break;
-            }
-
-            case formula::Formula::OpType::And: {
-                // φ1 ∧ φ2: both sides must be satisfied
-                // Add both sides to next state
-                if (f->left()) next_formulas.insert(f->left());
-                if (f->right()) next_formulas.insert(f->right());
-                break;
-            }
-
-            default:
-                // True, False, End: keep as-is
-                next_formulas.insert(f);
-                break;
-        }
-    }
-
-    // If no formulas remain, return empty state (terminal)
-    if (next_formulas.empty()) {
-        return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
-    }
-
-    return std::unique_ptr<TableauState>(new TableauState(std::move(next_formulas)));
-}
+//------------------------------------------------------------------------------
+// Remaining TableauState methods
+//------------------------------------------------------------------------------
 
 bool TableauState::operator==(const TableauState& other) const {
+    // Equality based on phi only
     if (this == &other) return true;
-    if (hash_ != other.hash_) return false;
-    return formulas_ == other.formulas_;
+    if (!phi_ || !other.phi_) return false;
+    return phi_->hash() == other.phi_->hash();
 }
 
 std::string TableauState::to_string() const {
     std::ostringstream oss;
-    oss << "{";
+    oss << "{phi: " << (phi_ ? phi_->to_string() : "null");
+    oss << ", atoms: [";
 
     bool first = true;
-    for (formula::Formula* f : formulas_) {
+    for (formula::Formula* f : prop_atoms_) {
         if (!first) oss << ", ";
         first = false;
 
@@ -637,34 +240,54 @@ std::string TableauState::to_string() const {
         }
     }
 
-    oss << "}";
+    oss << "]}";
     return oss.str();
 }
 
-size_t TableauState::compute_hash(const FormulaSet& formulas) {
-    return compute_formula_set_hash(formulas);
+bool TableauState::is_temporal(formula::Formula* f) {
+    if (!f) return false;
+    auto op = f->op();
+    return op == formula::Formula::OpType::Next ||
+           op == formula::Formula::OpType::Until ||
+           op == formula::Formula::OpType::Release;
 }
 
 //==============================================================================
 // TableauStatePool
 //==============================================================================
 
-TableauState* TableauStatePool::get_or_create(TableauState::FormulaSet formulas) {
-    // Create a temporary state to check for existence
-    auto temp = std::unique_ptr<TableauState>(new TableauState(std::move(formulas)));
+// Updated get_or_create to take phi instead of formulas
+TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::FormulaPool& pool) {
+    // Check if phi is null
+    if (!phi) return nullptr;
 
-    // Check if equivalent state exists
+    // Create a temporary state to check for existence
+    // We need the xnf and prop_atoms, but for checking existence we just need phi hash
+    auto temp = std::unique_ptr<TableauState>(new TableauState(phi, phi, {}));
+
+    // Check if equivalent state exists (based on phi hash)
     auto it = states_.find(temp.get());
     if (it != states_.end()) {
         return *it;
     }
 
-    // Add new state
-    TableauState* raw_ptr = temp.get();
-    states_.insert(raw_ptr);
+    // Create the actual state with proper initialization
+    // First convert to NNF, then XNF
+    formula::Formula* nnf_phi = phi->nnf(pool);
+    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool);
 
-    // Move into storage for ownership
-    storage_.push_back(std::move(temp));
+    // Compute PA(xnf_phi)
+    TableauState::FormulaSet prop_atoms;
+    TableauState::compute_prop_atoms(xnf_phi, prop_atoms);
+
+    // Create the actual state
+    auto actual_state = std::unique_ptr<TableauState>(
+        new TableauState(phi, xnf_phi, std::move(prop_atoms)));
+
+    // Add to pool
+    TableauState* raw_ptr = actual_state.get();
+    states_.insert(raw_ptr);
+    storage_.push_back(std::move(actual_state));
 
     LOG_DEBUG("TableauStatePool: created new state, total=", states_.size());
 
@@ -681,443 +304,15 @@ void TableauStatePool::clear() {
 //==============================================================================
 
 OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
-    : pool_(pool),
-      num_outputs_(pool.num_outputs()),
-      transition_cache_(16, CacheKeyHash{}, CacheKeyEqual{}) {
+    : pool_(pool), state_pool_(), initial_state_(nullptr) {
     LOG_DEBUG("OnTheFlyDFA: constructing from formula: ", phi->to_string());
 
-    // Convert to NNF first
-    formula::Formula* nnf_phi = phi->nnf(pool_);
-    LOG_DEBUG("OnTheFlyDFA: NNF: ", nnf_phi->to_string());
-
-    // Convert to XNF for proper state construction
-    // XNF transforms Until/Release into the correct form:
-    // - Until: xnf(φ₁ U φ₂) = xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))
-    // - Release: xnf(φ₁ R φ₂) = xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
-    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool_);
-    LOG_DEBUG("OnTheFlyDFA: XNF: ", xnf_phi->to_string());
-
-    // Create initial state using XNF
-    auto init_state = TableauState::initial(xnf_phi, pool_);
-    initial_state_ = state_pool_.get_or_create(std::move(init_state->formulas()));
+    // Create initial state using TableauState::initial
+    auto init_state = TableauState::initial(phi, pool_);
+    // Get or create from pool (uses phi for hash consing)
+    initial_state_ = state_pool_.get_or_create(init_state->phi(), pool_);
 
     LOG_DEBUG("OnTheFlyDFA: initial state: ", initial_state_->to_string());
-}
-
-bool OnTheFlyDFA::is_accepting(TableauState* q) const {
-    // Special case: empty state (no formulas) is accepting in LTLf
-    // This represents the "true" state where the formula has been satisfied
-    if (q->formulas().empty()) {
-        return true;
-    }
-
-    // First check tableau-level acceptance (no false, local consistency)
-    if (!q->is_accepting()) {
-        return false;
-    }
-
-    // For non-temporal states, check if system can satisfy using only outputs
-    // Check if state has any temporal operators (including nested ones)
-    std::function<bool(formula::Formula*)> has_nested_temporal =
-        [&](formula::Formula* f) -> bool {
-        if (!f) return false;
-        if (TableauState::is_temporal(f)) return true;
-        // Recursively check children based on operator type
-        auto op = f->op();
-        if (op == formula::Formula::OpType::Not ||
-            op == formula::Formula::OpType::Next) {
-            return has_nested_temporal(f->left());
-        }
-        if (op == formula::Formula::OpType::And ||
-            op == formula::Formula::OpType::Or ||
-            op == formula::Formula::OpType::Until ||
-            op == formula::Formula::OpType::Release) {
-            return has_nested_temporal(f->left()) || has_nested_temporal(f->right());
-        }
-        // Literal, True, False don't have children
-        return false;
-    };
-
-    bool has_temporal = false;
-    for (formula::Formula* f : q->formulas()) {
-        if (f && has_nested_temporal(f)) {
-            has_temporal = true;
-            break;
-        }
-    }
-
-    if (has_temporal) {
-        // First, check for negated input literals (!input) at any level
-        // These are problematic because environment can make input=true
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-
-            // Check if this formula contains !input in problematic contexts
-            // We only reject !input when it's in a position that MUST be satisfied
-            std::function<bool(formula::Formula*)> has_negated_input =
-                [&](formula::Formula* formula) -> bool {
-                    if (!formula) return false;
-
-                    auto op = formula->op();
-
-                    // For OR: check if BOTH sides have !input (then it's problematic)
-                    // If only one side has !input, the other side might be satisfiable
-                    if (op == formula::Formula::OpType::Or) {
-                        bool left_has = has_negated_input(formula->left());
-                        bool right_has = has_negated_input(formula->right());
-                        // Only reject if BOTH sides have !input
-                        return left_has && right_has;
-                    }
-
-                    // If top-level is AND, check both sides
-                    if (op == formula::Formula::OpType::And) {
-                        return has_negated_input(formula->left()) ||
-                               has_negated_input(formula->right());
-                    }
-
-                    // If top-level is Not with !input, it's problematic
-                    // (because this formula MUST be satisfied)
-                    if (op == formula::Formula::OpType::Not) {
-                        formula::Formula* child = formula->left();
-                        if (child && child->op() == formula::Formula::OpType::Literal) {
-                            int var_id = child->var_id();
-                            if (var_id >= num_outputs_) {
-                                LOG_DEBUG("OnTheFlyDFA: temporal state has !input");
-                                return true;
-                            }
-                        }
-                        // Also check recursively for nested !input
-                        return has_negated_input(child);
-                    }
-
-                    // For Until: left must be satisfied until right becomes true
-                    // For Release: right must be true until left becomes true (or forever)
-                    // KEY DIFFERENCE: For Release, left side having !input is OK!
-                    // Because system can choose to keep right side true forever
-                    if (op == formula::Formula::OpType::Until) {
-                        // Right side must be satisfied eventually, so check it
-                        if (formula->right() && has_negated_input(formula->right())) {
-                            return true;
-                        }
-                        // Left side doesn't need to be satisfied immediately
-                        // Only check if it contains !input in AND context
-                        return has_negated_input(formula->left());
-                    }
-
-                    if (op == formula::Formula::OpType::Release) {
-                        // For Release, only the RIGHT side must be kept true
-                        // The left side having !input is OK - system doesn't need to satisfy it
-                        // (System can choose to keep right side true forever)
-                        if (formula->right() && has_negated_input(formula->right())) {
-                            return true;
-                        }
-                        // Don't check left side for Release!
-                        return false;
-                    }
-
-                    // For Next: check inside
-                    if (op == formula::Formula::OpType::Next) {
-                        return has_negated_input(formula->left());
-                    }
-
-                    return false;
-                };
-
-            if (has_negated_input(f)) {
-                return false;
-            }
-        }
-
-        // Also check for positive input literals in temporal states
-        // For temporal states, if there's a standalone input literal that must be true,
-        // the system cannot guarantee it (environment controls it)
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-            if (f->op() == formula::Formula::OpType::Literal) {
-                int var_id = f->var_id();
-                if (var_id >= num_outputs_) {
-                    // Positive input literal - system cannot guarantee it
-                    return false;
-                }
-            }
-        }
-
-        // Check temporal formulas for input dependencies
-        // If a temporal formula requires an input to be true, system cannot guarantee it
-        //
-        // IMPORTANT: We need to be careful with OR formulas:
-        // - For (A | B), we only reject if BOTH A and B require input
-        // - This includes BOTH "requires input true" AND "has !input"
-        //
-        // For nested temporal ops inside Next, we DO need to check them
-        // because XNF transformation preserves the original Until/Release.
-
-        // Helper: check if formula has !input (negated input literal)
-        // Use std::function to allow recursive calls
-        std::function<bool(formula::Formula*)> has_negated_input_check =
-            [&](formula::Formula* formula) -> bool {
-            if (!formula) return false;
-
-            auto op = formula->op();
-
-            // Check !v where v is input
-            if (op == formula::Formula::OpType::Not) {
-                formula::Formula* child = formula->left();
-                if (child && child->op() == formula::Formula::OpType::Literal) {
-                    int var_id = child->var_id();
-                    if (var_id >= num_outputs_) {
-                        return true;
-                    }
-                }
-                // Also check recursively
-                return has_negated_input_check(child);
-            }
-
-            // For AND: check both sides
-            if (op == formula::Formula::OpType::And) {
-                return has_negated_input_check(formula->left()) ||
-                       has_negated_input_check(formula->right());
-            }
-
-            // For OR: don't check (handled by caller)
-            if (op == formula::Formula::OpType::Or) {
-                return false;
-            }
-
-            // For Until: check both sides
-            if (op == formula::Formula::OpType::Until) {
-                if (has_negated_input_check(formula->left())) return true;
-                if (formula->right() && has_negated_input_check(formula->right())) return true;
-            }
-
-            // For Release: only check RIGHT side
-            // Left side having !input is OK for Release (system can keep right side true forever)
-            if (op == formula::Formula::OpType::Release) {
-                if (formula->right() && has_negated_input_check(formula->right())) return true;
-                // Don't check left side for Release!
-            }
-
-            // For Next: check inside
-            if (op == formula::Formula::OpType::Next) {
-                return has_negated_input_check(formula->left());
-            }
-
-            return false;
-        };
-
-        std::function<bool(formula::Formula*)> check_temporal_dependencies =
-            [&](formula::Formula* formula) -> bool {
-                if (!formula) return false;
-
-                auto op = formula->op();
-
-                // For OR: check if BOTH sides have input dependencies
-                // (OR is a choice point - system can choose which side to satisfy)
-                // We only reject if BOTH sides require input (system can't choose)
-                if (op == formula::Formula::OpType::Or) {
-                    // Check left side
-                    bool left_requires = check_temporal_dependencies(formula->left());
-                    bool left_has_negated = has_negated_input_check(formula->left());
-                    bool left_has_dep = left_requires || left_has_negated;
-
-                    // Check right side
-                    bool right_requires = check_temporal_dependencies(formula->right());
-                    bool right_has_negated = has_negated_input_check(formula->right());
-                    bool right_has_dep = right_requires || right_has_negated;
-
-                    bool result = left_has_dep && right_has_dep;
-
-                    // Only reject if BOTH sides have some input dependency
-                    return result;
-                }
-
-                // Check Until: φ U ψ requires ψ to eventually be true
-                // AND φ must be true until ψ is true
-                // So BOTH sides can have input dependencies
-                if (op == formula::Formula::OpType::Until) {
-                    // Check right side ψ
-                    if (formula->right()) {
-                        bool right_requires = requires_input_true(formula->right(), num_outputs_);
-                        bool right_has_negated = has_negated_input_check(formula->right());
-                        if (right_requires || right_has_negated) {
-                            LOG_DEBUG("OnTheFlyDFA: temporal Until right side has input dependency");
-                            return true;
-                        }
-                    }
-                    // Check left side φ (must be satisfied until ψ)
-                    if (formula->left()) {
-                        bool left_requires = requires_input_true(formula->left(), num_outputs_);
-                        bool left_has_negated = has_negated_input_check(formula->left());
-                        if (left_requires || left_has_negated) {
-                            LOG_DEBUG("OnTheFlyDFA: temporal Until left side has input dependency");
-                            return true;
-                        }
-                    }
-                    // IMPORTANT: Return false here to indicate no rejection
-                    // Otherwise the code falls through to the next case!
-                    return false;
-                }
-
-                // Check Release: φ R ψ requires ψ to be true until φ is true
-                // KEY INSIGHT: If φ never becomes true, ψ must be true forever
-                // This gives the system a choice: make φ true OR keep ψ true forever
-                // Therefore:
-                // - If ψ (right side) has input dependencies → reject (can't guarantee ψ)
-                // - If φ (left side) has input dependencies but ψ doesn't → OK (system can keep ψ forever)
-                if (op == formula::Formula::OpType::Release) {
-                    // Check right side ψ
-                    // If ψ has input dependencies, the system can't guarantee it stays true
-                    if (formula->right()) {
-                        bool right_requires = requires_input_true(formula->right(), num_outputs_);
-                        bool right_has_negated = has_negated_input_check(formula->right());
-                        if (right_requires || right_has_negated) {
-                            // Right side has input dependencies → system can't guarantee ψ
-                            return true;
-                        }
-                    }
-                    // Note: We DON'T reject based on left side φ having input dependencies
-                    // Because the system can choose to keep ψ true forever instead of making φ true
-                    // (This is the key difference between Release and Until)
-
-                    // Recursively check the RIGHT side for nested temporal formulas
-                    // (e.g., Release inside Release, Until inside Release, etc.)
-                    // But DON'T check the left side recursively - left side input deps are OK!
-                    if (formula->right() && check_temporal_dependencies(formula->right())) {
-                        return true;
-                    }
-                    // If we get here, no rejection - this Release formula is OK
-                    return false;
-                }
-
-                // Check Next: X φ - recursively check φ for temporal dependencies
-                // X(literal) doesn't need checking, but X(Until/Release) does
-                // We must recursively check to handle nested Next operators
-                if (op == formula::Formula::OpType::Next && formula->left()) {
-                    return check_temporal_dependencies(formula->left());
-                }
-
-                // For AND: check both sides (if either requires input, reject)
-                if (op == formula::Formula::OpType::And) {
-                    return check_temporal_dependencies(formula->left()) ||
-                           check_temporal_dependencies(formula->right());
-                }
-
-                // For NOT: check the child
-                if (op == formula::Formula::OpType::Not) {
-                    return check_temporal_dependencies(formula->left());
-                }
-
-                // Literal, True, False don't need checking
-                return false;
-            };
-
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-            if (check_temporal_dependencies(f)) {
-                return false;
-            }
-        }
-    } else {
-        // Non-temporal state: check if system can satisfy all formulas
-        // A non-temporal state is accepting for synthesis if there exists
-        // an output assignment that satisfies all propositional formulas,
-        // regardless of input values.
-
-        // For now, use a simpler check:
-        // If the state contains any literal that is an input variable,
-        // the system cannot guarantee satisfaction (environment controls it).
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-
-            if (f->op() == formula::Formula::OpType::Literal) {
-                int var_id = f->var_id();
-                // If this literal is an input variable required to be true,
-                // system cannot guarantee it
-                if (var_id >= num_outputs_) {
-                    // Input variable found - system cannot guarantee satisfaction
-                    LOG_DEBUG("OnTheFlyDFA: non-temporal state has input literal v", var_id,
-                              " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
-                    return false;
-                }
-            } else if (f->op() == formula::Formula::OpType::Not) {
-                formula::Formula* child = f->left();
-                if (child && child->op() == formula::Formula::OpType::Literal) {
-                    int var_id = child->var_id();
-                    // If !v where v is input, system cannot guarantee v is false
-                    // Environment can choose v=true, making !v false
-                    if (var_id >= num_outputs_) {
-                        LOG_DEBUG("OnTheFlyDFA: non-temporal state has !v where v is input v", var_id,
-                                  " >= num_outputs(", num_outputs_, "), not accepting for synthesis");
-                        return false;
-                    }
-                    // If !v where v is output, system can set v=false - OK
-                }
-            }
-        }
-
-        // Also need to check And/Or formulas for input dependencies
-        // For simplicity: if there's any And that requires an input literal, fail
-        for (formula::Formula* f : q->formulas()) {
-            if (!f) continue;
-
-            if (f->op() == formula::Formula::OpType::And) {
-                // Check if any side of the And requires an input to be true
-                if (requires_input_true(f, num_outputs_)) {
-                    LOG_DEBUG("OnTheFlyDFA: non-temporal state has And requiring input true");
-                    return false;
-                }
-            }
-        }
-    }
-
-    return true;
-}
-
-bool OnTheFlyDFA::requires_input_true(formula::Formula* f, int num_outputs) const {
-    if (!f) return false;
-
-    switch (f->op()) {
-    case formula::Formula::OpType::Literal:
-        // Positive literal that is an input
-        return f->var_id() >= num_outputs;
-
-    case formula::Formula::OpType::Not: {
-        formula::Formula* child = f->left();
-        if (child && child->op() == formula::Formula::OpType::Literal) {
-            // Negative literal !v where v is an input
-            // This requires v to be false, which is also an input dependency
-            return child->var_id() >= num_outputs;
-        }
-        return requires_input_true(child, num_outputs);
-    }
-
-    case formula::Formula::OpType::And:
-        // Both sides must be true, so check both
-        return requires_input_true(f->left(), num_outputs) ||
-               requires_input_true(f->right(), num_outputs);
-
-    case formula::Formula::OpType::Or:
-        // At least one side must be true
-        // Only problematic if BOTH sides require input
-        return requires_input_true(f->left(), num_outputs) &&
-               requires_input_true(f->right(), num_outputs);
-
-    case formula::Formula::OpType::Until:
-    case formula::Formula::OpType::Release:
-        // Check both sides for input dependencies
-        // Until: φ U ψ requires both φ (temporal obligation) and ψ (eventual truth)
-        // Release: φ R ψ requires both φ (release condition) and ψ (obligation until φ)
-        return requires_input_true(f->left(), num_outputs) ||
-               requires_input_true(f->right(), num_outputs);
-
-    case formula::Formula::OpType::Next:
-        // X φ - check inside
-        return requires_input_true(f->left(), num_outputs);
-
-    default:
-        // Unknown operator
-        return false;
-    }
 }
 
 TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignment) const {
@@ -1128,59 +323,11 @@ TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignme
         return it->second;
     }
 
-    LOG_DEBUG("OnTheFlyDFA: computing successor");
-
-    // For synthesis: check if any input literals will be false
-    // If an input literal is false, the formula fails → return false state
-    bool has_failed_input_literal = false;
-    bool has_failed_negation = false;
-    for (formula::Formula* f : q->formulas()) {
-        if (!f) continue;
-        if (f->op() == formula::Formula::OpType::Literal) {
-            int var_id = f->var_id();
-            // Check if this is an input variable that's false in assignment
-            if (var_id >= num_outputs_) {
-                // This is an input variable
-                bool literal_true = assignment.count(var_id) > 0;
-                if (!literal_true) {
-                    // Input literal is false → formula fails
-                    has_failed_input_literal = true;
-                    LOG_DEBUG("OnTheFlyDFA: input literal v", var_id, " is false, formula fails");
-                    break;
-                }
-            }
-        } else if (f->op() == formula::Formula::OpType::Not) {
-            formula::Formula* child = f->left();
-            if (child && child->op() == formula::Formula::OpType::Literal) {
-                int var_id = child->var_id();
-                // Check if !v where v is input and v is true in assignment
-                if (var_id >= num_outputs_) {
-                    bool var_true = assignment.count(var_id) > 0;
-                    if (var_true) {
-                        // !v where v=true → negation fails
-                        has_failed_negation = true;
-                        LOG_DEBUG("OnTheFlyDFA: negation !v", var_id, " fails because v is true");
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    // Compute next state
-    auto next_state = q->next(assignment, pool_, num_outputs_);
-
-    // Get formulas from next state
-    TableauState::FormulaSet next_formulas = std::move(next_state->formulas_);
-
-    // If we had a failed input literal/negation and next state is empty, add false
-    if ((has_failed_input_literal || has_failed_negation) && next_formulas.empty()) {
-        LOG_DEBUG("OnTheFlyDFA: failed input requirement leads to empty, adding false");
-        next_formulas.insert(pool_.create_false());
-    }
+    // Compute next phi using formula progression
+    formula::Formula* next_phi = q->next_phi(assignment, pool_);
 
     // Get or create from pool
-    TableauState* result = state_pool_.get_or_create(std::move(next_formulas));
+    TableauState* result = state_pool_.get_or_create(next_phi, pool_);
 
     // Cache and track
     transition_cache_[key] = result;

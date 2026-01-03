@@ -81,17 +81,20 @@ public:
     static std::unique_ptr<TableauState> initial(formula::Formula* phi, formula::FormulaPool& pool);
 
     /**
-     * @brief Expand to next state given an assignment
+     * @brief Compute next phi given an assignment
      *
-     * Uses formula progression fp(xnf_phi, assignment) to compute next state.
+     * Uses formula progression fp(xnf_phi, assignment) to compute next phi.
      * Based on AAAI2019 Li et al. - Formula Progression for LTLf.
+     *
+     * The returned phi should be used with TableauStatePool::get_or_create()
+     * to obtain the actual TableauState.
      *
      * @param assignment Set of variable IDs that are true
      * @param pool Formula pool for creating new formulas
-     * @return Next tableau state
+     * @return Next phi (progressed formula)
      */
-    std::unique_ptr<TableauState> next(const Assignment& assignment,
-                                        formula::FormulaPool& pool) const;
+    formula::Formula* next_phi(const Assignment& assignment,
+                                formula::FormulaPool& pool) const;
 
     /**
      * @brief Get the original formula phi

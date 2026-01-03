@@ -446,8 +446,9 @@ static bool formula_empty_string_accepting(formula::Formula* f) {
 /**
  * @brief Check if a TableauState can be satisfied by the empty string
  *
- * A state is empty-string accepting if ALL formulas in the state
- * can be simultaneously satisfied by some output assignment.
+ * In the new TableauState design, each state has a single phi_ formula
+ * that represents the entire state. We check if this phi can be satisfied
+ * by the empty string.
  *
  * @param q The TableauState to check
  * @return true if the state can be satisfied by the empty string
@@ -455,17 +456,11 @@ static bool formula_empty_string_accepting(formula::Formula* f) {
 bool OnTheFlyGameSolver::is_empty_string_accepting(automata::TableauState* q) const {
     if (!q) return false;
 
-    const auto& formulas = q->formulas();
+    // Check the phi_ formula (original formula representing this state)
+    formula::Formula* phi = q->phi();
+    if (!phi) return true;  // Empty phi is vacuously true
 
-    // ALL formulas in the state must be empty-string accepting
-    for (formula::Formula* f : formulas) {
-        if (!f) continue;
-        if (!formula_empty_string_accepting(f)) {
-            return false;  // This formula cannot be satisfied by empty string
-        }
-    }
-
-    return true;  // All formulas can be satisfied
+    return formula_empty_string_accepting(phi);
 }
 
 bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
