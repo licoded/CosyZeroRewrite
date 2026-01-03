@@ -194,8 +194,8 @@ int main(int argc, char* argv[]) {
     if (verbose) {
         // Verbose mode: show all test details with line numbers
         default_args.push_back("-s");  // show successful tests
-        default_args.push_back("-d");  // show duration (needs value in v2)
-        default_args.push_back("0");   // show all durations
+        default_args.push_back("-d");  // show duration
+        default_args.push_back("yes"); // enable duration display
     } else if (!user_specified_reporter) {
         // Default mode: use compact reporter (only if user didn't specify one)
         default_args.push_back("-r");
