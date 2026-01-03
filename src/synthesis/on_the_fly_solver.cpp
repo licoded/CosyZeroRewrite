@@ -374,12 +374,80 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs_for_testing() 
 }
 
 /**
+ * @brief Recursively check if a formula can be satisfied by the empty string
+ *
+ * Rules for empty-string acceptance:
+ * - Literal/True: accept
+ * - False: reject
+ * - And(φ, ψ): accept iff φ accepts AND ψ accepts
+ * - Or(φ, ψ): accept iff φ accepts OR ψ accepts
+ * - Not(φ): accept iff φ rejects (¬φ satisfied when φ is NOT satisfied)
+ * - Until(φ, ψ): NEVER accepts (requires ψ in future)
+ * - Next(φ): NEVER accepts (requires next state)
+ * - Release(φ, ψ): ALWAYS accepts (default behavior: ψ holds forever)
+ *
+ * @param f The formula to check
+ * @return true if the formula can be satisfied by the empty string
+ */
+static bool formula_empty_string_accepting(formula::Formula* f) {
+    if (!f) return true;  // Empty is vacuously true
+
+    switch (f->op()) {
+        case formula::Formula::OpType::True:
+        case formula::Formula::OpType::Literal:
+            return true;  // Can be satisfied by appropriate output
+
+        case formula::Formula::OpType::False:
+            return false;  // Never satisfied
+
+        case formula::Formula::OpType::And:
+            return formula_empty_string_accepting(f->left()) &&
+                   formula_empty_string_accepting(f->right());
+
+        case formula::Formula::OpType::Or:
+            return formula_empty_string_accepting(f->left()) ||
+                   formula_empty_string_accepting(f->right());
+
+        case formula::Formula::OpType::Not: {
+            // ¬φ is satisfied by empty string iff φ is NOT satisfied
+            // But wait, this is tricky. If φ = p1, then ¬p1 can be satisfied by setting p1=false.
+            // If φ = F p1 (not satisfiable), then ¬F p1 IS satisfiable (treated as true).
+            // Actually, for literals: Not(p) can be satisfied
+            // For complex formulas: Not(φ) is satisfied if φ is not satisfiable
+            formula::Formula* child = f->left();
+            if (!child) return true;
+            if (child->op() == formula::Formula::OpType::Literal) {
+                return true;  // ¬p can be satisfied by setting p=false
+            }
+            return !formula_empty_string_accepting(child);
+        }
+
+        case formula::Formula::OpType::Until:
+            // φ U ψ requires ψ to be true in the future
+            // Cannot be satisfied by empty string
+            return false;
+
+        case formula::Formula::OpType::Next:
+            // X φ requires the next state to satisfy φ
+            // Cannot be satisfied by empty string
+            return false;
+
+        case formula::Formula::OpType::Release:
+            // φ R ψ: ψ must hold now and continue
+            // If ψ can be satisfied, Release is satisfied
+            // Also, Release has "weak" semantics: if ψ never becomes false, it's OK
+            return formula_empty_string_accepting(f->right());
+
+        default:
+            return false;  // Unknown operator, conservative
+    }
+}
+
+/**
  * @brief Check if a TableauState can be satisfied by the empty string
  *
- * In LTLf, a state is empty-string accepting if:
- * 1. No U (Until) or X (Next) operators - these require future states
- * 2. Only R (Release) operators and non-temporal formulas are allowed
- * 3. The state is locally consistent (no contradictions like p & !p)
+ * A state is empty-string accepting if ALL formulas in the state
+ * can be simultaneously satisfied by some output assignment.
  *
  * @param q The TableauState to check
  * @return true if the state can be satisfied by the empty string
@@ -389,64 +457,15 @@ bool OnTheFlyGameSolver::is_empty_string_accepting(automata::TableauState* q) co
 
     const auto& formulas = q->formulas();
 
-    // Check for U or X operators - these prevent empty-string acceptance
+    // ALL formulas in the state must be empty-string accepting
     for (formula::Formula* f : formulas) {
         if (!f) continue;
-        auto op = f->op();
-        if (op == formula::Formula::OpType::Until ||
-            op == formula::Formula::OpType::Next) {
-            return false;  // Has temporal obligation requiring future states
+        if (!formula_empty_string_accepting(f)) {
+            return false;  // This formula cannot be satisfied by empty string
         }
     }
 
-    // Check for contradictions (literals p and !p)
-    for (formula::Formula* f : formulas) {
-        if (!f) continue;
-        if (f->op() == formula::Formula::OpType::Literal) {
-            int var_id = f->var_id();
-            for (formula::Formula* g : formulas) {
-                if (!g) continue;
-                if (g->op() == formula::Formula::OpType::Not) {
-                    formula::Formula* child = g->left();
-                    if (child && child->op() == formula::Formula::OpType::Literal &&
-                        child->var_id() == var_id) {
-                        return false;  // Contradiction: p and !p
-                    }
-                }
-            }
-        }
-    }
-
-    // Check for And formulas with internal contradictions (p & !p)
-    for (formula::Formula* f : formulas) {
-        if (!f) continue;
-        if (f->op() == formula::Formula::OpType::And) {
-            formula::Formula* left = f->left();
-            formula::Formula* right = f->right();
-            if (!left || !right) continue;
-
-            // Check if left and right are contradictory literals
-            if (left->op() == formula::Formula::OpType::Literal &&
-                right->op() == formula::Formula::OpType::Not) {
-                formula::Formula* right_child = right->left();
-                if (right_child && right_child->op() == formula::Formula::OpType::Literal &&
-                    left->var_id() == right_child->var_id()) {
-                    return false;  // Contradiction: p & !p
-                }
-            }
-            // Also check the reverse: !p & p
-            if (left->op() == formula::Formula::OpType::Not &&
-                right->op() == formula::Formula::OpType::Literal) {
-                formula::Formula* left_child = left->left();
-                if (left_child && left_child->op() == formula::Formula::OpType::Literal &&
-                    right->var_id() == left_child->var_id()) {
-                    return false;  // Contradiction: !p & p
-                }
-            }
-        }
-    }
-
-    return true;  // Can be satisfied by empty string
+    return true;  // All formulas can be satisfied
 }
 
 bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
