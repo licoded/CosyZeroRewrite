@@ -41,7 +41,9 @@ namespace {
             log_path << "logs/tableau/"
                       << std::put_time(tm_info, "%Y-%m-%d")
                       << "/" << period
-                      << "/tableau_debug.log";
+                      << "/tableau_debug_"
+                      << std::put_time(tm_info, "%Y%m%d_%H%M%S")
+                      << ".log";
 
             // Create directory
             fs::create_directories(fs::path(log_path.str()).parent_path());

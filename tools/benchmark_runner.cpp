@@ -166,10 +166,13 @@ public:
         log_dir_ = oss.str();
         fs::create_directories(log_dir_);
 
-        // Create log filename (without timestamp, just basename)
-        std::string log_name = "benchmark.log";
+        // Create log filename with timestamp
+        std::ostringstream log_name;
+        log_name << "benchmark_"
+                 << std::put_time(tm_info, "%Y%m%d_%H%M%S")
+                 << ".log";
 
-        log_path_ = log_dir_ + "/" + log_name;
+        log_path_ = log_dir_ + "/" + log_name.str();
         log_file_.open(log_path_, std::ios::out);
 
         if (log_file_.is_open()) {
@@ -662,8 +665,12 @@ int main(int argc, char* argv[]) {
     std::string results_dir = results_oss.str();
     fs::create_directories(results_dir);
 
-    // Prepare output file (without timestamp in filename)
-    std::string output_csv = results_dir + "/benchmark_results.csv";
+    // Prepare output file with timestamp
+    std::ostringstream output_csv_oss;
+    output_csv_oss << results_dir << "/benchmark_results_"
+                    << std::put_time(tm_info, "%Y%m%d_%H%M%S")
+                    << ".csv";
+    std::string output_csv = output_csv_oss.str();
     std::ofstream out_csv(output_csv);
     write_csv_header(out_csv);
 

@@ -59,12 +59,14 @@ private:
             else if (hour >= 18) period = "03-evening";
             else period = "04-night";
 
-            // Create log path: logs/formula/YYYY-MM-DD/period/formula.log
+            // Create log path: logs/formula/YYYY-MM-DD/period/formula_YYYYMMDD_HHMMSS.log
             std::ostringstream log_path;
             log_path << "logs/formula/"
                       << std::put_time(tm_info, "%Y-%m-%d")
                       << "/" << period
-                      << "/formula.log";
+                      << "/formula_"
+                      << std::put_time(tm_info, "%Y%m%d_%H%M%S")
+                      << ".log";
 
             // Create directory
             std::filesystem::create_directories(std::filesystem::path(log_path.str()).parent_path());
