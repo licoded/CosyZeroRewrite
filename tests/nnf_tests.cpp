@@ -53,6 +53,141 @@ TEST_CASE("NNF: literal stays literal", "[nnf][base]") {
 }
 
 //==============================================================================
+// NNF: Negated Constants
+//==============================================================================
+
+TEST_CASE("NNF: !true → false", "[nnf][constants]") {
+    INFO("Formula: !true");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* t = pool.create_true();
+    Formula* not_t = pool.create_not(t);
+    Formula* result = not_t->nnf(pool);
+    REQUIRE(result->is_false());
+}
+
+TEST_CASE("NNF: !false → true", "[nnf][constants]") {
+    INFO("Formula: !false");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* f = pool.create_false();
+    Formula* not_f = pool.create_not(f);
+    Formula* result = not_f->nnf(pool);
+    REQUIRE(result->is_true());
+}
+
+TEST_CASE("NNF: !!true → true", "[nnf][constants]") {
+    INFO("Formula: !!true");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* t = pool.create_true();
+    Formula* not_t = pool.create_not(t);
+    Formula* not_not_t = pool.create_not(not_t);
+    Formula* result = not_not_t->nnf(pool);
+    REQUIRE(result->is_true());
+}
+
+TEST_CASE("NNF: !!false → false", "[nnf][constants]") {
+    INFO("Formula: !!false");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* f = pool.create_false();
+    Formula* not_f = pool.create_not(f);
+    Formula* not_not_f = pool.create_not(not_f);
+    Formula* result = not_not_f->nnf(pool);
+    REQUIRE(result->is_false());
+}
+
+//==============================================================================
+// NNF: Temporal Formulas with G and F
+//==============================================================================
+
+TEST_CASE("NNF: G p (false R p) stays in structure", "[nnf][temporal][always]") {
+    INFO("Formula: G p");
+    FormulaPool pool;
+    pool.declare_variables({"p"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* f = pool.create_false();
+    Formula* gp = pool.create_release(f, p);  // false R p = G p
+    Formula* result = gp->nnf(pool);
+    // Structure preserved, literals unchanged
+    REQUIRE(result->is_release());
+}
+
+TEST_CASE("NNF: !G p → F !p", "[nnf][temporal][always]") {
+    INFO("Formula: !G p");
+    FormulaPool pool;
+    pool.declare_variables({"p"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* f = pool.create_false();
+    Formula* gp = pool.create_release(f, p);  // G p
+    Formula* not_gp = pool.create_not(gp);
+    Formula* result = not_gp->nnf(pool);
+    // !(false R p) → true U !p = F !p
+    REQUIRE(result->is_until());
+    // Left should be true (since !false = true)
+    REQUIRE(result->left()->is_true());
+}
+
+TEST_CASE("NNF: G false (false R false)", "[nnf][temporal][always]") {
+    INFO("Formula: G false");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* f = pool.create_false();
+    Formula* gf = pool.create_release(f, f);  // false R false = G false
+    Formula* result = gf->nnf(pool);
+    REQUIRE(result->is_release());
+}
+
+TEST_CASE("NNF: F p (true U p) stays in structure", "[nnf][temporal][eventually]") {
+    INFO("Formula: F p");
+    FormulaPool pool;
+    pool.declare_variables({"p"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* t = pool.create_true();
+    Formula* fp = pool.create_until(t, p);  // true U p = F p
+    Formula* result = fp->nnf(pool);
+    // Structure preserved
+    REQUIRE(result->is_until());
+}
+
+TEST_CASE("NNF: !F p → G !p", "[nnf][temporal][eventually]") {
+    INFO("Formula: !F p");
+    FormulaPool pool;
+    pool.declare_variables({"p"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* t = pool.create_true();
+    Formula* fp = pool.create_until(t, p);  // F p
+    Formula* not_fp = pool.create_not(fp);
+    Formula* result = not_fp->nnf(pool);
+    // !(true U p) → false R !p = G !p
+    REQUIRE(result->is_release());
+    // Left should be false (since !true = false)
+    REQUIRE(result->left()->is_false());
+}
+
+TEST_CASE("NNF: F true (true U true)", "[nnf][temporal][eventually]") {
+    INFO("Formula: F true");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* t = pool.create_true();
+    Formula* ft = pool.create_until(t, t);  // true U true = F true
+    Formula* result = ft->nnf(pool);
+    REQUIRE(result->is_until());
+}
+
+TEST_CASE("NNF: G true (false R true)", "[nnf][temporal][always]") {
+    INFO("Formula: G true");
+    FormulaPool pool;
+    pool.declare_variables({}, {});
+    Formula* f = pool.create_false();
+    Formula* t = pool.create_true();
+    Formula* gt = pool.create_release(f, t);  // false R true = G true
+    Formula* result = gt->nnf(pool);
+    REQUIRE(result->is_release());
+}
+
+//==============================================================================
 // NNF: Double Negation
 //==============================================================================
 
@@ -66,17 +201,6 @@ TEST_CASE("NNF: !!p → p", "[nnf][double-negation]") {
     Formula* result = not_not_p->nnf(pool);
     REQUIRE(result->is_literal());
     REQUIRE(result->var_id() == p->var_id());
-}
-
-TEST_CASE("NNF: !!true → true", "[nnf][double-negation]") {
-    INFO("Formula: !!true");
-    FormulaPool pool;
-    pool.declare_variables({}, {});
-    Formula* t = pool.create_true();
-    Formula* not_t = pool.create_not(t);
-    Formula* not_not_t = pool.create_not(not_t);
-    Formula* result = not_not_t->nnf(pool);
-    REQUIRE(result->is_true());
 }
 
 //==============================================================================

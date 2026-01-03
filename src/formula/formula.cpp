@@ -76,7 +76,7 @@ std::string Formula::to_string() const {
     return "?";
 }
 
-std::string Formula::to_verbose_string(const FormulaPool& pool) const {
+std::string Formula::to_string_with_names(const FormulaPool& pool) const {
     std::ostringstream oss;
 
     switch (op_) {
@@ -93,7 +93,7 @@ std::string Formula::to_verbose_string(const FormulaPool& pool) const {
             return pool.get_variable_name(var_id_);
 
         case OpType::Not:
-            oss << "!(" << (left_ ? left_->to_verbose_string(pool) : "?") << ")";
+            oss << "!(" << (left_ ? left_->to_string_with_names(pool) : "?") << ")";
             return oss.str();
 
         case OpType::And:
@@ -101,15 +101,15 @@ std::string Formula::to_verbose_string(const FormulaPool& pool) const {
         case OpType::Until:
         case OpType::Release: {
             oss << "(";
-            if (left_) oss << left_->to_verbose_string(pool);
+            if (left_) oss << left_->to_string_with_names(pool);
             oss << " " << op_name() << " ";
-            if (right_) oss << right_->to_verbose_string(pool);
+            if (right_) oss << right_->to_string_with_names(pool);
             oss << ")";
             return oss.str();
         }
 
         case OpType::Next:
-            oss << "X(" << (left_ ? left_->to_verbose_string(pool) : "?") << ")";
+            oss << "X(" << (left_ ? left_->to_string_with_names(pool) : "?") << ")";
             return oss.str();
     }
 

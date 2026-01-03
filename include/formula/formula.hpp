@@ -166,11 +166,11 @@ public:
     std::string to_string() const;
 
     /**
-     * @brief Convert formula to verbose string with variable names
+     * @brief Convert formula to string with original variable names
      * @param pool The FormulaPool for variable name lookup
-     * @return Verbose string representation
+     * @return String representation with original variable names (e.g., "p1", "p2")
      */
-    std::string to_verbose_string(const FormulaPool& pool) const;
+    std::string to_string_with_names(const FormulaPool& pool) const;
 
     /**
      * @brief Get operator name as string

@@ -205,7 +205,7 @@ int main(int argc, char* argv[]) {
         try {
             // Generate random formula
             Formula* f = gen.generate(pool, max_depth);
-            std::string f_str = f->to_verbose_string(pool);
+            std::string f_str = f->to_string_with_names(pool);
 
             auto start = std::chrono::high_resolution_clock::now();
 

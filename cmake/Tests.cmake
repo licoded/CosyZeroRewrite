@@ -67,6 +67,12 @@ if(BUILD_TESTS)
     target_link_libraries(next_tests PRIVATE formula catch2)
 
     # ============================================================
+    # NNF fuzzing test (standalone, not using Catch2)
+    # ============================================================
+    add_executable(nnf_fuzz_test tests/nnf_fuzz_test.cpp)
+    target_link_libraries(nnf_fuzz_test PRIVATE formula)
+
+    # ============================================================
     # Tarjan SCC algorithm tests
     # ============================================================
     add_executable(tarjan_scc_tests tests/tarjan_scc_tests.cpp)
@@ -109,6 +115,7 @@ if(BUILD_TESTS)
         target_compile_options(nnf_tests PRIVATE /W4)
         target_compile_options(xnf_tests PRIVATE /W4)
         target_compile_options(next_tests PRIVATE /W4)
+        target_compile_options(nnf_fuzz_test PRIVATE /W4)
         target_compile_options(tarjan_scc_tests PRIVATE /W4)
         target_compile_options(io_separation_test PRIVATE /W4)
         target_compile_options(strategy_extraction_test PRIVATE /W4)
@@ -123,6 +130,7 @@ if(BUILD_TESTS)
         target_compile_options(nnf_tests PRIVATE -Wno-sign-compare)
         target_compile_options(xnf_tests PRIVATE -Wno-sign-compare)
         target_compile_options(next_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(nnf_fuzz_test PRIVATE -Wno-sign-compare)
         target_compile_options(tarjan_scc_tests PRIVATE -Wno-sign-compare)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
         target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
