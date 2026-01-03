@@ -159,7 +159,7 @@ public:
         else period = "04-night";
 
         std::ostringstream oss;
-        oss << "../logs/benchmark/"
+        oss << "logs/benchmark/"
             << std::put_time(tm_info, "%Y-%m-%d")
             << "/" << period;
 
@@ -658,7 +658,7 @@ int main(int argc, char* argv[]) {
     else period = "04-night";
 
     std::ostringstream results_oss;
-    results_oss << "../results/benchmark/"
+    results_oss << "results/benchmark/"
                  << std::put_time(tm_info, "%Y-%m-%d")
                  << "/" << period;
 
