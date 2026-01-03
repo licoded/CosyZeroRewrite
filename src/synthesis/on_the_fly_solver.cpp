@@ -173,10 +173,8 @@ bool OnTheFlyGameSolver::is_realizable() {
     LOG_DEBUG("=== Classification Summary ===");
     LOG_DEBUG("  Total states: ", total_states);
     LOG_DEBUG("  Swin: ", swin_count, " | Ewin: ", ewin_count, " | Unknown: ", unknown_count);
-    LOG_DEBUG("  Initial state: DFA=", initial_state_.dfa_state,
-              " ", initial_state_.player == Player::System ? "Sys" : "Env");
+    LOG_DEBUG("  Initial state player: ", initial_state_.player == Player::System ? "Sys" : "Env");
     LOG_DEBUG("  Initial state classification: ", to_string(result));
-    LOG_DEBUG("  DFA accepting states: ", dfa_.num_accepting_states(), "/", dfa_.num_states());
 
     if (enable_consistency_check) {
         LOG_DEBUG("=== Running propagation consistency check ===");
@@ -416,8 +414,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
             swin_states.insert(s);
             classification_[s] = StateClass::Swin;
             accepting_seed_count++;
-            LOG_DEBUG("  Seed Swin: DFA state ", s.dfa_state, " ",
-                      s.player == Player::System ? "Sys" : "Env", " (accepting)");
+            LOG_DEBUG("  Seed Swin: ", s.to_string(), " (accepting)");
         }
     }
     LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " accepting)");

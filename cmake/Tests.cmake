@@ -73,6 +73,12 @@ if(BUILD_TESTS)
     target_link_libraries(strategy_extraction_test PRIVATE formula)
 
     # ============================================================
+    # Debug test for eventually_contradiction
+    # ============================================================
+    add_executable(debug_eventually_contradiction tests/debug_eventually_contradiction.cpp)
+    target_link_libraries(debug_eventually_contradiction PRIVATE formula)
+
+    # ============================================================
     # Compiler-specific options for tests
     # ============================================================
     if(MSVC)
@@ -86,6 +92,7 @@ if(BUILD_TESTS)
         target_compile_options(tarjan_scc_tests PRIVATE /W4)
         target_compile_options(io_separation_test PRIVATE /W4)
         target_compile_options(strategy_extraction_test PRIVATE /W4)
+        target_compile_options(debug_eventually_contradiction PRIVATE /W4)
     else()
         target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
         target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
@@ -97,6 +104,7 @@ if(BUILD_TESTS)
         target_compile_options(tarjan_scc_tests PRIVATE -Wno-sign-compare)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
         target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
+        target_compile_options(debug_eventually_contradiction PRIVATE -Wno-sign-compare)
     endif()
 
     # ============================================================
