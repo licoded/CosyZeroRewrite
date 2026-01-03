@@ -170,9 +170,18 @@ TEST_CASE("On-the-Fly: sequence p1 & X p2", "[on_the_fly][complex][!mayfail][kno
 // Custom main for better output
 //==============================================================================
 
-int main(int /*argc*/, char* argv[]) {
+int main(int argc, char* argv[]) {
     // Use Catch2's session
     Catch::Session session;
+
+    // First, check if user wants help (before applying our defaults)
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "-h" || arg == "--help" || arg == "-?" || arg == "--list-reporters") {
+            // Pass through to Catch2 for help output
+            return session.run(argc, argv);
+        }
+    }
 
     // Build default args based on environment variable
     std::vector<std::string> default_args = {argv[0]};
@@ -185,7 +194,7 @@ int main(int /*argc*/, char* argv[]) {
         default_args.push_back("-d");  // show duration (needs value in v2)
         default_args.push_back("0");   // show all durations
     } else {
-        // Default mode: use list reporter for cleaner output
+        // Default mode: use compact reporter for cleaner output
         default_args.push_back("-r");
         default_args.push_back("compact");
     }
