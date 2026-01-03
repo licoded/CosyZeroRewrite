@@ -1,190 +1,184 @@
 # Tests.cmake - Configure testing with Catch2
+#
+# Standardized CMake usage:
+# - Tests output to: build/tests/<category>/
+# - Tools output to: build/output/
+# - Dependencies in: deps/
 
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_STRESS_TEST "Build stress test (long-running)" OFF)
+option(BUILD_DEBUG_TESTS "Build debug tests (for development)" ON)
+option(BUILD_BENCH_TESTS "Build benchmark tests" ON)
 
+# ============================================================================
+# Dependencies
+# ============================================================================
 if(BUILD_TESTS)
-    enable_testing()
-
     # Catch2 header-only library
     add_library(catch2 INTERFACE)
-    target_include_directories(catch2 INTERFACE ${PROJECT_SOURCE_DIR}/tests/catch2)
+    target_include_directories(catch2 INTERFACE ${PROJECT_SOURCE_DIR}/deps/catch2)
 
-    message(STATUS "Testing enabled")
-
-    # ============================================================
-    # Original formula tests
-    # ============================================================
-    add_executable(formula_tests tests/formula_tests.cpp)
-    target_link_libraries(formula_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # Parser and checker tests
-    # ============================================================
-    add_executable(parser_checker_tests tests/parser_checker_tests.cpp)
-    target_link_libraries(parser_checker_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # Transformation equivalence tests
-    # ============================================================
-    add_executable(transformation_tests tests/transformation_tests.cpp)
-    target_link_libraries(transformation_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # DFA construction tests
-    # ============================================================
-    add_executable(dfa_tests tests/dfa_test.cpp)
-    target_link_libraries(dfa_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # Synthesis tests
-    # ============================================================
-    add_executable(synthesis_tests tests/synthesis_test.cpp)
-    target_link_libraries(synthesis_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # On-the-fly synthesis tests
-    # ============================================================
-    add_executable(on_the_fly_synthesis_tests tests/on_the_fly_synthesis_tests.cpp)
-    target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # NNF (Negation Normal Form) transformation tests
-    # ============================================================
-    add_executable(nnf_tests tests/nnf_tests.cpp)
-    target_link_libraries(nnf_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # XNF (neXt Normal Form) transformation tests
-    # ============================================================
-    add_executable(xnf_tests tests/xnf_tests.cpp)
-    target_link_libraries(xnf_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # Propositional Atoms (compute_prop_atoms) tests
-    # ============================================================
-    add_executable(prop_atoms_test tests/prop_atoms_test.cpp)
-    target_link_libraries(prop_atoms_test PRIVATE formula catch2)
-
-    # ============================================================
-    # Next operator tests
-    # ============================================================
-    add_executable(next_tests tests/next_tests.cpp)
-    target_link_libraries(next_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # NNF fuzzing test (standalone, not using Catch2)
-    # ============================================================
-    add_executable(nnf_fuzz_test tests/nnf_fuzz_test.cpp)
-    target_link_libraries(nnf_fuzz_test PRIVATE formula)
-
-    # ============================================================
-    # XNF fuzzing test (standalone, not using Catch2)
-    # ============================================================
-    add_executable(xnf_fuzz_test tests/xnf_fuzz_test.cpp)
-    target_link_libraries(xnf_fuzz_test PRIVATE formula)
-
-    # ============================================================
-    # Tarjan SCC algorithm tests
-    # ============================================================
-    add_executable(tarjan_scc_tests tests/tarjan_scc_tests.cpp)
-    target_link_libraries(tarjan_scc_tests PRIVATE formula catch2)
-
-    # ============================================================
-    # I/O separation tests
-    # ============================================================
-    add_executable(io_separation_test tests/io_separation_test.cpp)
-    target_link_libraries(io_separation_test PRIVATE formula)
-
-    # ============================================================
-    # Strategy extraction tests
-    # ============================================================
-    add_executable(strategy_extraction_test tests/strategy_extraction_test.cpp)
-    target_link_libraries(strategy_extraction_test PRIVATE formula)
-
-    # ============================================================
-    # Debug test for eventually_contradiction
-    # ============================================================
-    add_executable(debug_eventually_contradiction tests/debug_eventually_contradiction.cpp)
-    target_link_libraries(debug_eventually_contradiction PRIVATE formula)
-
-    # ============================================================
-    # Debug test for failing on_the_fly_synthesis_tests
-    # ============================================================
-    add_executable(debug_failing_tests tests/debug_failing_tests.cpp)
-    target_link_libraries(debug_failing_tests PRIVATE formula)
-
-    # ============================================================
-    # Compiler-specific options for tests
-    # ============================================================
-    if(MSVC)
-        target_compile_options(formula_tests PRIVATE /W4)
-        target_compile_options(parser_checker_tests PRIVATE /W4)
-        target_compile_options(transformation_tests PRIVATE /W4)
-        target_compile_options(dfa_tests PRIVATE /W4)
-        target_compile_options(synthesis_tests PRIVATE /W4)
-        target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
-        target_compile_options(nnf_tests PRIVATE /W4)
-        target_compile_options(xnf_tests PRIVATE /W4)
-        target_compile_options(prop_atoms_test PRIVATE /W4)
-        target_compile_options(next_tests PRIVATE /W4)
-        target_compile_options(nnf_fuzz_test PRIVATE /W4)
-        target_compile_options(xnf_fuzz_test PRIVATE /W4)
-        target_compile_options(tarjan_scc_tests PRIVATE /W4)
-        target_compile_options(io_separation_test PRIVATE /W4)
-        target_compile_options(strategy_extraction_test PRIVATE /W4)
-        target_compile_options(debug_eventually_contradiction PRIVATE /W4)
-    else()
-        target_compile_options(formula_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(parser_checker_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(transformation_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(dfa_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(nnf_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(xnf_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(prop_atoms_test PRIVATE -Wno-sign-compare)
-        target_compile_options(next_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(nnf_fuzz_test PRIVATE -Wno-sign-compare)
-        target_compile_options(xnf_fuzz_test PRIVATE -Wno-sign-compare)
-        target_compile_options(tarjan_scc_tests PRIVATE -Wno-sign-compare)
-        target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
-        target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
-        target_compile_options(debug_eventually_contradiction PRIVATE -Wno-sign-compare)
-        target_compile_options(debug_failing_tests PRIVATE -Wno-sign-compare)
-    endif()
-
-    # ============================================================
-    # Register tests with CTest
-    # ============================================================
-    add_test(NAME formula_tests COMMAND formula_tests)
-    add_test(NAME parser_checker_tests COMMAND parser_checker_tests)
-    add_test(NAME transformation_tests COMMAND transformation_tests)
-    add_test(NAME dfa_tests COMMAND dfa_tests)
-    add_test(NAME synthesis_tests COMMAND synthesis_tests)
-    add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
-    add_test(NAME nnf_tests COMMAND nnf_tests)
-    add_test(NAME xnf_tests COMMAND xnf_tests)
-    add_test(NAME next_tests COMMAND next_tests)
-    add_test(NAME tarjan_scc_tests COMMAND tarjan_scc_tests)
-    add_test(NAME io_separation_test COMMAND io_separation_test)
-    add_test(NAME strategy_extraction_test COMMAND strategy_extraction_test)
-
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, synthesis_tests, on_the_fly_synthesis_tests, nnf_tests, xnf_tests, next_tests, tarjan_scc_tests, io_separation_test, strategy_extraction_test")
+    enable_testing()
+    message(STATUS "Testing enabled - deps/catch2")
 endif()
 
-# ============================================================
-# Stress Test (separate option as it runs for hours)
-# ============================================================
-if(BUILD_STRESS_TEST)
-    add_executable(stress_test tests/stress_test.cpp)
-    target_link_libraries(stress_test PRIVATE formula)
+# ============================================================================
+# Helper: Define test with output directory and compile options
+# ============================================================================
+function(add_cosy_test test_name category source_file)
+    add_executable(${test_name} ${source_file})
+    target_link_libraries(${test_name} PRIVATE formula catch2)
 
+    # Output to build/tests/<category>/
+    set_target_properties(${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/${category}
+    )
+
+    # Compile options
     if(MSVC)
-        target_compile_options(stress_test PRIVATE /W4)
+        target_compile_options(${test_name} PRIVATE /W4)
     else()
-        target_compile_options(stress_test PRIVATE -Wno-sign-compare)
+        target_compile_options(${test_name} PRIVATE -Wno-sign-compare)
     endif()
+endfunction()
 
-    message(STATUS "Stress test enabled: stress_test")
+# ============================================================================
+# Helper: Define standalone test (no Catch2)
+# ============================================================================
+function(add_cosy_test_standalone test_name category source_file)
+    add_executable(${test_name} ${source_file})
+    target_link_libraries(${test_name} PRIVATE formula)
+
+    # Output to build/tests/<category>/
+    set_target_properties(${test_name} PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/${category}
+    )
+
+    # Compile options
+    if(MSVC)
+        target_compile_options(${test_name} PRIVATE /W4)
+    else()
+        target_compile_options(${test_name} PRIVATE -Wno-sign-compare)
+    endif()
+endfunction()
+
+# ============================================================================
+# Formula tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(formula_test formula tests/formula/formula.cpp)
+    add_cosy_test(transformation_test formula tests/formula/transformation.cpp)
+endif()
+
+# ============================================================================
+# Parser tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(parser_test parser tests/parser/parser.cpp)
+endif()
+
+# ============================================================================
+# Transformation tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(nnf_test transformation tests/transformation/nnf.cpp)
+    add_cosy_test(xnf_test transformation tests/transformation/xnf.cpp)
+    add_cosy_test(next_test transformation tests/transformation/next.cpp)
+endif()
+
+# ============================================================================
+# Automata tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(dfa_test automata tests/automata/dfa.cpp)
+    add_cosy_test(tarjan_test automata tests/automata/tarjan.cpp)
+endif()
+
+# ============================================================================
+# Synthesis tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(synthesis_test synthesis tests/synthesis/synthesis.cpp)
+    add_cosy_test(on_the_fly_test synthesis tests/synthesis/on_the_fly.cpp)
+endif()
+
+# ============================================================================
+# Integration tests
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test(prop_atoms_test integration tests/integration/prop_atoms.cpp)
+endif()
+
+# ============================================================================
+# Fuzz tests (standalone, no Catch2)
+# ============================================================================
+if(BUILD_TESTS)
+    add_cosy_test_standalone(nnf_fuzz fuzz tests/fuzz/nnf.cpp)
+    add_cosy_test_standalone(xnf_fuzz fuzz tests/fuzz/xnf.cpp)
+    add_cosy_test_standalone(random_fuzz fuzz tests/fuzz/random.cpp)
+endif()
+
+# ============================================================================
+# Debug tests (standalone, for development)
+# ============================================================================
+if(BUILD_DEBUG_TESTS)
+    add_cosy_test_standalone(eventually_contradiction debug tests/debug/eventually_contradiction.cpp)
+    add_cosy_test_standalone(failing_tests debug tests/debug/failing.cpp)
+    message(STATUS "Debug tests enabled")
+endif()
+
+# ============================================================================
+# Bench tests
+# ============================================================================
+if(BUILD_BENCH_TESTS)
+    add_cosy_test_standalone(benchmark_test bench tests/bench/benchmark.cpp)
+    add_cosy_test_standalone(io_separation_test integration tests/integration/io_separation.cpp)
+    add_cosy_test_standalone(strategy_test integration tests/integration/strategy.cpp)
+    message(STATUS "Bench tests enabled")
+endif()
+
+# ============================================================================
+# Stress test (separate option, runs for hours)
+# ============================================================================
+if(BUILD_STRESS_TEST)
+    add_cosy_test_standalone(stress_test bench tests/bench/stress.cpp)
+    message(STATUS "Stress test enabled")
+endif()
+
+# ============================================================================
+# Register tests with CTest
+# ============================================================================
+if(BUILD_TESTS)
+    # Core formula tests
+    add_test(NAME formula_test COMMAND ${CMAKE_BINARY_DIR}/tests/formula/formula_test)
+    add_test(NAME transformation_test COMMAND ${CMAKE_BINARY_DIR}/tests/formula/transformation_test)
+    add_test(NAME parser_test COMMAND ${CMAKE_BINARY_DIR}/tests/parser/parser_test)
+
+    # Transformation tests
+    add_test(NAME nnf_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/nnf_test)
+    add_test(NAME xnf_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/xnf_test)
+    add_test(NAME next_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/next_test)
+
+    # Automata tests
+    add_test(NAME dfa_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/dfa_test)
+    add_test(NAME tarjan_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/tarjan_test)
+
+    # Synthesis tests
+    add_test(NAME synthesis_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/synthesis_test)
+    add_test(NAME on_the_fly_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/on_the_fly_test)
+
+    # Integration tests
+    add_test(NAME prop_atoms_test COMMAND ${CMAKE_BINARY_DIR}/tests/integration/prop_atoms_test)
+
+    message(STATUS "=== Test Structure ===")
+    message(STATUS "  tests/formula/     - formula_test, transformation_test")
+    message(STATUS "  tests/parser/      - parser_test")
+    message(STATUS "  tests/transformation/ - nnf_test, xnf_test, next_test")
+    message(STATUS "  tests/automata/    - dfa_test, tarjan_test")
+    message(STATUS "  tests/synthesis/   - synthesis_test, on_the_fly_test")
+    message(STATUS "  tests/integration/ - prop_atoms_test, io_separation_test, strategy_test")
+    message(STATUS "  tests/fuzz/        - nnf_fuzz, xnf_fuzz, random_fuzz")
+    message(STATUS "  tests/debug/       - eventually_contradiction, failing_tests")
+    message(STATUS "  tests/bench/       - benchmark_test, stress_test")
+    message(STATUS "====================")
 endif()

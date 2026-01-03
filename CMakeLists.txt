@@ -16,6 +16,16 @@ option(USE_Z3 "Enable Z3 SMT solver" ON)
 option(USE_SPDLOG "Enable spdlog logging" ON)
 
 # ============================================================
+# Output directories (standardized)
+# ============================================================
+# - Tools (Cosy2, benchmark_runner) -> build/output/
+# - Tests -> build/tests/<category>/
+# - Library -> build/libformula.a
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/output)
+
+# ============================================================
 # Include subdirectories for CMake modules
 # ============================================================
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
