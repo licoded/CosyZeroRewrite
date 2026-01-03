@@ -350,12 +350,62 @@ TEST_CASE("PA: X(p U q) = {X(p U q)}", "[pa][complex]") {
 // PA: Parsed Formulas
 //==============================================================================
 
-// NOTE: Parser test skipped - need to investigate FormulaParser behavior
-// with set_variables(). The direct API tests cover the compute_prop_atoms logic.
+TEST_CASE("PA: parsed formula 'p & (q | X(r))'", "[pa][parser]") {
+    INFO("Formula: p & (q | X(r))");
+    FormulaPool pool;
+    FormulaParser parser(pool);
+    // Now lowercase letters (x, u, r, f, g) are treated as variable names
+    // Only uppercase (X, U, R, F, G) are operators
+    Formula* f = parser.parse("p & (q | X(r))");
 
-TEST_CASE("PA: parsed formula 'p & (q | X(r))'", "[pa][parser][!hide]") {
-    // TODO: Fix parser integration test
-    SUCCEED("Parser test skipped - investigate FormulaParser::set_variables()");
+    REQUIRE(f != nullptr);
+    REQUIRE_FALSE(parser.has_error());
+
+    TableauState::FormulaSet result;
+    TableauState::compute_prop_atoms(f, result);
+
+    REQUIRE(result.size() == 3);
+    // Should have: p, q, X(r)
+    int found_literals = 0;
+    int found_next = 0;
+    for (auto* atom : result) {
+        if (atom->is_literal()) found_literals++;
+        if (atom->is_next()) found_next++;
+    }
+    REQUIRE(found_literals == 2);
+    REQUIRE(found_next == 1);
+}
+
+TEST_CASE("PA: parser case sensitivity - lowercase variables", "[pa][parser]") {
+    INFO("Formula: x & (u | r)");
+    FormulaPool pool;
+    FormulaParser parser(pool);
+    // Lowercase x, u, r should be variables, not operators
+    Formula* f = parser.parse("x & (u | r)");
+
+    REQUIRE(f != nullptr);
+    REQUIRE_FALSE(parser.has_error());
+
+    // Should parse as: (x AND (u OR r))
+    // All three are literal variables
+    REQUIRE(f->is_and());
+    REQUIRE(f->left()->is_literal());
+    REQUIRE(f->right()->is_or());
+}
+
+TEST_CASE("PA: parser case sensitivity - uppercase operators", "[pa][parser]") {
+    INFO("Formula: X(p U q)");
+    FormulaPool pool;
+    FormulaParser parser(pool);
+    // Uppercase X, U should be operators
+    Formula* f = parser.parse("X(p U q)");
+
+    REQUIRE(f != nullptr);
+    REQUIRE_FALSE(parser.has_error());
+
+    // Should parse as: X(p U q)
+    REQUIRE(f->is_next());
+    REQUIRE(f->left()->is_until());
 }
 
 //==============================================================================

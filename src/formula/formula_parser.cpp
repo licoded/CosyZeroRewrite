@@ -118,7 +118,7 @@ void FormulaParser::tokenize(const std::string& input) {
                 continue;
 
             case 'X':
-            case 'x':
+                // Only uppercase X is Next operator
                 token.type = TokenType::Next;
                 token.value = "X";
                 tokens_.push_back(token);
@@ -126,7 +126,7 @@ void FormulaParser::tokenize(const std::string& input) {
                 continue;
 
             case 'U':
-            case 'u':
+                // Only uppercase U is Until operator
                 token.type = TokenType::Until;
                 token.value = "U";
                 tokens_.push_back(token);
@@ -136,24 +136,24 @@ void FormulaParser::tokenize(const std::string& input) {
         }
 
         // Handle ambiguous single-char operators that could start identifiers
-        // 'r' could be Release (R) or start of identifier like "req", "read"
-        // 'f' could be Finally (F) or start of identifier like "fact", "flag"
-        // 'g' could be Globally (G) or start of identifier like "goal", "get"
+        // 'F' could be Finally or start of identifier
+        // 'G' could be Globally or start of identifier
+        // 'R' could be Release or start of identifier
         // Peek ahead: if followed by another letter, it's an identifier start
-        if ((c == 'R' || c == 'r' || c == 'F' || c == 'f' || c == 'G' || c == 'g') &&
+        if ((c == 'R' || c == 'F' || c == 'G') &&
             i + 1 < input.size() &&
             std::isalpha(static_cast<unsigned char>(input[i + 1]))) {
             // This is the start of a multi-character identifier, fall through to identifier handling
-        } else if (c == 'R' || c == 'r') {
+        } else if (c == 'R') {
             token.type = TokenType::Release;
             token.value = "R";
             tokens_.push_back(token);
             ++i;
             continue;
-        } else if (c == 'F' || c == 'f') {
+        } else if (c == 'F') {
             // F is handled in the identifier section for syntactic sugar consistency
             // Fall through to identifier handling
-        } else if (c == 'G' || c == 'g') {
+        } else if (c == 'G') {
             // G is handled in the identifier section for syntactic sugar consistency
             // Fall through to identifier handling
         }
@@ -168,18 +168,15 @@ void FormulaParser::tokenize(const std::string& input) {
             }
             std::string value = input.substr(start, i - start);
 
-            // Convert to lowercase for comparison
-            std::string lower = value;
-            std::transform(lower.begin(), lower.end(), lower.begin(), ::tolower);
-
-            if (lower == "true") {
+            // Check for keywords (case-sensitive: only uppercase F/G are operators)
+            if (value == "true") {
                 token.type = TokenType::True;
-            } else if (lower == "false") {
+            } else if (value == "false") {
                 token.type = TokenType::False;
-            } else if (lower == "f") {
+            } else if (value == "F") {
                 // F (finally/eventually) is syntactic sugar for true U ...
                 token.type = TokenType::Finally;
-            } else if (lower == "g") {
+            } else if (value == "G") {
                 // G (globally) is syntactic sugar for false R ...
                 token.type = TokenType::Globally;
             } else {
