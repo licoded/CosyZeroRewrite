@@ -49,6 +49,24 @@ if(BUILD_TESTS)
     target_link_libraries(on_the_fly_synthesis_tests PRIVATE formula catch2)
 
     # ============================================================
+    # NNF (Negation Normal Form) transformation tests
+    # ============================================================
+    add_executable(nnf_tests tests/nnf_tests.cpp)
+    target_link_libraries(nnf_tests PRIVATE formula catch2)
+
+    # ============================================================
+    # XNF (neXt Normal Form) transformation tests
+    # ============================================================
+    add_executable(xnf_tests tests/xnf_tests.cpp)
+    target_link_libraries(xnf_tests PRIVATE formula catch2)
+
+    # ============================================================
+    # Next operator tests
+    # ============================================================
+    add_executable(next_tests tests/next_tests.cpp)
+    target_link_libraries(next_tests PRIVATE formula catch2)
+
+    # ============================================================
     # Tarjan SCC algorithm tests
     # ============================================================
     add_executable(tarjan_scc_tests tests/tarjan_scc_tests.cpp)
@@ -88,6 +106,9 @@ if(BUILD_TESTS)
         target_compile_options(dfa_tests PRIVATE /W4)
         target_compile_options(synthesis_tests PRIVATE /W4)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE /W4)
+        target_compile_options(nnf_tests PRIVATE /W4)
+        target_compile_options(xnf_tests PRIVATE /W4)
+        target_compile_options(next_tests PRIVATE /W4)
         target_compile_options(tarjan_scc_tests PRIVATE /W4)
         target_compile_options(io_separation_test PRIVATE /W4)
         target_compile_options(strategy_extraction_test PRIVATE /W4)
@@ -99,6 +120,9 @@ if(BUILD_TESTS)
         target_compile_options(dfa_tests PRIVATE -Wno-sign-compare)
         target_compile_options(synthesis_tests PRIVATE -Wno-sign-compare)
         target_compile_options(on_the_fly_synthesis_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(nnf_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(xnf_tests PRIVATE -Wno-sign-compare)
+        target_compile_options(next_tests PRIVATE -Wno-sign-compare)
         target_compile_options(tarjan_scc_tests PRIVATE -Wno-sign-compare)
         target_compile_options(io_separation_test PRIVATE -Wno-sign-compare)
         target_compile_options(strategy_extraction_test PRIVATE -Wno-sign-compare)
@@ -115,11 +139,14 @@ if(BUILD_TESTS)
     add_test(NAME dfa_tests COMMAND dfa_tests)
     add_test(NAME synthesis_tests COMMAND synthesis_tests)
     add_test(NAME on_the_fly_synthesis_tests COMMAND on_the_fly_synthesis_tests)
+    add_test(NAME nnf_tests COMMAND nnf_tests)
+    add_test(NAME xnf_tests COMMAND xnf_tests)
+    add_test(NAME next_tests COMMAND next_tests)
     add_test(NAME tarjan_scc_tests COMMAND tarjan_scc_tests)
     add_test(NAME io_separation_test COMMAND io_separation_test)
     add_test(NAME strategy_extraction_test COMMAND strategy_extraction_test)
 
-    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, synthesis_tests, on_the_fly_synthesis_tests, tarjan_scc_tests, io_separation_test, strategy_extraction_test")
+    message(STATUS "Test executables: formula_tests, parser_checker_tests, transformation_tests, dfa_tests, synthesis_tests, on_the_fly_synthesis_tests, nnf_tests, xnf_tests, next_tests, tarjan_scc_tests, io_separation_test, strategy_extraction_test")
 endif()
 
 # ============================================================
