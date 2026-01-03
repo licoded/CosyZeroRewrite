@@ -155,7 +155,28 @@ bool OnTheFlyGameSolver::is_realizable() {
     // FINAL: Check consistency and return result
     // ========================================================================
     StateClass result = get_initial_classification();
-    LOG_DEBUG("OnTheFlyGameSolver: final classification: ", to_string(result));
+
+    // DEBUG: Log detailed classification summary
+    size_t total_states = successors_.size();
+    size_t swin_count = 0, ewin_count = 0, unknown_count = 0;
+    for (const auto& pair : successors_) {
+        auto it = classification_.find(pair.first);
+        if (it == classification_.end()) {
+            unknown_count++;
+        } else if (it->second == StateClass::Swin) {
+            swin_count++;
+        } else if (it->second == StateClass::Ewin) {
+            ewin_count++;
+        }
+    }
+
+    LOG_DEBUG("=== Classification Summary ===");
+    LOG_DEBUG("  Total states: ", total_states);
+    LOG_DEBUG("  Swin: ", swin_count, " | Ewin: ", ewin_count, " | Unknown: ", unknown_count);
+    LOG_DEBUG("  Initial state: DFA=", initial_state_.dfa_state,
+              " ", initial_state_.player == Player::System ? "Sys" : "Env");
+    LOG_DEBUG("  Initial state classification: ", to_string(result));
+    LOG_DEBUG("  DFA accepting states: ", dfa_.num_accepting_states(), "/", dfa_.num_states());
 
     if (enable_consistency_check) {
         LOG_DEBUG("=== Running propagation consistency check ===");
@@ -375,8 +396,12 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         }
     }
 
+    // DEBUG: Log SCC info
+    LOG_DEBUG("classify_scc: processing SCC with ", scc.size(), " states");
+
     // Step 1: Initialize seed set (accepting states are Swin)
     std::unordered_set<GameState, GameStateHash, GameStateEqual> swin_states;
+    size_t accepting_seed_count = 0;
     for (const auto& s : scc) {
         // Skip if already classified
         if (classification_.count(s)) {
@@ -390,8 +415,12 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         if (dfa_.is_accepting(s.dfa_state)) {
             swin_states.insert(s);
             classification_[s] = StateClass::Swin;
+            accepting_seed_count++;
+            LOG_DEBUG("  Seed Swin: DFA state ", s.dfa_state, " ",
+                      s.player == Player::System ? "Sys" : "Env", " (accepting)");
         }
     }
+    LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " accepting)");
 
     // Step 2: Fixed-point iteration
     bool changed = true;
