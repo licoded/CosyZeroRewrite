@@ -291,10 +291,23 @@ private:
     std::vector<std::vector<GameState>> find_sccs();
 
     /**
+     * @brief Check if a TableauState can be satisfied by the empty string
+     *
+     * In LTLf, a state is empty-string accepting if:
+     * 1. No U (Until) or X (Next) operators - these require future states
+     * 2. Only R (Release) operators and non-temporal formulas are allowed
+     * 3. The state is locally consistent (no contradictions like p & !p)
+     *
+     * @param q The TableauState to check
+     * @return true if the state can be satisfied by the empty string
+     */
+    bool is_empty_string_accepting(automata::TableauState* q) const;
+
+    /**
      * @brief Classify an SCC using fixed-point iteration
      *
      * Algorithm:
-     * 1. Initialize seed set: accepting DFA states are Swin
+     * 1. Initialize seed set: empty-string accepting states are Swin
      * 2. Iterate: find predecessors of Swin states, classify new Swin
      * 3. Terminate: when no new Swin states found
      * 4. Remaining states: mark as Ewin

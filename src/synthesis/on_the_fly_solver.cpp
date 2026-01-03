@@ -373,6 +373,82 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs_for_testing() 
     return result;
 }
 
+/**
+ * @brief Check if a TableauState can be satisfied by the empty string
+ *
+ * In LTLf, a state is empty-string accepting if:
+ * 1. No U (Until) or X (Next) operators - these require future states
+ * 2. Only R (Release) operators and non-temporal formulas are allowed
+ * 3. The state is locally consistent (no contradictions like p & !p)
+ *
+ * @param q The TableauState to check
+ * @return true if the state can be satisfied by the empty string
+ */
+bool OnTheFlyGameSolver::is_empty_string_accepting(automata::TableauState* q) const {
+    if (!q) return false;
+
+    const auto& formulas = q->formulas();
+
+    // Check for U or X operators - these prevent empty-string acceptance
+    for (formula::Formula* f : formulas) {
+        if (!f) continue;
+        auto op = f->op();
+        if (op == formula::Formula::OpType::Until ||
+            op == formula::Formula::OpType::Next) {
+            return false;  // Has temporal obligation requiring future states
+        }
+    }
+
+    // Check for contradictions (literals p and !p)
+    for (formula::Formula* f : formulas) {
+        if (!f) continue;
+        if (f->op() == formula::Formula::OpType::Literal) {
+            int var_id = f->var_id();
+            for (formula::Formula* g : formulas) {
+                if (!g) continue;
+                if (g->op() == formula::Formula::OpType::Not) {
+                    formula::Formula* child = g->left();
+                    if (child && child->op() == formula::Formula::OpType::Literal &&
+                        child->var_id() == var_id) {
+                        return false;  // Contradiction: p and !p
+                    }
+                }
+            }
+        }
+    }
+
+    // Check for And formulas with internal contradictions (p & !p)
+    for (formula::Formula* f : formulas) {
+        if (!f) continue;
+        if (f->op() == formula::Formula::OpType::And) {
+            formula::Formula* left = f->left();
+            formula::Formula* right = f->right();
+            if (!left || !right) continue;
+
+            // Check if left and right are contradictory literals
+            if (left->op() == formula::Formula::OpType::Literal &&
+                right->op() == formula::Formula::OpType::Not) {
+                formula::Formula* right_child = right->left();
+                if (right_child && right_child->op() == formula::Formula::OpType::Literal &&
+                    left->var_id() == right_child->var_id()) {
+                    return false;  // Contradiction: p & !p
+                }
+            }
+            // Also check the reverse: !p & p
+            if (left->op() == formula::Formula::OpType::Not &&
+                right->op() == formula::Formula::OpType::Literal) {
+                formula::Formula* left_child = left->left();
+                if (left_child && left_child->op() == formula::Formula::OpType::Literal &&
+                    right->var_id() == left_child->var_id()) {
+                    return false;  // Contradiction: !p & p
+                }
+            }
+        }
+    }
+
+    return true;  // Can be satisfied by empty string
+}
+
 bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
     // Create a set for fast SCC membership test
     std::unordered_set<GameState, GameStateHash, GameStateEqual> scc_set;
@@ -409,15 +485,16 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
             continue;
         }
 
-        // Accepting DFA states are Swin seeds
-        if (dfa_.is_accepting(s.dfa_state)) {
+        // Empty-string accepting states are Swin seeds
+        // (no U/X obligations, no contradictions)
+        if (is_empty_string_accepting(s.dfa_state)) {
             swin_states.insert(s);
             classification_[s] = StateClass::Swin;
             accepting_seed_count++;
-            LOG_DEBUG("  Seed Swin: ", s.to_string(), " (accepting)");
+            LOG_DEBUG("  Seed Swin: ", s.to_string(), " (empty-string accepting)");
         }
     }
-    LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " accepting)");
+    LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " empty-string accepting)");
 
     // Step 2: Fixed-point iteration
     bool changed = true;
