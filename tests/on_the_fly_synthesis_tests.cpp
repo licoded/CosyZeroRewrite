@@ -10,9 +10,10 @@
 #include "formula/formula_parser.hpp"
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"
-#include <cstdlib>  // for std::getenv
+#include <cstdlib>   // for std::getenv
 #include <vector>
 #include <string>
+#include <algorithm>  // for std::remove
 
 using namespace formula;
 using namespace synthesis;
@@ -169,7 +170,7 @@ TEST_CASE("On-the-Fly: sequence p1 & X p2", "[on_the_fly][complex][!mayfail][kno
 // Custom main for better output
 //==============================================================================
 
-int main(int argc, char* argv[]) {
+int main(int /*argc*/, char* argv[]) {
     // Use Catch2's session
     Catch::Session session;
 
@@ -179,10 +180,14 @@ int main(int argc, char* argv[]) {
     // Check environment variable for verbose mode
     bool verbose = (std::getenv("COSY_TEST_VERBOSE") != nullptr);
     if (verbose) {
-        // Verbose mode: show all test details
+        // Verbose mode: show all test details with line numbers
         default_args.push_back("-s");  // show successful tests
         default_args.push_back("-d");  // show duration (needs value in v2)
         default_args.push_back("0");   // show all durations
+    } else {
+        // Default mode: use list reporter for cleaner output
+        default_args.push_back("-r");
+        default_args.push_back("compact");
     }
 
     // Convert to char* array for Catch2
