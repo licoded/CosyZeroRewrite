@@ -1,6 +1,7 @@
 #include "synthesis/game_solver.hpp"
 #include <algorithm>
 #include <stack>
+#include <queue>
 #include <iostream>
 #include <sstream>
 
@@ -216,36 +217,94 @@ bool GameSolver::is_scc_accepting(const GameGraph& graph, const std::vector<size
     return true;
 }
 
-void GameSolver::classify_states(GameGraph& graph, const std::vector<std::vector<size_t>>& sccs) {
-    // Reset all statuses to Unknown
-    for (size_t i = 0; i < graph.num_nodes(); ++i) {
-        graph.get_node(i).status = StateStatus::Unknown;
+std::vector<size_t> GameSolver::get_scc_processing_order(
+    const GameGraph& graph,
+    const std::vector<std::vector<size_t>>& sccs
+) {
+    if (sccs.empty()) {
+        return {};
     }
 
-    // First pass: mark SCCs as winning or losing
-    for (const auto& scc : sccs) {
-        bool accepting = is_scc_accepting(graph, scc);
-        StateStatus status = accepting ? StateStatus::Winning : StateStatus::Losing;
-
-        for (size_t node_id : scc) {
-            graph.get_node(node_id).status = status;
+    // Map node_id to its SCC index
+    std::vector<size_t> node_to_scc(graph.num_nodes());
+    for (size_t scc_idx = 0; scc_idx < sccs.size(); ++scc_idx) {
+        for (size_t node_id : sccs[scc_idx]) {
+            node_to_scc[node_id] = scc_idx;
         }
     }
 
-    // Second pass: propagate status backward
-    propagate_status(graph);
+    // Build SCC graph (edges between SCCs) and compute in-degrees
+    std::vector<std::unordered_set<size_t>> scc_graph(sccs.size());
+    std::vector<int> in_degree(sccs.size(), 0);
+
+    for (size_t scc_idx = 0; scc_idx < sccs.size(); ++scc_idx) {
+        for (size_t node_id : sccs[scc_idx]) {
+            const GameNode& node = graph.get_node(node_id);
+            for (size_t succ_id : node.successors) {
+                size_t succ_scc_idx = node_to_scc[succ_id];
+                if (succ_scc_idx != scc_idx && scc_graph[scc_idx].insert(succ_scc_idx).second) {
+                    in_degree[succ_scc_idx]++;
+                }
+            }
+        }
+    }
+
+    // Kahn's algorithm for topological sort
+    std::queue<size_t> queue;
+    for (size_t i = 0; i < sccs.size(); ++i) {
+        if (in_degree[i] == 0) {
+            queue.push(i);
+        }
+    }
+
+    std::vector<size_t> topo_order;
+    while (!queue.empty()) {
+        size_t u = queue.front();
+        queue.pop();
+        topo_order.push_back(u);
+
+        for (size_t v : scc_graph[u]) {
+            if (--in_degree[v] == 0) {
+                queue.push(v);
+            }
+        }
+    }
+
+    // Return reverse topological order (process successors first)
+    return std::vector<size_t>(topo_order.rbegin(), topo_order.rend());
 }
 
-void GameSolver::propagate_status(GameGraph& graph) {
-    // Work list algorithm for backward propagation
-    std::vector<size_t> work_list;
+void GameSolver::classify_states(GameGraph& graph, const std::vector<std::vector<size_t>>& sccs) {
+    // Get processing order (reverse topological order of SCC graph)
+    std::vector<size_t> order = get_scc_processing_order(graph, sccs);
 
-    // Initialize work list with nodes that have successors
-    for (size_t i = 0; i < graph.num_nodes(); ++i) {
-        if (!graph.get_node(i).successors.empty()) {
-            work_list.push_back(i);
+    // Process each SCC in order
+    for (size_t scc_idx : order) {
+        propagate_status(graph, sccs[scc_idx]);
+    }
+}
+
+void GameSolver::propagate_status(GameGraph& graph, const std::vector<size_t>& scc) {
+    // Build a set of SCC nodes for fast lookup
+    std::unordered_set<size_t> scc_set(scc.begin(), scc.end());
+
+    // Initial Swin: all successors of SCC nodes that are already Winning
+    // (including successors outside the SCC)
+    std::unordered_set<size_t> swin;
+
+    // Collect all Winning successors
+    for (size_t node_id : scc) {
+        const GameNode& node = graph.get_node(node_id);
+        for (size_t succ_id : node.successors) {
+            const GameNode& succ = graph.get_node(succ_id);
+            if (succ.status == StateStatus::Winning) {
+                swin.insert(succ_id);
+            }
         }
     }
+
+    // Work list algorithm for backward propagation within SCC
+    std::vector<size_t> work_list(scc.begin(), scc.end());
 
     bool changed = true;
     while (changed) {
@@ -260,40 +319,36 @@ void GameSolver::propagate_status(GameGraph& graph) {
             }
 
             // Check all successors
-            bool all_winning = true;
-            bool any_losing = false;
+            bool has_winning_successor = false;
+            bool all_successors_known = true;
+            bool has_unknown_successor = false;
 
             for (size_t succ_id : node.successors) {
                 const GameNode& succ = graph.get_node(succ_id);
-                if (succ.status != StateStatus::Winning) {
-                    all_winning = false;
-                }
-                if (succ.status == StateStatus::Losing) {
-                    any_losing = true;
+                if (succ.status == StateStatus::Winning) {
+                    has_winning_successor = true;
+                } else if (succ.status == StateStatus::Unknown) {
+                    has_unknown_successor = true;
+                    all_successors_known = false;
                 }
             }
 
             // Classification rules:
-            // - If all successors are winning, this node is winning
-            // - If any successor is losing, this node might be winning
-            //   (system can choose to move there)
-            // This is simplified - full version needs to consider game semantics
+            // - If all successors are Winning, this node is Winning (can force win)
+            // - If any successor is Winning and we're in the SCC, mark as Winning
+            // - Otherwise remains Unknown (will be marked Losing at the end)
 
-            if (all_winning && !node.successors.empty()) {
+            if (has_winning_successor) {
                 node.status = StateStatus::Winning;
-                changed = true;
-            } else if (node.successors.empty()) {
-                // Dead end - typically losing
-                node.status = StateStatus::Losing;
                 changed = true;
             }
         }
     }
 
-    // Any remaining unknown nodes are marked as losing (conservative)
-    for (size_t i = 0; i < graph.num_nodes(); ++i) {
-        if (graph.get_node(i).status == StateStatus::Unknown) {
-            graph.get_node(i).status = StateStatus::Losing;
+    // Any remaining unknown nodes in SCC are marked as losing
+    for (size_t node_id : scc) {
+        if (graph.get_node(node_id).status == StateStatus::Unknown) {
+            graph.get_node(node_id).status = StateStatus::Losing;
         }
     }
 }

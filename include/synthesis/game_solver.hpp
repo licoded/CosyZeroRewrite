@@ -147,6 +147,17 @@ private:
     static std::vector<std::vector<size_t>> find_sccs(GameGraph& graph);
 
     /**
+     * @brief Get SCC processing order (reverse topological sort of SCC graph)
+     * @param graph The game graph
+     * @param sccs The SCCs from Tarjan
+     * @return SCC indices in processing order (successors before predecessors)
+     */
+    static std::vector<size_t> get_scc_processing_order(
+        const GameGraph& graph,
+        const std::vector<std::vector<size_t>>& sccs
+    );
+
+    /**
      * @brief Classify states as winning/losing
      * @param graph The game graph
      * @param sccs The SCCs from Tarjan
@@ -162,10 +173,11 @@ private:
     static bool is_scc_accepting(const GameGraph& graph, const std::vector<size_t>& scc);
 
     /**
-     * @brief Propagate winning/losing status backward through the graph
+     * @brief Propagate winning/losing status backward through an SCC
      * @param graph The game graph
+     * @param scc The SCC (set of node IDs) to process
      */
-    static void propagate_status(GameGraph& graph);
+    static void propagate_status(GameGraph& graph, const std::vector<size_t>& scc);
 };
 
 } // namespace synthesis
