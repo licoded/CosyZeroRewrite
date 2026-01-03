@@ -1,8 +1,8 @@
 # 测试报告
 
 **日期**: 2026-01-03
-**时间**: 19:30
-**Git commit**: ac9b485
+**时间**: 23:15
+**Git commit**: da91680
 
 ---
 
@@ -65,18 +65,44 @@ Actual: NOT realizable
 
 ## 三、Benchmark 测试
 
-### 测试执行
+### 3.1 并发测试（原 benchmark_runner）
+
+**测试命令**:
 ```bash
 ./build/benchmark_runner benchmarks/sm1000 1 50
 ```
 
 **结果**: ❌ 超时
-- 即使只运行 3 个测试用例也会超时（30秒）
-- 说明某些测试用例存在严重的性能问题
+- 即使只运行 3 个测试用例也会超时（30秒+）
+- 说明某些测试用例存在严重的性能问题或并发问题
 
-**已知问题**:
-- 某些公式会导致 game graph 构造时状态爆炸
-- 需要进一步优化算法或添加超时机制
+### 3.2 串行测试（新增 serial_benchmark.sh）
+
+**测试命令**:
+```bash
+./scripts/serial_benchmark.sh benchmarks/sm1000 5
+```
+
+**结果**:
+- 测试了 5 个公式（f100-f104）
+- 3 个返回 error（退出码1，但实际有结果输出）
+- 2 个超时（60秒超时）
+
+**发现**:
+1. **Cosy2 退出码问题**: Cosy2 即使成功返回结果也返回退出码 1
+   - 这导致脚本将所有测试误判为 "error"
+   - 实际上 f100 返回了 UNREALIZABLE 结果
+
+2. **超时问题**: f103, f104 在 60 秒内未完成
+   - 这些公式可能过于复杂，存在状态爆炸问题
+
+**f100 测试详情**:
+```
+Formula: (!(p0)) | ((!(p2)) U (!(p7)))
+Expected: Realizable
+Actual: UNREALIZABLE (不匹配)
+Time: ~10ms
+```
 
 ---
 
@@ -91,14 +117,32 @@ logs/
 └── failures/2026-01-03/04-night/failures.log
 
 results/
-└── benchmark/2026-01-03/03-evening/benchmark_results_20260103_HHMMSS.csv
+├── benchmark/2026-01-03/03-evening/benchmark_results_20260103_HHMMSS.csv
+└── benchmark/serial/2026-01-03/serial_benchmark_20260103_HHMMSS.csv
 ```
 
 **状态**: ✅ 日志目录结构正确，所有日志都保存到项目根目录下的 `logs/` 和 `results/` 目录
 
 ---
 
-## 五、总结
+## 五、新增改进
+
+### 5.1 串行测试脚本
+
+创建了 `scripts/serial_benchmark.sh` 用于串行测试：
+- 一次只测试一个公式，避免并发问题
+- 逐步增加测试数量，便于定位问题
+- 结果保存在 `results/benchmark/serial/` 目录
+
+### 5.2 CLAUDE.md 更新
+
+记录了 Benchmark 超时问题的解决方案：
+- 使用串行模式测试
+- 逐步增加测试数量
+
+---
+
+## 六、总结
 
 ### ✅ 正常功能
 - Formula 模块 (NNF, XNF, Simplify)
@@ -108,17 +152,20 @@ results/
 - Synthesis 核心算法
 - Tarjan SCC 算法
 - I/O 分离
+- 日志目录结构
 
 ### ❌ 存在问题
 1. **On-the-fly synthesis**: 部分复杂时序公式结果不正确
 2. **Strategy extraction**: X(v0) 这类边界情况处理错误
 3. **性能问题**: 某些测试用例会导致严重超时
+4. **Benchmark 准确率**: f100 结果与预期不匹配
 
 ### 建议
-1. 优先修复 `X(v0)` 这类简单公式的 synthesis 结果
+1. 修复 Cosy2 退出码问题（成功时应返回 0）
 2. 添加性能监控和超时机制
-3. 逐步修复 on-the-fly synthesis 中的失败案例
+3. 使用串行测试脚本逐步验证功能正确性
+4. 优先修复简单公式的 synthesis 结果
 
 ---
 
-**报告生成时间**: 2026-01-03 19:30
+**报告生成时间**: 2026-01-03 23:15

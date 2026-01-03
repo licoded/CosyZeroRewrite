@@ -1,0 +1,4 @@
+idx,formula,expected,computed,matches,time_ms,status
+0,f100,true,error,false,3,ERROR
+1,f101,true,error,false,2,ERROR
+2,f102,true,error,false,2,ERROR
