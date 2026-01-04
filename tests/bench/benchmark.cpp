@@ -107,9 +107,13 @@ public:
         int filled = (completed * bar_width) / static_cast<int>(total_);
         if (filled > bar_width) filled = bar_width;
 
-        // Build progress bar
-        std::string bar(filled, '=');
-        if (filled < bar_width) bar += ">";
+        // Build progress bar with fixed width: [===>     ]
+        std::string bar;
+        if (filled < bar_width) {
+            bar = std::string(filled, '=') + ">" + std::string(bar_width - filled - 1, ' ');
+        } else {
+            bar = std::string(bar_width, '=');
+        }
 
         // Build active tasks string (limit to 5 items)
         std::string active_str;
