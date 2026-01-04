@@ -22,13 +22,17 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+修复进度条过度填充空白字符的问题。通过跟踪上次输出的长度，只在当前输出比上次短时才添加必要的空格来清除残留字符，避免进度条后有过多的尾随空格。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 新增 `last_output_len_` 成员变量跟踪上次输出长度
+- 只在 `current_len < last_output_len_` 时才填充空格
+- 移除了之前的 `bar_width + 80` 固定填充逻辑
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 影响组件：`ProgressDisplay` 类
+- 视觉改进：进度条显示更简洁，没有多余的尾随空格
+- 功能保持：终端更新行为不变，只是输出更干净
 
 ## Changes
 
