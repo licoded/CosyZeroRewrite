@@ -30,6 +30,7 @@ struct StateIdMap {
     std::unordered_map<std::string, GameState> from_id;
     size_t sys_count = 0;
     size_t env_count = 0;
+    formula::FormulaPool* pool = nullptr;  // For variable name lookup
 
     std::string get_id(const GameState& s) {
         auto it = to_id.find(s);
@@ -49,17 +50,42 @@ struct StateIdMap {
         return id;
     }
 
-    std::string get_assignment_string(const automata::Assignment& a) const {
-        if (a.empty()) return "{}";
+    /**
+     * @brief Get edge label in format "sys={p, q}" or "env={}"
+     * @param a Assignment (indices)
+     * @param is_output true for system moves (outputs), false for env moves (inputs)
+     * @return Label string with variable names
+     */
+    std::string get_assignment_label(const automata::Assignment& a, bool is_output) const {
+        if (!pool) return "{}";
+
+        const auto& var_names = pool->get_all_variable_names();
+        int num_outputs = pool->num_outputs();
+
+        // Determine variable range based on move type
+        int start_idx = is_output ? 0 : num_outputs;
+        int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
+
         std::ostringstream oss;
         oss << "{";
-        bool first = true;
-        for (int v : a) {
-            if (!first) oss << ",";
-            oss << v;
-            first = false;
+
+        if (a.empty()) {
+            // Empty assignment
+            oss << "}";
+        } else {
+            // Map indices to variable names
+            bool first = true;
+            for (int idx : a) {
+                // Check if index is in the correct range for this move type
+                if (idx >= start_idx && idx < end_idx) {
+                    if (!first) oss << ", ";
+                    oss << var_names[idx];
+                    first = false;
+                }
+            }
+            oss << "}";
         }
-        oss << "}";
+
         return oss.str();
     }
 };
@@ -73,6 +99,7 @@ struct StateIdMap {
 std::string OnTheFlyGameSolver::to_dot() const {
     std::ostringstream oss;
     StateIdMap id_map;
+    id_map.pool = &pool_;  // Set pool for variable name lookup
 
     // Build ID map first
     for (const auto& pair : successors_) {
@@ -153,10 +180,10 @@ std::string OnTheFlyGameSolver::to_dot() const {
                 // Sys move: blue solid line
                 oss << "  " << from_id << " -> " << to_id
                     << " [color=blue, style=solid";
-                // Label with output assignment
+                // Label with output assignment using variable names
                 if (succ.system_chosen_output.has_value()) {
-                    oss << ", label=\"out="
-                        << id_map.get_assignment_string(succ.system_chosen_output.value())
+                    oss << ", label=\"sys="
+                        << id_map.get_assignment_label(succ.system_chosen_output.value(), true)
                         << "\"";
                 }
                 oss << "];\n";
@@ -164,10 +191,10 @@ std::string OnTheFlyGameSolver::to_dot() const {
                 // Env move: red dashed line
                 oss << "  " << from_id << " -> " << to_id
                     << " [color=red, style=dashed";
-                // Label with input assignment (stored in the target system state)
+                // Label with input assignment using variable names
                 if (succ.environment_chosen_input.has_value()) {
-                    oss << ", label=\"in="
-                        << id_map.get_assignment_string(succ.environment_chosen_input.value())
+                    oss << ", label=\"env="
+                        << id_map.get_assignment_label(succ.environment_chosen_input.value(), false)
                         << "\"";
                 }
                 oss << "];\n";
@@ -186,6 +213,7 @@ std::string OnTheFlyGameSolver::to_dot() const {
 std::string OnTheFlyGameSolver::to_json() const {
     std::ostringstream oss;
     StateIdMap id_map;
+    id_map.pool = &pool_;  // Set pool for variable name lookup
 
     // Build ID map first
     for (const auto& pair : successors_) {
@@ -296,11 +324,11 @@ std::string OnTheFlyGameSolver::to_json() const {
             oss << "      \"to\": \"" << to_id << "\",\n";
             oss << "      \"type\": \"" << (from.player == Player::System ? "sys_move" : "env_move") << "\",\n";
 
-            // Assignment info
+            // Assignment info (with variable names)
             if (from.player == Player::System && succ.system_chosen_output.has_value()) {
-                oss << "      \"output\": " << id_map.get_assignment_string(succ.system_chosen_output.value()) << ",\n";
+                oss << "      \"output\": " << id_map.get_assignment_label(succ.system_chosen_output.value(), true) << ",\n";
             } else if (from.player == Player::Environment && succ.environment_chosen_input.has_value()) {
-                oss << "      \"input\": " << id_map.get_assignment_string(succ.environment_chosen_input.value()) << ",\n";
+                oss << "      \"input\": " << id_map.get_assignment_label(succ.environment_chosen_input.value(), false) << ",\n";
             }
             oss << "      \"is_sys_move\": " << (from.player == Player::System ? "true" : "false") << "\n";
             oss << "    }";

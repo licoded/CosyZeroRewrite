@@ -140,7 +140,7 @@ function extractNodeId(titleText: string): string {
  * Parse edge information from the title element
  * Title format: "from -> to"
  * @param titleText The title element text (e.g., "S0 -> E0")
- * @param labelText The text element content (e.g., "out={0}")
+ * @param labelText The text element content (e.g., "sys={p}" or "env={}")
  */
 function parseEdgeInfo(titleText: string, labelText: string = ''): { from: string; to: string; type: string; label: string; formula?: string } | null {
   // DOT edge title format: "S0 -> E0"
@@ -154,9 +154,21 @@ function parseEdgeInfo(titleText: string, labelText: string = ''): { from: strin
   // Trim whitespace that might be in the text element
   const rawLabel = labelText.trim();
 
-  // Determine edge type from the nodes
-  const isSysMove = from.startsWith('S');
-  const type = isSysMove ? 'System move' : 'Environment move';
+  // Determine edge type from the label prefix (sys=/env=)
+  let type = 'Unknown move';
+  let isSysMove = from.startsWith('S');
+
+  // Check label prefix to determine type
+  if (rawLabel.startsWith('sys=')) {
+    type = 'System move';
+    isSysMove = true;
+  } else if (rawLabel.startsWith('env=')) {
+    type = 'Environment move';
+    isSysMove = false;
+  } else {
+    // Fallback: determine from node type
+    type = isSysMove ? 'System move' : 'Environment move';
+  }
 
   // Convert assignment to formula if partition is available
   const formula = rawLabel ? assignmentToFormula(rawLabel) : undefined;
@@ -165,88 +177,45 @@ function parseEdgeInfo(titleText: string, labelText: string = ''): { from: strin
 }
 
 /**
- * Parse assignment string like "out={0}" or "in={0,1}"
- * Returns the array of variable indices (e.g., [0] or [0, 1])
+ * Parse assignment string like "sys={p}" or "env={p, q}"
+ * Returns the array of variable names (e.g., ["p"] or ["p", "q"])
  */
-function parseAssignment(label: string): number[] | null {
-  // Match pattern: "out={...}" or "in={...}" or just "{...}"
+function parseAssignment(label: string): string[] | null {
+  // Match pattern: "sys={...}" or "env={...}" or just "{...}"
   const match = label.match(/\{([^}]*)\}/);
   if (!match) return null;
 
-  const indicesStr = match[1];
-  if (indicesStr.trim() === '') return [];
+  const namesStr = match[1];
+  if (namesStr.trim() === '') return [];
 
-  // Parse comma-separated indices
-  return indicesStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+  // Parse comma-separated variable names
+  return namesStr.split(',').map(s => s.trim()).filter(s => s.length > 0);
 }
 
 /**
  * Convert assignment label to formula string
- * E.g., "out={0}" with outputs=["p"] -> "p"
- * E.g., "out={0,1}" with outputs=["p","q"] -> "p & q"
- * E.g., "out={0}" with outputs=["p","q"] and negation -> "!p & q" (not implemented yet)
+ * E.g., "sys={p}" -> "p"
+ * E.g., "sys={p,q}" -> "p & q"
+ * E.g., "sys={}" -> "true"
  */
 function assignmentToFormula(label: string): string | null {
-  if (!props.partition) return null;
+  const names = parseAssignment(label);
+  if (names === null) return null;
 
-  const indices = parseAssignment(label);
-  if (indices === null) return null;
-
-  // Determine if this is output or input assignment
-  const isOutput = label.startsWith('out') || label.startsWith('out=');
-  const vars = isOutput ? props.partition.outputs : props.partition.inputs;
-
-  // If no variables, return null
-  if (!vars || vars.length === 0) return null;
-
-  // Build formula from indices
-  // For each index in the assignment, include the corresponding variable as positive literal
-  // Note: The current format only includes positive literals in the assignment
-  // (negations would need to be encoded differently)
-  const literals: string[] = [];
-  for (const idx of indices) {
-    if (idx >= 0 && idx < vars.length) {
-      literals.push(vars[idx]);
-    }
-  }
-
-  if (literals.length === 0) return 'true';
-  if (literals.length === 1) return literals[0];
-  return literals.join(' & ');
+  if (names.length === 0) return 'true';
+  if (names.length === 1) return names[0];
+  return names.join(' & ');
 }
 
 /**
- * Format assignment label with variable names instead of indices
- * E.g., "out={0}" with outputs=["p"] -> "{p}"
- * E.g., "out={0,1}" with outputs=["p","q"] -> "{p, q}"
+ * Format assignment label (now just returns the label as-is since
+ * the backend already outputs variable names)
+ * E.g., "sys={p}" -> "sys={p}"
+ * E.g., "env={}" -> "env={}"
  */
 function formatAssignmentWithNames(label: string): string {
-  if (!props.partition) return label;
-
-  const indices = parseAssignment(label);
-  if (indices === null) return label;
-
-  // Determine if this is output or input assignment
-  const isOutput = label.startsWith('out') || label.startsWith('out=');
-  const vars = isOutput ? props.partition.outputs : props.partition.inputs;
-
-  if (!vars || vars.length === 0) return label;
-
-  // Map indices to variable names
-  const names: string[] = [];
-  for (const idx of indices) {
-    if (idx >= 0 && idx < vars.length) {
-      names.push(vars[idx]);
-    } else {
-      names.push(`?${idx}`);
-    }
-  }
-
-  // Preserve the original prefix (e.g., "out=" or "in=")
-  const prefixMatch = label.match(/^(out|in)?=?/);
-  const prefix = prefixMatch ? prefixMatch[0] : '';
-
-  return `${prefix}{${names.join(', ')}}`;
+  // Backend already formats with variable names, just return as-is
+  return label;
 }
 
 /**
