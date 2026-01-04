@@ -8,6 +8,7 @@
 #include <nlohmann/json.hpp>
 #include <filesystem>
 #include <iomanip>
+#include <iostream>
 #include <sstream>
 
 namespace synthesis {
@@ -358,8 +359,8 @@ void TraceExporter::capture_state(const std::string& description,
 
     begin_sub_step(description);
 
-    // Get current DOT from solver
-    std::string dot = solver.to_dot();
+    // Get current DOT from solver (using shared StateIdMap)
+    std::string dot = solver.to_dot(&id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);  // edges count not readily available
 
     // Collect state data for tooltips (phi, xnf_phi, prop_atoms)
@@ -414,7 +415,7 @@ void TraceExporter::record_expansion(const GameState& state,
     begin_sub_step("Expand state: " + id_map_.get_id(state));
 
     // Get current DOT
-    std::string dot = solver.to_dot();
+    std::string dot = solver.to_dot(&id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -457,7 +458,7 @@ void TraceExporter::record_scc(const std::vector<GameState>& scc,
     begin_sub_step("Found SCC: " + scc_id);
 
     // Get current DOT
-    std::string dot = solver.to_dot();
+    std::string dot = solver.to_dot(&id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -501,7 +502,7 @@ void TraceExporter::record_classification_change(const GameState& state,
     begin_sub_step(oss.str());
 
     // Get current DOT
-    std::string dot = solver.to_dot();
+    std::string dot = solver.to_dot(&id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -591,7 +592,7 @@ void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver& solver) 
     begin_sub_step("Complete game graph with final classifications");
 
     // Get current DOT from solver
-    std::string dot = solver.to_dot();
+    std::string dot = solver.to_dot(&id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips

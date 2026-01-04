@@ -10,102 +10,34 @@
 #include "log/logger.hpp"
 #include <sstream>
 #include <fstream>
+#include <iostream>
 #include <algorithm>
 
 namespace synthesis {
 
 //==============================================================================
-// State ID Mapping Helper
-//==============================================================================
-
-namespace {
-
-/**
- * @brief Generate short ID for a game state
- * System states: S0, S1, S2, ...
- * Environment states: E0, E1, E2, ...
- */
-struct StateIdMap {
-    std::unordered_map<GameState, std::string, GameStateHash, GameStateEqual> to_id;
-    std::unordered_map<std::string, GameState> from_id;
-    size_t sys_count = 0;
-    size_t env_count = 0;
-    formula::FormulaPool* pool = nullptr;  // For variable name lookup
-
-    std::string get_id(const GameState& s) {
-        auto it = to_id.find(s);
-        if (it != to_id.end()) {
-            return it->second;
-        }
-
-        std::string id;
-        if (s.player == Player::System) {
-            id = "S" + std::to_string(sys_count++);
-        } else {
-            id = "E" + std::to_string(env_count++);
-        }
-
-        to_id[s] = id;
-        from_id[id] = s;
-        return id;
-    }
-
-    /**
-     * @brief Get edge label in format "sys={p, q}" or "env={}"
-     * @param a Assignment (indices)
-     * @param is_output true for system moves (outputs), false for env moves (inputs)
-     * @return Label string with variable names
-     */
-    std::string get_assignment_label(const automata::Assignment& a, bool is_output) const {
-        if (!pool) return "{}";
-
-        const auto& var_names = pool->get_all_variable_names();
-        int num_outputs = pool->num_outputs();
-
-        // Determine variable range based on move type
-        int start_idx = is_output ? 0 : num_outputs;
-        int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
-
-        std::ostringstream oss;
-        oss << "{";
-
-        if (a.empty()) {
-            // Empty assignment
-            oss << "}";
-        } else {
-            // Map indices to variable names
-            bool first = true;
-            for (int idx : a) {
-                // Check if index is in the correct range for this move type
-                if (idx >= start_idx && idx < end_idx) {
-                    if (!first) oss << ", ";
-                    oss << var_names[idx];
-                    first = false;
-                }
-            }
-            oss << "}";
-        }
-
-        return oss.str();
-    }
-};
-
-} // anonymous namespace
-
-//==============================================================================
 // DOT Format Export
 //==============================================================================
 
-std::string OnTheFlyGameSolver::to_dot() const {
+std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
     std::ostringstream oss;
-    StateIdMap id_map;
-    id_map.pool = &pool_;  // Set pool for variable name lookup
 
-    // Build ID map first
-    for (const auto& pair : successors_) {
-        id_map.get_id(pair.first);
-        for (const auto& succ : pair.second) {
-            id_map.get_id(succ);
+    // Use external StateIdMap if provided, otherwise create a local one
+    StateIdMap local_id_map;
+    StateIdMap& id_map = (external_id_map ? *external_id_map : local_id_map);
+
+    // Set pool for variable name lookup (only if not already set)
+    if (!id_map.pool) {
+        id_map.pool = &pool_;
+    }
+
+    // Build ID map first (only if using local map or external map is empty)
+    if (!external_id_map || id_map.to_id.empty()) {
+        for (const auto& pair : successors_) {
+            id_map.get_id(pair.first);
+            for (const auto& succ : pair.second) {
+                id_map.get_id(succ);
+            }
         }
     }
 

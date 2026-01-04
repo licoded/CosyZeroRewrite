@@ -18,6 +18,8 @@
 #include <vector>
 #include <functional>
 #include <optional>
+#include <sstream>
+#include <string>
 #include <memory>
 
 namespace synthesis {
@@ -133,6 +135,86 @@ struct GameStateHash {
 struct GameStateEqual {
     bool operator()(const GameState& a, const GameState& b) const {
         return a == b;
+    }
+};
+
+/**
+ * @brief Shared state ID mapping for DOT/JSON export
+ *
+ * This structure is used by both OnTheFlyGameSolver and TraceExporter
+ * to ensure consistent state IDs across different output formats.
+ * System states: S0, S1, S2, ...
+ * Environment states: E0, E1, E2, ...
+ */
+struct StateIdMap {
+    std::unordered_map<GameState, std::string, GameStateHash, GameStateEqual> to_id;
+    std::unordered_map<std::string, GameState> from_id;
+    size_t sys_count = 0;
+    size_t env_count = 0;
+    formula::FormulaPool* pool = nullptr;  // For variable name lookup
+
+    std::string get_id(const GameState& s) {
+        auto it = to_id.find(s);
+        if (it != to_id.end()) {
+            return it->second;
+        }
+
+        std::string id;
+        if (s.player == Player::System) {
+            id = "S" + std::to_string(sys_count++);
+        } else {
+            id = "E" + std::to_string(env_count++);
+        }
+
+        to_id[s] = id;
+        from_id[id] = s;
+        return id;
+    }
+
+    /**
+     * @brief Get edge label in format "sys={p, q}" or "env={}"
+     * @param a Assignment (indices)
+     * @param is_output true for system moves (outputs), false for env moves (inputs)
+     * @return Label string with variable names
+     */
+    std::string get_assignment_label(const automata::Assignment& a, bool is_output) const {
+        if (!pool) return "{}";
+
+        const auto& var_names = pool->get_all_variable_names();
+        int num_outputs = pool->num_outputs();
+
+        // Determine variable range based on move type
+        int start_idx = is_output ? 0 : num_outputs;
+        int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
+
+        std::ostringstream oss;
+        oss << "{";
+
+        if (a.empty()) {
+            // Empty assignment
+            oss << "}";
+        } else {
+            // Map indices to variable names
+            bool first = true;
+            for (int idx : a) {
+                // Check if index is in the correct range for this move type
+                if (idx >= start_idx && idx < end_idx) {
+                    if (!first) oss << ", ";
+                    oss << var_names[idx];
+                    first = false;
+                }
+            }
+            oss << "}";
+        }
+
+        return oss.str();
+    }
+
+    void clear() {
+        to_id.clear();
+        from_id.clear();
+        sys_count = 0;
+        env_count = 0;
     }
 };
 
@@ -280,9 +362,11 @@ public:
      * - Sys moves: blue solid lines (System -> Environment)
      * - Env moves: red dashed lines (Environment -> System)
      *
+     * @param external_id_map Optional external StateIdMap to use for consistent IDs
+     *                        If nullptr, creates a temporary internal map
      * @return DOT format string
      */
-    std::string to_dot() const;
+    std::string to_dot(StateIdMap* external_id_map = nullptr) const;
 
     /**
      * @brief Export game graph metadata to JSON format

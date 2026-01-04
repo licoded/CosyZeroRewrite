@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <fstream>
+#include <iostream>
 #include <sstream>
 #include <chrono>
 #include <functional>
@@ -395,19 +396,7 @@ private:
     int step_counter_;
     int current_stage_index_;  // -1 if no current stage
 
-    // State ID mapping (same as in game_graph_export.cpp)
-    struct StateIdMap {
-        std::unordered_map<GameState, std::string, GameStateHash, GameStateEqual> to_id;
-        size_t sys_count = 0;
-        size_t env_count = 0;
-
-        std::string get_id(const GameState& s);
-        void clear() {
-            to_id.clear();
-            sys_count = 0;
-            env_count = 0;
-        }
-    };
+    // State ID mapping - uses shared StateIdMap definition
     StateIdMap id_map_;
 
     // Helper methods
@@ -425,32 +414,6 @@ private:
     // JSON writing (using nlohmann/json library)
     void write_json();
 };
-
-//==============================================================================
-// State ID Mapping Helper (for trace recording)
-//==============================================================================
-
-/**
- * @brief Get state ID for a game state
- * Generates IDs like S0, S1, ... for system states
- *              and E0, E1, ... for environment states
- */
-inline std::string TraceExporter::StateIdMap::get_id(const GameState& s) {
-    auto it = to_id.find(s);
-    if (it != to_id.end()) {
-        return it->second;
-    }
-
-    std::string id;
-    if (s.player == Player::System) {
-        id = "S" + std::to_string(sys_count++);
-    } else {
-        id = "E" + std::to_string(env_count++);
-    }
-
-    to_id[s] = id;
-    return id;
-}
 
 //==============================================================================
 // Convenience Functions
