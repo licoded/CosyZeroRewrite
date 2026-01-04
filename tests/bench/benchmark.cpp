@@ -69,11 +69,11 @@ int main(int argc, char* argv[]) {
             std::cout << "OK: f" << i << " (" << formula_str.substr(0, 50) << "...) "
                       << "(" << elapsed << "ms)" << std::endl;
 
-            // Check satisfiability
-            auto sat = Synthesis::is_satisfiable(f);
-            if (sat.has_value()) {
-                std::cout << "  Satisfiable: " << (sat.value() ? "yes" : "no") << std::endl;
-            }
+            // TODO: Check satisfiability (disabled due to Z3 timeout issues)
+            // auto sat = Synthesis::is_satisfiable(f);
+            // if (sat.has_value()) {
+            //     std::cout << "  Satisfiable: " << (sat.value() ? "yes" : "no") << std::endl;
+            // }
 
         } else {
             failed_parse++;

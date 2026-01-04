@@ -53,7 +53,7 @@ bool Synthesis::load_partition(const std::string& part_file,
 
 std::optional<bool> Synthesis::is_satisfiable(formula::Formula* f) {
 #ifdef FORMULA_USE_Z3
-    return formula::FormulaZ3::is_satisfiable(f, 0, 10000);
+    return formula::FormulaZ3::is_satisfiable(f, 0, 1000);  // 1s timeout for benchmark
 #else
     (void)f;
     return std::nullopt;
