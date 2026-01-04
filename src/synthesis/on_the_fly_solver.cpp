@@ -667,35 +667,53 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
 
             // Check if EXISTS a sys move such that ALL subsequent env moves lead to Swin
             bool has_safe_sys_move = false;
+            bool all_sys_moves_ewin = true;
             for (const auto& e : succ_it->second) {  // sys move → env states
                 // For this env state, check if ALL env moves lead to Swin
                 bool all_env_moves_swin = true;
                 auto env_succ_it = successors_.find(e);
-                if (env_succ_it == successors_.end()) {
-                    all_env_moves_swin = false;
-                } else {
-                    for (const auto& s_prime : env_succ_it->second) {  // env move → sys states
-                        auto cls_it = classification_.find(s_prime);
-                        if (cls_it == classification_.end() ||
-                            cls_it->second != StateClass::Swin) {
-                            all_env_moves_swin = false;
-                            break;
-                        }
+                assert(env_succ_it != successors_.end());
+
+                for (const auto& s_prime : env_succ_it->second) {  // env move → sys states
+                    auto cls_it = classification_.find(s_prime);
+                    assert(cls_it != classification_.end());
+                    if (cls_it->second == StateClass::Swin) {
+                        // This env move leads to a Swin state
+                        continue;
                     }
+                    if (cls_it->second == StateClass::Ewin) {
+                        classification_[e] = StateClass::Ewin;
+                        LOG_DEBUG("  [has_env_moves_ewin] Classified env state as Ewin: ", e.to_string());
+                    }
+                    all_env_moves_swin = true;
+                    break;
                 }
 
                 // If this sys move has all env moves leading to Swin, it's safe
                 if (all_env_moves_swin) {
+                    classification_[e] = StateClass::Swin;
+                    LOG_DEBUG("  [all_env_moves_swin] Classified env state as Swin: ", e.to_string());
+                    classification_[s] = StateClass::Swin;
+                    LOG_DEBUG("  [all_env_moves_swin] Classified sys state as Swin: ", s.to_string());
                     has_safe_sys_move = true;
-                    break;
+                    // break; // NOTE: comment this to detect all safe sys moves
+                }
+
+                if (all_sys_moves_ewin && classification_.count(e) &&
+                    classification_[e] != StateClass::Ewin) {
+                    all_sys_moves_ewin = false;
                 }
             }
 
+            if (all_sys_moves_ewin) {
+                classification_[s] = StateClass::Ewin;
+                LOG_DEBUG("  [all_sys_moves_ewin] Classified sys state as Ewin: ", s.to_string());
+            }
             if (has_safe_sys_move) {
                 classification_[s] = StateClass::Swin;
                 new_swin_states.insert(s);
                 changed = true;
-                LOG_DEBUG("  Classified as Swin: ", s.to_string());
+                LOG_DEBUG("  [has_safe_sys_move] Classified sys state as Swin: ", s.to_string());
             }
         }
 
@@ -706,6 +724,11 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
     for (const auto& s : scc) {
         if (!classification_.count(s)) {
             classification_[s] = StateClass::Ewin;
+            if (s.player == Player::System) {
+                LOG_DEBUG("  Classified sys state as Ewin: ", s.to_string());
+            } else {
+                LOG_DEBUG("  Classified env state as Ewin: ", s.to_string());
+            }
         }
     }
 
