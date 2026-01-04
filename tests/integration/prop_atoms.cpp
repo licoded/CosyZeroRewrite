@@ -3,13 +3,13 @@
  * @brief Tests for compute_prop_atoms (Propositional Atoms)
  *
  * PA (Propositional Atoms) definition:
- * - PA(p) = {p}           - literal is atomic
- * - PA(true) = {true}     - constants are atomic
- * - PA(false) = {false}
- * - PA(!p) = PA(p)        - Not penetrates
- * - PA(X(φ)) = {X(φ)}     - Next is atomic
- * - PA(φ₁ U φ₂) = {φ₁ U φ₂}  - Until is atomic
- * - PA(φ₁ R φ₂) = {φ₁ R φ₂}  - Release is atomic
+ * - PA(p) = {p}              - literal (atomic variable) is atomic
+ * - PA(true) = {}            - constants are NOT atomic propositions
+ * - PA(false) = {}           - constants are NOT atomic propositions
+ * - PA(!p) = PA(p)           - Not penetrates
+ * - PA(X(φ)) = {X(φ)}        - Next is atomic subformula (for tableau)
+ * - PA(φ₁ U φ₂) = {φ₁ U φ₂}   - Until is atomic subformula (for tableau)
+ * - PA(φ₁ R φ₂) = {φ₁ R φ₂}   - Release is atomic subformula (for tableau)
  * - PA(φ₁ ∧ φ₂) = PA(φ₁) ∪ PA(φ₂)
  * - PA(φ₁ ∨ φ₂) = PA(φ₁) ∪ PA(φ₂)
  */
@@ -71,8 +71,8 @@ TEST_CASE("PA: true", "[pa][base]") {
     TableauState::FormulaSet result;
     TableauState::compute_prop_atoms(t, result);
 
-    REQUIRE(result.size() == 1);
-    REQUIRE(result.count(t) == 1);
+    // PA(true) = {} (constants are not atomic propositions)
+    REQUIRE(result.size() == 0);
 }
 
 TEST_CASE("PA: false", "[pa][base]") {
@@ -84,8 +84,8 @@ TEST_CASE("PA: false", "[pa][base]") {
     TableauState::FormulaSet result;
     TableauState::compute_prop_atoms(f, result);
 
-    REQUIRE(result.size() == 1);
-    REQUIRE(result.count(f) == 1);
+    // PA(false) = {} (constants are not atomic propositions)
+    REQUIRE(result.size() == 0);
 }
 
 //==============================================================================

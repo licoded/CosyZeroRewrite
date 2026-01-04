@@ -119,14 +119,21 @@ void TableauState::compute_prop_atoms(formula::Formula* phi, FormulaSet& result)
 
     auto op = phi->op();
 
-    // Base cases: atom, Next, Until, or Release - add as-is
+    // Base cases:
+    // - Literal (atomic variable): add to PA
+    // - Next/Until/Release: add as atomic subformula (for tableau state construction)
+    // - True/False: constants, NOT part of PA (empty set)
     if (op == formula::Formula::OpType::Literal ||
-        op == formula::Formula::OpType::True ||
-        op == formula::Formula::OpType::False ||
         op == formula::Formula::OpType::Next ||
         op == formula::Formula::OpType::Until ||
         op == formula::Formula::OpType::Release) {
         result.insert(phi);
+        return;
+    }
+
+    // True/False: constants have empty PA
+    if (op == formula::Formula::OpType::True ||
+        op == formula::Formula::OpType::False) {
         return;
     }
 
