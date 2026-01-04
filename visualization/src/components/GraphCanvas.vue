@@ -512,7 +512,6 @@ onMounted(() => {
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
-}
 
 /* Highlight styles applied via JS */
 :deep(.highlight-new) {
