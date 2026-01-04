@@ -59,9 +59,11 @@
           <span class="tooltip-label">Type:</span>
           <span class="tooltip-value">{{ tooltip.edgeInfo?.type || '' }}</span>
         </div>
-        <div v-if="tooltip.edgeInfo?.label" class="tooltip-row">
+        <div class="tooltip-row">
           <span class="tooltip-label">Assignment:</span>
-          <span class="tooltip-value formula-text">{{ formatAssignmentWithNames(tooltip.edgeInfo.label) }}</span>
+          <span class="tooltip-value formula-text">
+            {{ tooltip.edgeInfo?.label ? formatAssignmentWithNames(tooltip.edgeInfo.label) : '(none)' }}
+          </span>
         </div>
         <div v-if="tooltip.edgeInfo?.formula" class="tooltip-row">
           <span class="tooltip-label">Formula:</span>
@@ -286,6 +288,12 @@ function handleMouseMove(event: MouseEvent): void {
       const title = node.querySelector('title');
       if (title?.textContent) {
         const titleText = title.textContent.trim();
+        // Skip SVG root title (e.g., "GameGraph")
+        if (titleText === 'GameGraph' || titleText.includes('digraph')) {
+          node = node.parentElement;
+          depth++;
+          continue;
+        }
         // Check if it's an edge title (contains ->)
         if (titleText.includes('->')) {
           // This is an edge, also look for text label
