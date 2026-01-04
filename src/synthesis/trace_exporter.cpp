@@ -124,10 +124,27 @@ TraceExporter::TraceExporter(formula::Formula* formula,
       output_path_(),
       enabled_(true),
       finalized_(false),
+      partition_(),
       stage_counter_(0),
       step_counter_(0),
       current_stage_index_(-1)
 {
+    // Extract partition information from FormulaPool
+    // Variables are indexed: outputs (0 to num_outputs-1), inputs (num_outputs to num_outputs+num_inputs-1)
+    const auto& all_vars = pool.get_all_variable_names();
+    int num_outputs = pool.num_outputs();
+    int num_inputs = pool.num_inputs();
+
+    // Outputs are first
+    for (int i = 0; i < num_outputs && i < static_cast<int>(all_vars.size()); ++i) {
+        partition_.outputs.push_back(all_vars[i]);
+    }
+
+    // Inputs come after outputs
+    for (int i = num_outputs; i < num_outputs + num_inputs && i < static_cast<int>(all_vars.size()); ++i) {
+        partition_.inputs.push_back(all_vars[i]);
+    }
+
     start_time_ = std::chrono::steady_clock::now();
 
     // Create output directory
@@ -594,6 +611,14 @@ void TraceExporter::write_json() {
 
     // Timestamp
     root["timestamp"] = get_timestamp();
+
+    // Partition (input/output variable names)
+    if (!partition_.inputs.empty() || !partition_.outputs.empty()) {
+        json partition_obj;
+        partition_obj["inputs"] = partition_.inputs;
+        partition_obj["outputs"] = partition_.outputs;
+        root["partition"] = partition_obj;
+    }
 
     // Build stages array
     json stages_array = json::array();

@@ -144,6 +144,15 @@ struct TraceSummary {
     std::vector<std::pair<std::string, int>> stages_summary;  // (type, count)
 };
 
+/**
+ * @brief Variable partition information (input/output variable names)
+ * Used by frontend to format edge labels and assignment formulas
+ */
+struct TracePartition {
+    std::vector<std::string> inputs;   // Input variable names
+    std::vector<std::string> outputs;  // Output variable names
+};
+
 //==============================================================================
 // Trace Exporter
 //==============================================================================
@@ -363,6 +372,7 @@ private:
     std::string output_path_;
     bool enabled_;
     bool finalized_;
+    TracePartition partition_;  // Input/output variable names
 
     // Timing
     std::chrono::steady_clock::time_point start_time_;

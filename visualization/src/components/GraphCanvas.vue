@@ -61,7 +61,11 @@
         </div>
         <div v-if="tooltip.edgeInfo?.label" class="tooltip-row">
           <span class="tooltip-label">Assignment:</span>
-          <span class="tooltip-value formula-text">{{ tooltip.edgeInfo.label }}</span>
+          <span class="tooltip-value formula-text">{{ formatAssignmentWithNames(tooltip.edgeInfo.label) }}</span>
+        </div>
+        <div v-if="tooltip.edgeInfo?.formula" class="tooltip-row">
+          <span class="tooltip-label">Formula:</span>
+          <span class="tooltip-value formula-text">{{ tooltip.edgeInfo.formula }}</span>
         </div>
       </template>
     </div>
@@ -71,15 +75,17 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue';
 import { useGraphViz } from '@/composables/useGraphViz';
-import type { SubStepHighlights, SubStepGraphData, StateData } from '@/types/trace';
+import type { SubStepHighlights, SubStepGraphData, StateData, TracePartition } from '@/types/trace';
 
 interface Props {
   graphData: SubStepGraphData;
   highlights?: SubStepHighlights;
+  partition?: TracePartition;
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  highlights: () => ({} as SubStepHighlights)
+  highlights: () => ({} as SubStepHighlights),
+  partition: undefined
 });
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -95,7 +101,7 @@ const tooltip = ref({
   y: 0,
   isEdge: false,
   stateData: null as StateData | null,
-  edgeInfo: null as { from: string; to: string; type: string; label: string } | null
+  edgeInfo: null as { from: string; to: string; type: string; label: string; formula?: string } | null
 });
 
 /**
@@ -129,7 +135,7 @@ function extractNodeId(titleText: string): string {
  * Parse edge information from the title element
  * Title format: "from -> to" or "from -> to [label="..."]"
  */
-function parseEdgeInfo(titleText: string): { from: string; to: string; type: string; label: string } | null {
+function parseEdgeInfo(titleText: string): { from: string; to: string; type: string; label: string; formula?: string } | null {
   // DOT edge title format: "S0 -> E0" or with label
   const match = titleText.match(/^(\w+)\s*->\s*(\w+)/);
   if (!match) return null;
@@ -139,13 +145,101 @@ function parseEdgeInfo(titleText: string): { from: string; to: string; type: str
 
   // Try to extract label from title if present
   const labelMatch = titleText.match(/label="([^"]+)"/);
-  const label = labelMatch ? labelMatch[1] : '';
+  const rawLabel = labelMatch ? labelMatch[1] : '';
 
   // Determine edge type from the nodes
   const isSysMove = from.startsWith('S');
   const type = isSysMove ? 'System move' : 'Environment move';
 
-  return { from, to, type, label };
+  // Convert assignment to formula if partition is available
+  const formula = rawLabel ? assignmentToFormula(rawLabel) : undefined;
+
+  return { from, to, type, label: rawLabel, formula };
+}
+
+/**
+ * Parse assignment string like "out={0}" or "in={0,1}"
+ * Returns the array of variable indices (e.g., [0] or [0, 1])
+ */
+function parseAssignment(label: string): number[] | null {
+  // Match pattern: "out={...}" or "in={...}" or just "{...}"
+  const match = label.match(/\{([^}]*)\}/);
+  if (!match) return null;
+
+  const indicesStr = match[1];
+  if (indicesStr.trim() === '') return [];
+
+  // Parse comma-separated indices
+  return indicesStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+}
+
+/**
+ * Convert assignment label to formula string
+ * E.g., "out={0}" with outputs=["p"] -> "p"
+ * E.g., "out={0,1}" with outputs=["p","q"] -> "p & q"
+ * E.g., "out={0}" with outputs=["p","q"] and negation -> "!p & q" (not implemented yet)
+ */
+function assignmentToFormula(label: string): string | null {
+  if (!props.partition) return null;
+
+  const indices = parseAssignment(label);
+  if (indices === null) return null;
+
+  // Determine if this is output or input assignment
+  const isOutput = label.startsWith('out') || label.startsWith('out=');
+  const vars = isOutput ? props.partition.outputs : props.partition.inputs;
+
+  // If no variables, return null
+  if (!vars || vars.length === 0) return null;
+
+  // Build formula from indices
+  // For each index in the assignment, include the corresponding variable as positive literal
+  // Note: The current format only includes positive literals in the assignment
+  // (negations would need to be encoded differently)
+  const literals: string[] = [];
+  for (const idx of indices) {
+    if (idx >= 0 && idx < vars.length) {
+      literals.push(vars[idx]);
+    }
+  }
+
+  if (literals.length === 0) return 'true';
+  if (literals.length === 1) return literals[0];
+  return literals.join(' & ');
+}
+
+/**
+ * Format assignment label with variable names instead of indices
+ * E.g., "out={0}" with outputs=["p"] -> "{p}"
+ * E.g., "out={0,1}" with outputs=["p","q"] -> "{p, q}"
+ */
+function formatAssignmentWithNames(label: string): string {
+  if (!props.partition) return label;
+
+  const indices = parseAssignment(label);
+  if (indices === null) return label;
+
+  // Determine if this is output or input assignment
+  const isOutput = label.startsWith('out') || label.startsWith('out=');
+  const vars = isOutput ? props.partition.outputs : props.partition.inputs;
+
+  if (!vars || vars.length === 0) return label;
+
+  // Map indices to variable names
+  const names: string[] = [];
+  for (const idx of indices) {
+    if (idx >= 0 && idx < vars.length) {
+      names.push(vars[idx]);
+    } else {
+      names.push(`?${idx}`);
+    }
+  }
+
+  // Preserve the original prefix (e.g., "out=" or "in=")
+  const prefixMatch = label.match(/^(out|in)?=?/);
+  const prefix = prefixMatch ? prefixMatch[0] : '';
+
+  return `${prefix}{${names.join(', ')}}`;
 }
 
 /**
@@ -258,7 +352,7 @@ function showTooltipBasic(x: number, y: number, nodeId: string): void {
 /**
  * Show edge tooltip
  */
-function showEdgeTooltip(x: number, y: number, edgeInfo: { from: string; to: string; type: string; label: string }): void {
+function showEdgeTooltip(x: number, y: number, edgeInfo: { from: string; to: string; type: string; label: string; formula?: string }): void {
   const offsetX = 15;
   const offsetY = 15;
   const posX = Math.min(x + offsetX, window.innerWidth - 400);

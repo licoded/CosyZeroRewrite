@@ -46,6 +46,7 @@
           <GraphCanvas
             :graph-data="currentSubStep.graph_data"
             :highlights="currentSubStep.highlights"
+            :partition="trace.partition"
           />
           <div class="step-info-bar">
             <span class="step-stage">{{ getStageType(currentStageIndex) }}</span>

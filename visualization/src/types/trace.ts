@@ -82,8 +82,14 @@ export interface Trace {
   formula: string;
   timestamp: string;
   formula_id?: string;
+  partition?: TracePartition;  // Input/output variable information
   stages: TraceStage[];
   summary?: TraceSummary;
+}
+
+export interface TracePartition {
+  inputs: string[];   // Input variable names
+  outputs: string[];  // Output variable names
 }
 
 export type StateClass = 'Unknown' | 'Swin' | 'Ewin' | 'Draw';
