@@ -2,6 +2,9 @@
 build/
 cmake-build-*/
 
+# Old build directories (cleanup)
+resources/
+
 # CMake generated files
 CMakeCache.txt
 CMakeFiles/
@@ -38,8 +41,15 @@ build_fuzz/
 # Logs directory (but keep the directory itself via .gitkeep)
 logs/*.log
 logs/*.txt
+logs/formula_*
+logs/transform_*
+logs/tableau_*
+
+# Benchmark results
 benchmark_results_*.csv
-benchmark_visualization/
+*.csv
+
+# Temporary files
 tmp/
 
 # Results directory (test outputs, benchmark results, game graphs, etc.)
