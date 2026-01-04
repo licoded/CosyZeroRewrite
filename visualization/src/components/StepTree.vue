@@ -8,7 +8,7 @@
       No trace data available
     </div>
 
-    <div v-else class="tree-content">
+    <div v-else class="tree-content" ref="treeContentRef">
       <div
         v-for="(stage, stageIndex) in trace.stages"
         :key="stage.stage_id"
@@ -49,7 +49,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch, nextTick } from 'vue';
 import type { Trace, StageType } from '@/types/trace';
 
 interface Props {
@@ -67,6 +67,50 @@ const emit = defineEmits<{
 
 const expandedStages = ref<Set<number>>(new Set([0]));  // First stage expanded by default
 const activeStage = ref<number>(0);
+const treeContentRef = ref<HTMLElement | null>(null);
+
+// Auto-expand the stage containing the current step and scroll to it (2026-01-04)
+watch(() => props.modelValue, (newGlobalIndex) => {
+  if (!props.trace || newGlobalIndex < 0) return;
+
+  // Find which stage contains this step
+  let accumulatedSteps = 0;
+  for (let s = 0; s < props.trace.stages.length; s++) {
+    const stageStepCount = props.trace.stages[s].sub_steps.length;
+    if (newGlobalIndex >= accumulatedSteps && newGlobalIndex < accumulatedSteps + stageStepCount) {
+      // This is the stage containing the current step
+      activeStage.value = s;
+      // Auto-expand this stage
+      expandedStages.value.add(s);
+
+      // Scroll to the active step element after DOM update
+      nextTick(() => {
+        const stepIndex = newGlobalIndex - accumulatedSteps;
+        scrollActiveStepIntoView(s, stepIndex);
+      });
+      break;
+    }
+    accumulatedSteps += stageStepCount;
+  }
+}, { immediate: true });
+
+// Scroll the active step into view
+function scrollActiveStepIntoView(_stageIndex: number, _stepIndex: number): void {
+  if (!treeContentRef.value) return;
+
+  // Find all active sub-step elements
+  const activeSteps = treeContentRef.value.querySelectorAll('.sub-step.active');
+  if (activeSteps.length === 0) return;
+
+  // Get the first (should be only one) active step element
+  const activeElement = activeSteps[0] as HTMLElement;
+
+  // Scroll into view with smooth behavior, centered if possible
+  activeElement.scrollIntoView({
+    behavior: 'smooth',
+    block: 'nearest'
+  });
+}
 
 // Flatten all steps to get global index
 const flatSteps = computed(() => {
