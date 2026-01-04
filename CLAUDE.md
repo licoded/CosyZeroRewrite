@@ -380,6 +380,24 @@ git add -A && git commit -m "refactor: xxx"
 ./build/benchmark_runner benchmarks/sm1000 1 1  # 测试1个
 ```
 
+**⚠️ Benchmark 调试优先级**（2026-01-04 记录）：
+
+当 benchmark 出现问题时，按以下优先级处理：
+
+1. **优先修复 Wrong Result (FAIL) 案例**
+   - Wrong Result = 结果与预期不符（但程序正常结束）
+   - 这通常是算法逻辑错误，需要立即修复
+   - 修复一个 Wrong Result 比优化 100 个超时案例更重要
+
+2. **超时 (TIMEOUT) 案例可以暂时忽略**
+   - 超时可能是性能问题，也可能是公式本身很复杂
+   - 只要 Cosy 参考实现也慢，就不是我们的问题
+   - 性能优化可以在算法正确后再进行
+
+**判断标准**：
+- 先用 Cosy 测试超时案例，如果 Cosy 也超时/很慢，则不是 bug
+- 关注 `Status=FAIL` 的案例，这些是必须修复的
+
 ### ⚠️ 重要：Git 提交规范（修改代码后）
 
 **每次修改代码后的提交顺序**：
