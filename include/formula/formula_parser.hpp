@@ -17,6 +17,7 @@ namespace formula {
  *   - Negation: !expr
  *   - And: expr & expr
  *   - Or: expr | expr
+ *   - Implies: expr -> expr (parsed as !expr | expr)
  *   - Next: X(expr)
  *   - Until: expr U expr
  *   - Release: expr R expr
@@ -26,17 +27,19 @@ namespace formula {
  *   1. X, !, literals
  *   2. &
  *   3. |
- *   4. U, R
+ *   4. ->
+ *   5. U, R
  *
  * Grammar:
- *   formula    ::= or_expr
- *   or_expr    ::= and_expr ('|' and_expr)*
- *   and_expr   ::= binary_op ('&' binary_op)*
- *   binary_op  ::= unary_op ('U' | 'R' unary_op)*
- *   unary_op   ::= 'X'? postfix
- *   postfix    ::= '!' postfix | primary
- *   primary    ::= literal | '(' formula ')'
- *   literal    ::= identifier | 'true' | 'false'
+ *   formula       ::= implies_expr
+ *   implies_expr  ::= or_expr ('->' or_expr)*
+ *   or_expr       ::= and_expr ('|' and_expr)*
+ *   and_expr      ::= binary_op ('&' binary_op)*
+ *   binary_op     ::= unary_op ('U' | 'R' unary_op)*
+ *   unary_op      ::= 'X'? postfix
+ *   postfix       ::= '!' postfix | primary
+ *   primary       ::= literal | '(' formula ')'
+ *   literal       ::= identifier | 'true' | 'false'
  */
 class FormulaParser {
 public:
@@ -82,6 +85,7 @@ private:
         Not,         // !
         And,         // &
         Or,          // |
+        Implies,     // ->
         Next,        // X
         Until,       // U
         Release,     // R
@@ -108,6 +112,7 @@ private:
 
     // Parser functions (recursive descent)
     Formula* parse_formula();
+    Formula* parse_implies_expr();
     Formula* parse_or_expr();
     Formula* parse_and_expr();
     Formula* parse_binary_op();

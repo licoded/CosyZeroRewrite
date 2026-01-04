@@ -92,107 +92,109 @@ OK: bench2/f1 (0.032ms)
 --- Progress: 10 formulas processed ---
 ```
 
-## Current Status (2026-01-04 23:53)
+## Current Status (2026-01-04 23:58)
 
 ### Test Results (1000 formulas)
 
 | Metric | Count | Percentage |
 |--------|-------|------------|
-| **Parsed successfully** | 689 | 68.9% |
-| **Parse failed** | 311 | 31.1% |
-| **Total time** | 17.4ms | - |
+| **Parsed successfully** | 1000 | 100% |
+| **Parse failed** | 0 | 0% |
+| **Total time** | 24.3ms | - |
 
-### Parse Failure Reasons
+**✅ All formulas now parse successfully!** (After adding `->` operator support)
 
-All parse failures are due to the `->` (implies) operator, which is not currently supported.
+### Implies Operator Support (2026-01-04)
 
-**Unsupported operators**:
-- `->` (implies / IMPLIES)
-- `<->` (iff / IFF) - not found in current dataset
+The `->` (implies) operator is now fully supported. During parsing, `a -> b` is
+automatically converted to `!a | b` (material implication).
 
-**Workaround**: These can be manually rewritten using supported operators:
-- `a -> b` ≡ `(!a) | b`
-- `a <-> b` ≡ `(a & b) | ((!a) & (!b))`
+**Implementation Details**:
+- **Lexer**: Recognizes `->` as `TokenType::Implies`
+- **Parser**: `parse_implies_expr()` handles right-associative implies chains
+- **Transformation**: `a -> b -> c` becomes `!a | (!b | c)` (right-associative)
+- **Precedence**: Implies has lower precedence than `|`, higher than `U`/`R`
 
-### Failed Cases Examples (Sample)
+**Grammar Addition**:
+```
+implies_expr ::= or_expr ('->' or_expr)*
+```
 
-#### Simple Implies Cases
+### Previously Failed Cases (Now Fixed)
+
+The following cases that previously failed due to missing `->` support now parse correctly:
+
+#### Simple Implies Cases (Now Fixed)
 
 ```
-FAIL: bench1/f4 (parse error)
-  Formula: ((F(G(!(p3)))) -> (G(F(!(p1))))) U ((p2) & (p5))
+✓ bench1/f4: ((F(G(!(p3)))) -> (G(F(!(p1))))) U ((p2) & (p5))
   Partition: inputs: [p1, p2], outputs: [p3, p5]
   Expected: Unrealizable
 
-FAIL: bench1/f5 (parse error)
-  Formula: (G(!(F(!(p4))))) -> (G(F(X(X(F(!(p2)))))))
+✓ bench1/f5: (G(!(F(!(p4))))) -> (G(F(X(X(F(!(p2)))))))
   Partition: inputs: [p2], outputs: [p4]
   Expected: Realizable
 ```
 
-#### Nested Implies Cases
+#### Nested Implies Cases (Now Fixed)
 
 ```
-FAIL: bench1/f445 (parse error)
-  Formula: (p9) -> ((!(p3)) -> ((p2) -> (p4)))
+✓ bench1/f445: (p9) -> ((!(p3)) -> ((p2) -> (p4)))
   Partition: inputs: [p2, p3], outputs: [p4, p9]
   Expected: Realizable
 
-FAIL: bench1/f449 (parse error)
-  Formula: ((((F(p6)) -> (p9)) R (p1)) -> (p9)) | ((p6) R (G((F(p9)) U (p6))))
+✓ bench1/f449: ((((F(p6)) -> (p9)) R (p1)) -> (p9)) | ((p6) R (G((F(p9)) U (p6))))
   Partition: inputs: [p1], outputs: [p6, p9]
   Expected: Realizable
 ```
 
-#### Complex Implies with Temporal Operators
+#### Complex Implies with Temporal Operators (Now Fixed)
 
 ```
-FAIL: bench1/f464 (parse error)
-  Formula: ((p8) U (!(p2))) U ((F(p1)) -> (!((X(p5)) U (G(F(p0))))))
+✓ bench1/f464: ((p8) U (!(p2))) U ((F(p1)) -> (!((X(p5)) U (G(F(p0))))))
   Partition: inputs: [p0, p1], outputs: [p2, p5, p8]
   Expected: Unrealizable
 
-FAIL: bench2/f40 (parse error)
-  Formula: ((p0) R (F(G((p2) & (F(G(F(G(p7))))))))) -> (((p5) & (p8)) R ((F((p6) R (X(G(p0))))) U ((G(X(p9))) U (p1))))
+✓ bench2/f40: ((p0) R (F(G((p2) & (F(G(F(G(p7))))))))) -> (((p5) & (p8)) R ((F((p6) R (X(G(p0))))) U ((G(X(p9))) U (p1))))
   Partition: inputs: [p0, p1, p2, p5], outputs: [p6, p7, p8, p9]
   Expected: Realizable
 ```
 
-#### Implies Inside X/G/F Operators
+#### Implies Inside X/G/F Operators (Now Fixed)
 
 ```
-FAIL: bench2/f117 (parse error)
-  Formula: X(G(F((p6) -> (F(p6)))))
+✓ bench2/f117: X(G(F((p6) -> (F(p6)))))
   Partition: outputs: [p6]
   Expected: Realizable
 
-FAIL: bench2/f183 (parse error)
-  Formula: X((X(X(p3))) -> (X(F(p1))))
+✓ bench2/f183: X((X(X(p3))) -> (X(F(p1))))
   Partition: inputs: [p1], outputs: [p3]
   Expected: Realizable
 ```
 
-#### Implies Combined with `true`/`false`
+#### Implies Combined with `true`/`false` (Now Fixed)
 
 ```
-FAIL: bench2/f82 (parse error)
-  Formula: (X((X((false))) U (F(p2)))) -> ((!((p3) | ((!(p2)) U (p2)))) U ((p1) R ((p1) | (X(p0)))))
+✓ bench2/f82: (X((X((false))) U (F(p2)))) -> ((!((p3) | ((!(p2)) U (p2)))) U ((p1) R ((p1) | (X(p0)))))
   Partition: inputs: [p0, p1], outputs: [p2, p3]
   Expected: Realizable
 
-FAIL: bench2/f120 (parse error)
-  Formula: ((X((false))) -> (!(p1))) -> (((p4) & (p9)) R (p6))
+✓ bench2/f120: ((X((false))) -> (!(p1))) -> (((p4) & (p9)) R (p6))
   Partition: inputs: [p1, p4], outputs: [p6, p9]
   Expected: Unrealizable
 ```
 
-### Distribution of Failures
+### Historical Note (Before Implies Support)
+
+**Before** 2026-01-04 23:58, the parse failure distribution was:
 
 | Directory | Failed | Total | Failure Rate |
 |-----------|--------|-------|--------------|
 | bench1    | ~155  | 500   | ~31%         |
 | bench2    | ~156  | 500   | ~31%         |
 | **Total** | **311** | **1000** | **31.1%** |
+
+All 311 failures were due to missing `->` operator support.
 
 ## Integration with Cosy Reference
 

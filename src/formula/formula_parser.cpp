@@ -103,6 +103,18 @@ void FormulaParser::tokenize(const std::string& input) {
                 ++i;
                 continue;
 
+            case '-':
+                // Check for -> (implies)
+                if (i + 1 < input.size() && input[i + 1] == '>') {
+                    token.type = TokenType::Implies;
+                    token.value = "->";
+                    tokens_.push_back(token);
+                    i += 2;
+                    continue;
+                }
+                // Otherwise, - is not a valid token (fall through to error)
+                break;
+
             case '(':
                 token.type = TokenType::LParen;
                 token.value = "(";
@@ -235,9 +247,40 @@ void FormulaParser::set_error(const std::string& msg) {
 // Parser (Recursive Descent)
 // =============================================================================
 
-// formula ::= or_expr
+// formula ::= implies_expr
 Formula* FormulaParser::parse_formula() {
-    return parse_or_expr();
+    return parse_implies_expr();
+}
+
+// implies_expr ::= or_expr ('->' or_expr)*
+// Implies is right-associative and has lower precedence than Or
+// a -> b -> c is parsed as a -> (b -> c), which becomes !a | (!b | c)
+Formula* FormulaParser::parse_implies_expr() {
+    // Parse left side (or_expr)
+    Formula* left = parse_or_expr();
+    if (has_error()) return nullptr;
+
+    // Collect all implies in a list (for right-associativity)
+    std::vector<Formula*> operands;
+    operands.push_back(left);
+
+    while (match(TokenType::Implies)) {
+        Formula* right = parse_or_expr();
+        if (has_error()) return nullptr;
+        operands.push_back(right);
+    }
+
+    // Build right-associative tree: a -> b -> c = !a | (!b | c)
+    // Process from right to left
+    for (size_t i = operands.size() - 1; i > 0; --i) {
+        Formula* lhs = operands[i - 1];
+        Formula* rhs = operands[i];
+        // lhs -> rhs = !lhs | rhs
+        Formula* negated_lhs = pool_.create_not(lhs);
+        operands[i - 1] = pool_.create_or(negated_lhs, rhs);
+    }
+
+    return operands[0];
 }
 
 // or_expr ::= and_expr ('|' and_expr)*
