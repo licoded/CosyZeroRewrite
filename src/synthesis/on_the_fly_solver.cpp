@@ -290,18 +290,12 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
             // Compute next DFA state
             automata::TableauState* next_dfa = dfa_.successor(state.dfa_state, full);
 
-            // Check if the next DFA state is terminal (empty formula set)
-            // In LTLf, an empty state means the game has ended
-            if (next_dfa->formulas().empty()) {
-                // Terminal DFA state reached - game ends here
-                // Don't add a successor (terminal game state)
-                // The winner will be determined by whether the terminal DFA state is accepting
-                LOG_DEBUG("OnTheFlyGameSolver: terminal DFA state reached, not adding successor");
-            } else {
-                // Create system state with the input assignment stored
-                // This allows us to label the env move edge with the input assignment
-                succs.push_back(system_state(next_dfa, in));
-            }
+            // Create system state with the input assignment stored
+            // This allows us to label the env move edge with the input assignment
+            // Note: Reaching true/false is NOT forced termination in LTLf.
+            // Only an explicit End marker forces termination.
+            // Even if prop_atoms is empty (e.g., for true), we continue the game.
+            succs.push_back(system_state(next_dfa, in));
         }
 
         LOG_DEBUG("OnTheFlyGameSolver: environment state -> ", succs.size(), " system states");
