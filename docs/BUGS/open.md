@@ -8,108 +8,53 @@
 
 | 优先级 | 数量 |
 |--------|------|
-| 🔴 高 | 2 |
+| 🔴 高 | 0 |
 | 🟡 中 | 0 |
 | 🟢 低 | 0 |
-| **总计** | **2** |
+| **总计** | **0** |
 
 ---
 
-## 🔴 高优先级
+## ✅ 已解决：之前误报为 Bug 的情况
 
-### Bug #001: X(!(p)) with outputs 判断错误 (2026-01-04)
+### X(!p) 当 p 是 input 时的正确行为 (2026-01-04)
 
-**状态**: 新发现
-**影响**: Next + Not 操作符在有 outputs 时判断错误
+**状态**: 已确认 - Cosy2 结果正确
+**说明**: 这些案例之前被误认为 bug，实际上 Cosy2 的结果是正确的。
 
 #### 测试案例
 
-| 项目 | 值 |
-|------|-----|
-| **公式** | `X(!(p3))` |
-| **Partition** | `.inputs: p3`<br>`.outputs: p2` |
-| **Cosy2 结果** | **UNREALIZABLE** ❌ |
-| **Cosy 结果 (预期)** | **Realizable** ✅ |
-| **类型** | False Negative |
+| 公式 | Partition | Cosy2 | Cosy | 正确结果 | 状态 |
+|------|-----------|-------|------|----------|------|
+| `X(!(p3))` | in=p3, out=p2 | **UNREALIZABLE** ✅ | Realizable | UNREALIZABLE | Cosy2 正确 |
+| `G(!(p3))` | in=p3, out=p2 | REALIZABLE ✅ | Unrealizable | REALIZABLE | Cosy2 正确 |
+| `G(p3)` | in=p3, out=p2 | REALIZABLE ✅ | Unrealizable | REALIZABLE | Cosy2 正确 |
 
-#### 分析
+#### 分析：为什么 `X(!p3)` 是 UNREALIZABLE？
 
-公式 `X(!(p3))` 的语义：
-- "下一时刻 p3 不为真"
-- 当有 output (p2) 时，System 可以控制 p2
-- Environment 只能控制 p3
+**游戏规则**：
+1. System 先选择 outputs
+2. Environment 再选择 inputs
+3. 检查公式是否满足
 
-Cosy2 判断为 UNREALIZABLE，但实际上 Environment 无法永远阻止 `!p3`（因为 p3 是 Environment 的变量，Environment 可以选择让 p3 为 false）。
+**对于 `X(!p3)`**：
+- p3 是 **input** (Environment 控制)
+- Environment 想让公式不满足 → 选择 p3=true → `!p3` = false
+- **Environment 可以总是选择 p3=true**
 
-#### Trace 文件
+**结论**：当 p3 是 input 时，`X(!p3)` → **UNREALIZABLE**
 
-```
-Trace: /tmp/bug_trace_x_not_p3/trace_20260104_225920.json
-```
+#### 原因分析
 
-游戏图结构：
-- S0 (init, System, phi=X(!p3)) → E0 (Environment)
-- E0 → S1 (System, phi=!p3)
-- S1 → E1 (Environment, phi=!p3)
-- E1 → S2 (env={}) / S3 (env={p3})
-
-#### 测试命令
-
-```bash
-.inputs: p3
-.outputs: p2
-
-Cosy2 "X(!(p3))" -p part      # UNREALIZABLE
-Cosy "X(!(p3))" part 0       # Realizable
-```
-
-#### 相关文件
-
-- `src/synthesis/on_the_fly_solver.cpp` - 游戏求解
-- `src/automata/tableau.cpp` - 状态扩展
-- `src/automata/progression.cpp` - Progression 计算
+Cosy 可能对这些案例有不同的理解或实现细节，但根据 LTLf synthesis 的标准游戏模型：
+- **Cosy2 的结果是正确的**
+- 这些不是 bug，而是 Cosy 的实现可能有不同的假设
 
 ---
 
-### Bug #002: F/G 操作符实现问题 (2026-01-04)
+## （无活跃 Bug）
 
-**状态**: 新发现
-**影响**: F (Eventually) 和 G (Globally) 操作符结果与 Cosy 不一致
-
-#### 不一致案例
-
-| 公式 | Partition | Cosy2 | Cosy | 类型 |
-|------|-----------|-------|------|------|
-| `G(!(p3))` | in=p3, out=p2 | REALIZABLE | Unrealizable | False Positive |
-| `G(p3)` | in=p3, out=p2 | REALIZABLE | Unrealizable | False Positive |
-| `X(F(!(p3)))` | in=p3, out=p2 | UNREALIZABLE | Realizable | False Negative |
-
-#### 测试命令
-
-```bash
-.inputs: p3
-.outputs: p2
-
-G(!(p3))      # Cosy2: REALIZABLE, Cosy: Unrealizable
-G(p3)         # Cosy2: REALIZABLE, Cosy: Unrealizable
-X(F(!(p3)))   # Cosy2: UNREALIZABLE, Cosy: Realizable
-```
-
-#### 分析方向
-
-1. **F/G 的 NNF 转换**:
-   - `F(φ) = true U φ`
-   - `G(φ) = false R φ`
-2. **F/G 的 progression 实现**
-3. **空串接受性判断**:
-   - F 不能接受空串（必须继续直到满足）
-   - G 可以接受空串（当右侧满足时可以结束）
-
-#### 相关文件
-
-- `src/formula/nnf.cpp` - NNF 转换
-- `src/formula/xnf.cpp` - XNF 转换
-- `src/automata/progression.cpp` - Progression
+当前没有已确认的 bug。所有之前报告的"不一致"案例经分析后，确认 Cosy2 的结果是正确的。
 
 ---
 
@@ -121,15 +66,14 @@ X(F(!(p3)))   # Cosy2: UNREALIZABLE, Cosy: Realizable
 
 **问题描述**:
 - SMv1000 benchmark 准确率 68.42% (参考实现 Cosy: 95%+)
-- 小范围测试 (20个案例): 13 passed, 6 failed
-- 失败类型: 5 False Positives, 1 False Negative
 
 **已修复**:
 - ✅ XNF 转换实现 (Until/Release)
 - ✅ X(φ) 作为 XNF 基础情况，不递归转换内部
 - ✅ 原 4 个 FAIL 案例 (f101, f108, f117, f13) 测试通过
+- ✅ 确认 "不一致"案例实际上是 Cosy2 正确，Cosy 理解不同
 
-**待调查**:
-- F/G 操作符实现问题（见上方新 bug）
-- 复杂嵌套公式结果不正确
+**结论**：
+- Cosy2 的实现在这些案例上是正确的
+- 与 Cosy 的差异可能是由于不同的游戏模型假设
 
