@@ -5,8 +5,10 @@
 
 import { ref } from 'vue';
 import type { SubStepHighlights } from '@/types/trace';
+import { instance } from '@viz-js/viz';
 
-let vizModule: typeof import('@viz-js/viz') | null = null;
+// Viz instance type - use any to avoid complex type issues
+let vizModule: any = null;
 
 export interface GraphVizOptions {
   engine?: 'dot' | 'circo' | 'fdp' | 'neato' | 'osage' | 'twopi';
@@ -29,7 +31,7 @@ export function useGraphViz() {
 
     try {
       isLoading.value = true;
-      vizModule = await import('@viz-js/viz');
+      vizModule = await instance();
       return true;
     } catch (e) {
       error.value = `Failed to load viz.js: ${e}`;
@@ -49,12 +51,12 @@ export function useGraphViz() {
     }
 
     try {
-      const result = vizModule!.default(dot, {
-        engine: options.engine || 'dot',
-        format: options.format || 'svg'
+      const result = vizModule!.render(dot, {
+        engine: options.engine || 'dot'
       });
 
-      return typeof result === 'string' ? result : '';
+      // The render function returns an object with src property
+      return typeof result === 'string' ? result : (result?.src ?? '');
     } catch (e) {
       error.value = `Failed to render DOT: ${e}`;
       console.error(error.value);
@@ -70,14 +72,13 @@ export function useGraphViz() {
     svgElement: SVGSVGElement,
     highlights: SubStepHighlights
   ): void {
-    const namespace = 'http://www.w3.org/2000/svg';
-
     // Helper to find a node/group by its title
     function findNodeByTitle(nodeId: string): SVGGElement | null {
       const titles = svgElement.querySelectorAll('title');
       for (const title of titles) {
         if (title.textContent && title.textContent.startsWith(nodeId)) {
-          return title.parentElement as SVGGElement;
+          const parent = title.parentElement as unknown as SVGGElement | null;
+          return parent;
         }
       }
       return null;
@@ -168,5 +169,6 @@ export function useGraphViz() {
  * Extracts "S0" from "S0\nEwin" etc.
  */
 export function parseStateId(label: string): string {
-  return label.split('\n')[0].trim();
+  const parts = label.split('\n');
+  return parts[0]?.trim() ?? label;
 }

@@ -120,6 +120,7 @@ TraceExporter::TraceExporter(formula::Formula* formula,
     : formula_(formula),
       pool_(pool),
       output_dir_(output_dir),
+      output_path_(),
       enabled_(true),
       finalized_(false),
       stage_counter_(0),
@@ -517,7 +518,7 @@ void TraceExporter::finalize(bool realizable) {
     write_json();
 
     finalized_ = true;
-    LOG_INFO("TraceExporter: finalized, trace written to ", output_path_);
+    LOG_INFO("TraceExporter: finalized, trace written to {}", output_path_);
 }
 
 //==============================================================================

@@ -35,6 +35,7 @@ const emit = defineEmits<{
   nodeHover: [nodeId: string | null];
 }>();
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const containerRef = ref<HTMLElement>();
 const svgRef = ref<HTMLElement>();
 
@@ -67,9 +68,9 @@ function handleMouseOver(event: MouseEvent): void {
   if (!target || !svgRef.value) return;
 
   // Find the containing group/node
-  let node: SVGElement | null = target;
+  let node: SVGElement | HTMLElement | null = target;
   while (node && node.tagName !== 'g') {
-    node = node.parentElement as SVGElement;
+    node = node.parentElement;
     if (node === svgRef.value) {
       node = null;
       break;
@@ -80,7 +81,7 @@ function handleMouseOver(event: MouseEvent): void {
 
   // Find the title element for node ID
   const title = node.querySelector('title');
-  if (title && title.textContent) {
+  if (title?.textContent) {
     const nodeId = title.textContent.split('\n')[0].trim();
     emit('nodeHover', nodeId);
   }

@@ -89,7 +89,8 @@ const flatSteps = computed(() => {
 
 const selectedStepId = computed(() => {
   if (props.modelValue >= 0 && props.modelValue < flatSteps.value.length) {
-    return flatSteps.value[props.modelValue].stepId;
+    const step = flatSteps.value[props.modelValue];
+    return step?.stepId ?? '';
   }
   return '';
 });
@@ -131,7 +132,7 @@ function selectStep(stageIndex: number, stepIndex: number): void {
 function isActiveStep(stageIndex: number, stepIndex: number): boolean {
   if (props.modelValue < 0 || !flatSteps.value) return false;
   const current = flatSteps.value[props.modelValue];
-  return current && current.stageIndex === stageIndex && current.stepIndex === stepIndex;
+  return current?.stageIndex === stageIndex && current?.stepIndex === stepIndex;
 }
 
 function getStepIndicator(stageIndex: number, stepIndex: number): string {

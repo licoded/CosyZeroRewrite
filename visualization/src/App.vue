@@ -84,7 +84,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed } from 'vue';
 import StepTree from './components/StepTree.vue';
 import GraphCanvas from './components/GraphCanvas.vue';
 import Stepper from './components/Stepper.vue';
@@ -154,11 +154,10 @@ function loadFile(event: Event): void {
 }
 
 function handleSelectStep(stageIndex: number, stepIndex: number): void {
+  if (!trace.value) return;
   let globalIndex = 0;
   for (let i = 0; i < stageIndex; i++) {
-    if (trace.value) {
-      globalIndex += trace.value.stages[i].sub_steps.length;
-    }
+    globalIndex += trace.value.stages[i].sub_steps.length;
   }
   globalIndex += stepIndex;
   currentStep.value = globalIndex;
@@ -181,7 +180,7 @@ function nextStep(): void {
 }
 
 function getStageType(index: number): string {
-  if (!trace.value || index >= trace.value.stages.length) return '';
+  if (!trace.value?.stages || index >= trace.value.stages.length) return '';
   return trace.value.stages[index].stage_type;
 }
 
@@ -208,6 +207,7 @@ function handleKeydown(e: KeyboardEvent): void {
 }
 
 // Demo data for development
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function loadDemoData(): void {
   trace.value = {
     formula: "(true U p)",

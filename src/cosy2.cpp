@@ -182,6 +182,8 @@ int main(int argc, char* argv[]) {
     std::string formula_str;
     std::string formula_file;
     std::string partition_file;
+    std::string trace_dir;  // Empty means use default
+    bool enable_trace = false;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -189,12 +191,20 @@ int main(int argc, char* argv[]) {
             formula_file = argv[++i];
         } else if (arg == "-p" && i + 1 < argc) {
             partition_file = argv[++i];
+        } else if (arg == "--trace") {
+            enable_trace = true;
+            // Optional: custom trace directory
+            if (i + 1 < argc && argv[i + 1][0] != '-') {
+                trace_dir = argv[++i];
+            }
         } else if (arg == "-h" || arg == "--help") {
             std::cout << "Usage: Cosy2 [options]" << std::endl;
             std::cout << std::endl;
             std::cout << "Options:" << std::endl;
             std::cout << "  -f <file>    Read formula from file" << std::endl;
             std::cout << "  -p <file>    Read variable partition from file" << std::endl;
+            std::cout << "  --trace [dir] Enable trace recording for visualization" << std::endl;
+            std::cout << "                (default dir: results/trace_*/)" << std::endl;
             std::cout << "  -h, --help   Show this help message" << std::endl;
             std::cout << std::endl;
             std::cout << "If no -f is specified, the first non-option argument" << std::endl;
@@ -203,6 +213,7 @@ int main(int argc, char* argv[]) {
             std::cout << "Examples:" << std::endl;
             std::cout << "  Cosy2 -f response.ltlf -p response.part" << std::endl;
             std::cout << "  Cosy2 \"G (req -> F ack)\"" << std::endl;
+            std::cout << "  Cosy2 -f formula.ltlf --trace" << std::endl;
             return 0;
         } else if (arg[0] != '-') {
             // Non-option argument: treat as formula string
@@ -283,6 +294,13 @@ int main(int argc, char* argv[]) {
     }
 
     OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+
+    // Enable trace if requested
+    if (enable_trace) {
+        solver.enable_trace(trace_dir);
+        std::cout << "Trace recording enabled..." << std::endl;
+    }
+
     bool realizable = solver.is_realizable();
 
     // Export game graph if environment variable is set
