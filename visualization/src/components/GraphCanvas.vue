@@ -6,14 +6,33 @@
   <div class="graph-canvas" ref="containerRef">
     <div v-if="isLoading" class="loading">Loading graph...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
-    <div
-      v-else
-      v-html="svgContent"
-      ref="svgRef"
-      class="svg-container"
-      @mousemove="handleMouseMove"
-      @mouseout="handleMouseOut"
-    ></div>
+    <template v-else>
+      <!-- Zoom Controls -->
+      <div class="zoom-controls">
+        <button @click="zoomIn" title="Zoom In">+</button>
+        <button @click="zoomOut" title="Zoom Out">−</button>
+        <button @click="resetZoom" title="Reset Zoom">Reset</button>
+        <span class="zoom-level">{{ Math.round(zoomLevel * 100) }}%</span>
+      </div>
+      <!-- SVG Container with zoom/pan -->
+      <div
+        class="svg-viewport"
+        @wheel="handleWheel"
+        @mousedown="handleMouseDown"
+        @mousemove="handleMouseMove"
+        @mouseup="handleMouseUp"
+        @mouseleave="handleMouseUp"
+        ref="viewportRef"
+      >
+        <div
+          v-html="svgContent"
+          ref="svgRef"
+          class="svg-container"
+          :style="{ transform: `scale(${zoomLevel}) translate(${panX}px, ${panY}px)` }"
+          @mouseout="handleMouseOut"
+        ></div>
+      </div>
+    </template>
 
     <!-- Floating Tooltip -->
     <div
@@ -105,6 +124,17 @@ const props = withDefaults(defineProps<Props>(), {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const containerRef = ref<HTMLElement>();
 const svgRef = ref<HTMLElement>();
+const viewportRef = ref<HTMLElement>();
+
+// Zoom and pan state
+const zoomLevel = ref(1);
+const panX = ref(0);
+const panY = ref(0);
+const isDragging = ref(false);
+const dragStartX = ref(0);
+const dragStartY = ref(0);
+const dragStartPanX = ref(0);
+const dragStartPanY = ref(0);
 
 const { isLoading, error, svgContent, renderDot, applyHighlights } = useGraphViz();
 
@@ -273,89 +303,6 @@ function formatVarSet(vars: string[]): string {
   return '{' + vars.join(', ') + '}';
 }
 
-/**
- * Handle mouse move for tooltip positioning
- */
-function handleMouseMove(event: MouseEvent): void {
-  const target = event.target as SVGElement;
-  if (!target || !svgRef.value) {
-    hideTooltip();
-    return;
-  }
-
-  // Find the containing group/node/edge
-  let node: SVGElement | HTMLElement | null = target;
-  let depth = 0;
-  while (node && depth < 5) {
-    const tagName = node.tagName.toLowerCase();
-
-    // Check for edge (class="edge" or class="link")
-    if (tagName === 'g' || tagName === 'a' || tagName === 'path') {
-      const className = (node as SVGElement).getAttribute('class') || '';
-      if (className.includes('edge') || className.includes('link')) {
-        // This is an edge - get edge info
-        const title = node.querySelector('title');
-        const textLabel = node.querySelector('text');
-
-        // Build edge info: from title for nodes, from text for label
-        const titleText = title?.textContent || '';
-        const labelText = textLabel?.textContent || '';
-
-        // Parse from -> to from title
-        const edgeInfo = parseEdgeInfo(titleText, labelText);
-        if (edgeInfo) {
-          showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
-          return;
-        }
-      }
-    }
-
-    if (tagName === 'g') {
-      // Check if this group has a title element (indicates it's a node)
-      const title = node.querySelector('title');
-      if (title?.textContent) {
-        const titleText = title.textContent.trim();
-        // Skip SVG root title (e.g., "GameGraph")
-        if (titleText === 'GameGraph' || titleText.includes('digraph')) {
-          node = node.parentElement;
-          depth++;
-          continue;
-        }
-        // Check if it's an edge title (contains ->)
-        if (titleText.includes('->')) {
-          // This is an edge, also look for text label
-          const textLabel = node.querySelector('text')?.textContent || '';
-          const edgeInfo = parseEdgeInfo(titleText, textLabel);
-          if (edgeInfo) {
-            showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
-          }
-        } else {
-          // It's a node
-          const nodeId = extractNodeId(titleText);
-          const stateData = props.graphData.state_data?.[nodeId];
-          if (stateData) {
-            showTooltip(event.clientX, event.clientY, stateData);
-          } else {
-            // Fallback: show basic info if state_data not available
-            showTooltipBasic(event.clientX, event.clientY, nodeId);
-          }
-        }
-        return;
-      }
-    }
-    node = node.parentElement;
-    depth++;
-  }
-
-  hideTooltip();
-}
-
-/**
- * Handle mouse out
- */
-function handleMouseOut(): void {
-  hideTooltip();
-}
 
 /**
  * Show node tooltip with state data
@@ -419,6 +366,158 @@ function hideTooltip(): void {
   tooltip.value.visible = false;
 }
 
+/**
+ * Zoom in
+ */
+function zoomIn(): void {
+  zoomLevel.value = Math.min(zoomLevel.value * 1.2, 5);
+}
+
+/**
+ * Zoom out
+ */
+function zoomOut(): void {
+  zoomLevel.value = Math.max(zoomLevel.value / 1.2, 0.1);
+}
+
+/**
+ * Reset zoom and pan
+ */
+function resetZoom(): void {
+  zoomLevel.value = 1;
+  panX.value = 0;
+  panY.value = 0;
+}
+
+/**
+ * Handle mouse wheel for zooming
+ */
+function handleWheel(event: WheelEvent): void {
+  event.preventDefault();
+  if (event.deltaY < 0) {
+    zoomIn();
+  } else {
+    zoomOut();
+  }
+}
+
+/**
+ * Handle mouse down for panning
+ */
+function handleMouseDown(event: MouseEvent): void {
+  // Only pan with left mouse button
+  if (event.button !== 0) return;
+  isDragging.value = true;
+  dragStartX.value = event.clientX;
+  dragStartY.value = event.clientY;
+  dragStartPanX.value = panX.value;
+  dragStartPanY.value = panY.value;
+}
+
+/**
+ * Handle mouse move for panning and tooltip
+ */
+function handleMouseMove(event: MouseEvent): void {
+  // Handle panning
+  if (isDragging.value) {
+    const dx = event.clientX - dragStartX.value;
+    const dy = event.clientY - dragStartY.value;
+    panX.value = dragStartPanX.value + dx / zoomLevel.value;
+    panY.value = dragStartPanY.value + dy / zoomLevel.value;
+    return;
+  }
+
+  // Handle tooltip (original logic)
+  const target = event.target as SVGElement;
+  if (!target || !svgRef.value) {
+    hideTooltip();
+    return;
+  }
+
+  // Find the containing group/node/edge
+  let node: SVGElement | HTMLElement | null = target;
+  let depth = 0;
+  while (node && depth < 5) {
+    const tagName = node.tagName.toLowerCase();
+
+    // Check for edge (class="edge" or class="link")
+    if (tagName === 'g' || tagName === 'a' || tagName === 'path') {
+      const className = (node as SVGElement).getAttribute('class') || '';
+      if (className.includes('edge') || className.includes('link')) {
+        // This is an edge - get edge info
+        const title = node.querySelector('title');
+        const textLabel = node.querySelector('text');
+
+        // Build edge info: from title for nodes, from text for label
+        const titleText = title?.textContent || '';
+        const labelText = textLabel?.textContent || '';
+
+        // Parse from -> to from title
+        const edgeInfo = parseEdgeInfo(titleText, labelText);
+        if (edgeInfo) {
+          showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
+          return;
+        }
+      }
+    }
+
+    if (tagName === 'g') {
+      // Check if this group has a title element (indicates it's a node)
+      const title = node.querySelector('title');
+      if (title?.textContent) {
+        const titleText = title.textContent.trim();
+        // Skip SVG root title (e.g., "GameGraph")
+        if (titleText === 'GameGraph' || titleText.includes('digraph')) {
+          node = node.parentElement;
+          depth++;
+          continue;
+        }
+        // Check if it's an edge title (contains ->)
+        if (titleText.includes('->')) {
+          // This is an edge, also look for text label
+          const textLabel = node.querySelector('text')?.textContent || '';
+          const edgeInfo = parseEdgeInfo(titleText, textLabel);
+          if (edgeInfo) {
+            showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
+          }
+        } else {
+          // It's a node
+          const nodeId = extractNodeId(titleText);
+          const stateData = props.graphData.state_data?.[nodeId];
+          if (stateData) {
+            showTooltip(event.clientX, event.clientY, stateData);
+          } else {
+            // Fallback: show basic info if state_data is not available
+            showTooltipBasic(event.clientX, event.clientY, nodeId);
+          }
+        }
+        return;
+      }
+    }
+    node = node.parentElement;
+    depth++;
+  }
+
+  hideTooltip();
+}
+
+/**
+ * Handle mouse out
+ */
+function handleMouseOut(): void {
+  // Don't hide tooltip when dragging (panning)
+  if (!isDragging.value) {
+    hideTooltip();
+  }
+}
+
+/**
+ * Handle mouse up (end panning)
+ */
+function handleMouseUp(): void {
+  isDragging.value = false;
+}
+
 // Watch for changes
 watch(() => props.graphData, render, { deep: true });
 watch(() => props.highlights, async () => {
@@ -452,12 +551,72 @@ onMounted(() => {
   color: #d32f2f;
 }
 
+/* Zoom controls */
+.zoom-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 10;
+}
+
+.zoom-controls button {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.zoom-controls button:hover {
+  background: #f0f0f0;
+}
+
+.zoom-controls button:active {
+  background: #e0e0e0;
+}
+
+.zoom-level {
+  font-size: 12px;
+  color: #666;
+  min-width: 50px;
+  text-align: center;
+}
+
+/* SVG viewport with zoom/pan */
+.svg-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  cursor: grab;
+}
+
+.svg-viewport:active {
+  cursor: grabbing;
+}
+
 .svg-container {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  transform-origin: center;
+  transition: transform 0.1s ease-out;
 }
 
 /* Tooltip - matches game_graph HTML style */

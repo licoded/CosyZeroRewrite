@@ -12,7 +12,13 @@
         <span class="summary">
           {{ trace.stages.length }} stages ·
           {{ totalSteps }} steps ·
-          <span :class="{ success: trace.summary?.realizable, failure: !trace.summary?.realizable }">
+          <span v-if="actualRealizable !== null" :class="{ success: actualRealizable, failure: !actualRealizable }">
+            {{ actualRealizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
+            <span v-if="trace.summary?.realizable !== actualRealizable" class="result-mismatch">
+              (summary: {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }})
+            </span>
+          </span>
+          <span v-else :class="{ success: trace.summary?.realizable, failure: !trace.summary?.realizable }">
             {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
           </span>
         </span>
@@ -95,6 +101,35 @@ const totalSteps = computed(() => {
   return flatSteps.value.reduce((sum, steps) => sum + steps.length, 0);
 });
 
+// Get the final sub-step (for determining actual realizability result)
+const finalSubStep = computed((): SubStep | null => {
+  if (!trace.value || totalSteps.value === 0) return null;
+
+  let stepCount = 0;
+  for (const stage of trace.value.stages) {
+    for (const step of stage.sub_steps) {
+      if (stepCount === totalSteps.value - 1) {
+        return step;
+      }
+      stepCount++;
+    }
+  }
+  return null;
+});
+
+// Get actual realizability from final step's initial state classification
+const actualRealizable = computed((): boolean | null => {
+  if (!finalSubStep.value?.graph_data?.state_data) return null;
+
+  // Find the initial state (S0 or similar)
+  for (const [stateId, stateData] of Object.entries(finalSubStep.value.graph_data.state_data)) {
+    if (stateData.is_initial) {
+      return stateData.classification === 'Swin';
+    }
+  }
+  return null;
+});
+
 // Get current sub-step
 const currentSubStep = computed((): SubStep | null => {
   if (!trace.value) return null;
@@ -135,7 +170,9 @@ function loadFile(event: Event): void {
     try {
       const json = JSON.parse(e.target?.result as string);
       trace.value = json as Trace;
-      currentStep.value = 0;
+      // Default to final step
+      const total = flatSteps.value.reduce((sum: number, steps: SubStep[]) => sum + steps.length, 0);
+      currentStep.value = total > 0 ? total - 1 : 0;
     } catch (err) {
       console.error('Failed to parse JSON:', err);
       alert('Failed to parse trace JSON file');
@@ -365,6 +402,13 @@ onUnmounted(() => {
 .summary .failure {
   color: #DC3545;
   font-weight: 600;
+}
+
+.summary .result-mismatch {
+  color: #FF9800;
+  font-weight: normal;
+  font-size: 12px;
+  margin-left: 4px;
 }
 
 .no-data {
