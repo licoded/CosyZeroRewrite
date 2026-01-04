@@ -769,7 +769,7 @@ void TraceExporter::write_json() {
     // Summary
     json summary_obj;
     summary_obj["total_steps"] = step_counter_;
-    summary_obj["realizable"] = finalized_;
+    // Note: realizable is determined from final step's initial state classification
     json stages_summary_array = json::array();
     for (const auto& stage : stages_) {
         json stage_summary;
