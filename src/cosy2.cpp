@@ -268,6 +268,20 @@ int main(int argc, char* argv[]) {
     }
 
     std::cout << "Parsed: " << phi->to_string() << std::endl;
+    std::cout << "Parsed (with names): " << phi->to_string_with_names(pool) << std::endl;
+
+    // Show variable mapping
+    std::cout << "Variable mapping:" << std::endl;
+    for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
+        std::string var_name = pool.get_variable_name(i);
+        std::cout << "  v" << i << " = " << var_name;
+        if (i < pool.num_outputs()) {
+            std::cout << " (output)";
+        } else {
+            std::cout << " (input)";
+        }
+        std::cout << std::endl;
+    }
 
     // Run synthesis
     std::cout << "Running on-the-fly synthesis..." << std::endl;
