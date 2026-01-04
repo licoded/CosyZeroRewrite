@@ -22,13 +22,18 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+添加 `--sleep` 参数用于测试进度条显示效果。允许用户在执行每个任务后人为延迟指定秒数，便于观察并发执行时的进度条行为。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 使用 `std::this_thread::sleep_for()` 实现任务延迟
+- 参数范围：0-60 秒（通过 CLI::Range 验证）
+- 延迟在公式解析完成后执行，不影响实际测量时间
+- 仅为调试/演示目的，不影响 benchmark 功能
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 影响组件：`tests/bench/benchmark_test`
+- 功能增强：便于观察并发执行和进度条更新
+- 无性能影响（默认值为 0，不启用延迟）
 
 ## Changes
 
