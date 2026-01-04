@@ -35,7 +35,7 @@ export interface SubStepGraphData {
   dot: string;
   num_nodes: number;
   num_edges: number;
-  state_data: Record<string, StateData>;  // state_id -> StateData
+  state_data?: Record<string, StateData>;  // Optional: only present when non-empty
 }
 
 export interface SubStepStateInfo {

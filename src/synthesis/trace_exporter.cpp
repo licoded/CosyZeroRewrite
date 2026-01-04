@@ -85,17 +85,17 @@ std::string get_trace_output_path() {
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time_t);
 
-    // Generate timestamp for directory: YYYYMMDD_HHMMSS
-    std::ostringstream ts;
-    ts << std::setfill('0');
-    ts << std::put_time(&tm, "%Y%m%d_%H%M%S");
+    // Generate date string: YYYY-MM-DD
+    char date_buf[16];
+    std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &tm);
 
-    // Get period
+    // Get period string (e.g., "01-morning", "02-afternoon", etc.)
     std::string period = get_period_string(tm.tm_hour);
 
-    // Build path: results/trace_{timestamp}/HH-period/
+    // Build path: results/trace/YYYY-MM-DD/HH-period/
+    // Matches the game_graph directory structure
     std::ostringstream path;
-    path << "results/trace_" << ts.str() << "/" << period;
+    path << "results/trace/" << date_buf << "/" << period;
 
     return path.str();
 }
@@ -659,36 +659,38 @@ void TraceExporter::write_sub_step(std::ofstream& out, const SubStep& step) cons
     out << "          \"graph_data\": {\n";
     out << "            \"dot\": \"" << escape_json(step.graph_data.dot) << "\",\n";
     out << "            \"num_nodes\": " << step.graph_data.num_nodes << ",\n";
-    out << "            \"num_edges\": " << step.graph_data.num_edges << ",\n";
-    out << "            \"state_data\": {\n";
+    out << "            \"num_edges\": " << step.graph_data.num_edges;
 
-    // Write state_data map
-    bool first_state = true;
-    for (const auto& pair : step.graph_data.state_data) {
-        if (!first_state) out << ",\n";
-        first_state = false;
-
-        const StateData& data = pair.second;
-        out << "              \"" << data.id << "\": {\n";
-        out << "                \"id\": \"" << data.id << "\",\n";
-        out << "                \"classification\": \"" << data.classification << "\",\n";
-        out << "                \"type\": \"" << data.type << "\",\n";
-        out << "                \"is_initial\": " << (data.is_initial ? "true" : "false") << ",\n";
-        out << "                \"phi\": \"" << escape_json(data.phi) << "\",\n";
-        out << "                \"xnf_phi\": \"" << escape_json(data.xnf_phi) << "\",\n";
-
-        // Prop atoms
-        out << "                \"prop_atoms\": [";
-        for (size_t i = 0; i < data.prop_atoms.size(); ++i) {
-            if (i > 0) out << ", ";
-            out << "\"" << escape_json(data.prop_atoms[i]) << "\"";
-        }
-        out << "]\n";
-
-        out << "              }";
-    }
-
+    // Write state_data map only if non-empty
     if (!step.graph_data.state_data.empty()) {
+        out << ",\n";
+        out << "            \"state_data\": {\n";
+
+        bool first_state = true;
+        for (const auto& pair : step.graph_data.state_data) {
+            if (!first_state) out << ",\n";
+            first_state = false;
+
+            const StateData& data = pair.second;
+            out << "              \"" << data.id << "\": {\n";
+            out << "                \"id\": \"" << data.id << "\",\n";
+            out << "                \"classification\": \"" << data.classification << "\",\n";
+            out << "                \"type\": \"" << data.type << "\",\n";
+            out << "                \"is_initial\": " << (data.is_initial ? "true" : "false") << ",\n";
+            out << "                \"phi\": \"" << escape_json(data.phi) << "\",\n";
+            out << "                \"xnf_phi\": \"" << escape_json(data.xnf_phi) << "\",\n";
+
+            // Prop atoms
+            out << "                \"prop_atoms\": [";
+            for (size_t i = 0; i < data.prop_atoms.size(); ++i) {
+                if (i > 0) out << ", ";
+                out << "\"" << escape_json(data.prop_atoms[i]) << "\"";
+            }
+            out << "]\n";
+
+            out << "              }";
+        }
+
         out << "\n            ";
     }
     out << "          },\n";
