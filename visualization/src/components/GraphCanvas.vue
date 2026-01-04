@@ -133,19 +133,21 @@ function extractNodeId(titleText: string): string {
 
 /**
  * Parse edge information from the title element
- * Title format: "from -> to" or "from -> to [label="..."]"
+ * Title format: "from -> to"
+ * @param titleText The title element text (e.g., "S0 -> E0")
+ * @param labelText The text element content (e.g., "out={0}")
  */
-function parseEdgeInfo(titleText: string): { from: string; to: string; type: string; label: string; formula?: string } | null {
-  // DOT edge title format: "S0 -> E0" or with label
+function parseEdgeInfo(titleText: string, labelText: string = ''): { from: string; to: string; type: string; label: string; formula?: string } | null {
+  // DOT edge title format: "S0 -> E0"
   const match = titleText.match(/^(\w+)\s*->\s*(\w+)/);
   if (!match) return null;
 
   const from = match[1];
   const to = match[2];
 
-  // Try to extract label from title if present
-  const labelMatch = titleText.match(/label="([^"]+)"/);
-  const rawLabel = labelMatch ? labelMatch[1] : '';
+  // Use the provided labelText (from SVG text element)
+  // Trim whitespace that might be in the text element
+  const rawLabel = labelText.trim();
 
   // Determine edge type from the nodes
   const isSysMove = from.startsWith('S');
@@ -262,14 +264,19 @@ function handleMouseMove(event: MouseEvent): void {
     if (tagName === 'g' || tagName === 'a' || tagName === 'path') {
       const className = (node as SVGElement).getAttribute('class') || '';
       if (className.includes('edge') || className.includes('link')) {
-        // This is an edge - look for title element
+        // This is an edge - get edge info
         const title = node.querySelector('title');
-        if (title?.textContent) {
-          const edgeInfo = parseEdgeInfo(title.textContent);
-          if (edgeInfo) {
-            showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
-            return;
-          }
+        const textLabel = node.querySelector('text');
+
+        // Build edge info: from title for nodes, from text for label
+        const titleText = title?.textContent || '';
+        const labelText = textLabel?.textContent || '';
+
+        // Parse from -> to from title
+        const edgeInfo = parseEdgeInfo(titleText, labelText);
+        if (edgeInfo) {
+          showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
+          return;
         }
       }
     }
@@ -281,7 +288,9 @@ function handleMouseMove(event: MouseEvent): void {
         const titleText = title.textContent.trim();
         // Check if it's an edge title (contains ->)
         if (titleText.includes('->')) {
-          const edgeInfo = parseEdgeInfo(titleText);
+          // This is an edge, also look for text label
+          const textLabel = node.querySelector('text')?.textContent || '';
+          const edgeInfo = parseEdgeInfo(titleText, textLabel);
           if (edgeInfo) {
             showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
           }
