@@ -9,12 +9,6 @@
       <h1>LTLf Synthesis Trace Visualizer</h1>
       <div v-if="trace" class="header-info">
         <span class="formula">{{ trace.formula }}</span>
-        <span v-if="trace.partition" class="partition">
-          <span class="partition-label">Inputs:</span>
-          <span class="partition-vars">{{ trace.partition.inputs.length > 0 ? trace.partition.inputs.join(', ') : '(none)' }}</span>
-          <span class="partition-label">Outputs:</span>
-          <span class="partition-vars">{{ trace.partition.outputs.join(', ') }}</span>
-        </span>
         <span class="summary">
           {{ trace.stages.length }} stages ·
           {{ totalSteps }} steps ·
@@ -25,6 +19,16 @@
             {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
           </span>
         </span>
+      </div>
+      <div v-if="trace && trace.partition" class="partition-row">
+        <div class="partition-line">
+          <span class="partition-label">Inputs:</span>
+          <span class="partition-vars">{{ trace.partition.inputs.length > 0 ? trace.partition.inputs.join(', ') : '(none)' }}</span>
+        </div>
+        <div class="partition-line">
+          <span class="partition-label">Outputs:</span>
+          <span class="partition-vars">{{ trace.partition.outputs.join(', ') }}</span>
+        </div>
       </div>
       <div v-else class="no-data">
         <label for="fileInput" class="file-label">Load Trace JSON</label>
@@ -392,16 +396,17 @@ onUnmounted(() => {
   border-radius: 4px;
 }
 
-.partition {
+.partition-row {
   font-size: 13px;
   color: #495057;
+  padding: 6px 0;
+  margin-top: 4px;
+}
+
+.partition-line {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 8px;
-  background: #F8F9FA;
-  border-radius: 4px;
-  border: 1px solid #DEE2E6;
 }
 
 .partition-label {
