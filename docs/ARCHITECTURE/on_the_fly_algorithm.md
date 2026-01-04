@@ -143,20 +143,23 @@ System 状态 s'
 ├─────────────────────────────────────────────────────────┤
 │                                                         │
 │  Step 0: 构建 predecessors map                          │
-│    - 遍历 scc 中每个状态 s                              │
+│    - 遍历 scc 中每个 System 状态 s                      │
 │    - 找 s 的 sys move 后继 e (env states)              │
 │    - 找 e 的 env move 后继 s' (sys states)             │
 │    - predecessors[s'].add(s)  // s → s' 完整移动        │
 │    - 不排除 SCC 外的前驱                                │
+│    - assert: s 和 s' 都是 System 状态                   │
 │                                                         │
 │  Step 1: 初始化种子集合 (swin_states):                  │
-│    - 当前 SCC 中所有 esa 状态                           │
+│    - swin_states 只包含 System 状态                    │
+│    - 当前 SCC 中所有 esa 的 System 状态                │
 │    - 加上 predecessors map keys 中已标记为 Swin 的状态  │
 │                                                         │
 │  Step 2: 不动点迭代：                                    │
 │    while (有新 Swin 产生) {                            │
 │                                                         │
 │        tmpSet = 空集                                    │
+│        assert: tmpSet 只包含 System 状态               │
 │                                                         │
 │        // 从 swin_states 出发找所有前驱                │
 │        for each swin in swin_states:                   │
@@ -167,8 +170,10 @@ System 状态 s'
 │        // 遍历 tmpSet 进行分类                          │
 │        new_swin = 空集                                  │
 │        for each s in tmpSet:                            │
-│            if (s 所有 sys move 后的所有 env move        │
-│                都指向 Swin):                            │
+│            // 检查是否存在安全的 sys move               │
+│            if (EXISTS sys move such that               │
+│                ALL env moves from that sys state       │
+│                lead to Swin):                          │
 │                s = Swin                                 │
 │                new_swin.add(s)                          │
 │                                                         │
@@ -188,24 +193,27 @@ System 状态 s'
 
 **关键改变**：
 1. **predecessors 不限制在 SCC 内**：因为 SCC 外的已分类状态可以提供胜负信息
-2. **seed set 包含外部 Swin**：predecessors keys 中已标记为 Swin 的状态也加入种子
+2. **swin_states 只包含 System 状态**：只有 System 状态进行 sys move
 3. **基于完整移动的传播**：只考虑完整 sys+env 移动的前驱关系
+4. **分类条件**：存在一个 sys move，使得该 move 后的所有 env moves 都通向 Swin
 
 **直觉**：
-- 如果 `s → s'` 是完整移动，且 `s'` 是 Swin
-- 则检查 `s` 的所有完整移动是否都通向 Swin
-- 如果是，则 `s` 也是 Swin
+- System 选择输出后，Environment 会选择最不利的输入
+- 如果存在一个输出，使得无论 Environment 选什么输入都通向 Swin，则 System 有必胜策略
+- Swin 通过完整移动向前传播到前驱 System 状态
 
 ### 4.4 伪代码
 
 ```cpp
 void classify_scc(const vector<GameState>& scc) {
     // ========== Step 0: 构建 predecessors map ==========
-    // key: 即将进行 sys move 的状态
-    // value: 能通过完整 sys+env 移动到达 key 的前驱状态集合
+    // key: System 状态（即将进行 sys move）
+    // value: 能通过完整 sys+env 移动到达 key 的前驱 System 状态集合
     unordered_map<GameState, unordered_set<GameState>> predecessors;
 
     for (const auto& s : scc) {
+        if (s.player != Player::System) continue;  // 只处理 System 状态
+
         // 第一重：sys move → env states
         auto succ_it = successors_.find(s);
         if (succ_it == successors_.end()) continue;
@@ -216,26 +224,40 @@ void classify_scc(const vector<GameState>& scc) {
             if (env_succ_it == successors_.end()) continue;
 
             for (const auto& s_prime : env_succ_it->second) {
-                // s → s' 是一次完整的移动
+                assert(s_prime.player == Player::System);  // 断言：s' 是 System 状态
                 predecessors[s_prime].insert(s);
             }
         }
     }
 
     // ========== Step 1: 初始化种子集合 ==========
+    // swin_states 只包含 System 状态
     unordered_set<GameState> swin_states;
 
-    // 1a. 当前 SCC 中所有 esa 状态
+    // 当前 SCC 中所有 esa 的 System 状态
     for (const auto& s : scc) {
-        if (!classification_.count(s) && is_empty_string_accepting(s.dfa_state)) {
-            swin_states.insert(s);
-            classification_[s] = StateClass::Swin;
+        if (classification_.count(s)) {
+            if (classification_[s] == StateClass::Swin && s.player == Player::System) {
+                swin_states.insert(s);
+            }
+            continue;
+        }
+
+        if (is_empty_string_accepting(s.dfa_state)) {
+            if (s.player == Player::System) {
+                swin_states.insert(s);
+                classification_[s] = StateClass::Swin;
+            } else {
+                // Environment 状态被分类但不加入 swin_states
+                classification_[s] = StateClass::Swin;
+            }
         }
     }
 
-    // 1b. predecessors map keys 中已标记为 Swin 的状态
+    // predecessors map keys 中已标记为 Swin 的状态
     for (const auto& pair : predecessors) {
         const GameState& key = pair.first;
+        assert(key.player == Player::System);  // 断言：key 是 System 状态
         auto cls_it = classification_.find(key);
         if (cls_it != classification_.end() && cls_it->second == StateClass::Swin) {
             swin_states.insert(key);
@@ -251,10 +273,13 @@ void classify_scc(const vector<GameState>& scc) {
         // 2a. 从 swin_states 出发找所有前驱 → tmpSet
         unordered_set<GameState> tmpSet;
         for (const GameState& swin : swin_states) {
+            assert(swin.player == Player::System);  // 断言：swin 是 System 状态
+
             auto pred_it = predecessors.find(swin);
             if (pred_it == predecessors.end()) continue;
 
             for (const GameState& pred : pred_it->second) {
+                assert(pred.player == Player::System);  // 断言：pred 是 System 状态
                 if (!classification_.count(pred)) {
                     tmpSet.insert(pred);
                 }
@@ -263,32 +288,38 @@ void classify_scc(const vector<GameState>& scc) {
 
         // 2b. 遍历 tmpSet 进行分类
         for (const GameState& s : tmpSet) {
+            assert(s.player == Player::System);  // 断言：s 是 System 状态
             if (classification_.count(s)) continue;
 
             auto succ_it = successors_.find(s);
             if (succ_it == successors_.end()) continue;
 
-            // 检查 s 的所有 sys move 后的所有 env move 是否都指向 Swin
-            bool all_swin = true;
+            // 检查是否存在一个 sys move，使得所有后续 env moves 都通向 Swin
+            bool has_safe_sys_move = false;
             for (const auto& e : succ_it->second) {  // sys move → env states
+                // 对于这个 env state，检查所有 env moves 是否都通向 Swin
+                bool all_env_moves_swin = true;
                 auto env_succ_it = successors_.find(e);
                 if (env_succ_it == successors_.end()) {
-                    all_swin = false;
-                    break;
-                }
-
-                for (const auto& s_prime : env_succ_it->second) {  // env move → sys states
-                    auto cls_it = classification_.find(s_prime);
-                    if (cls_it == classification_.end() ||
-                        cls_it->second != StateClass::Swin) {
-                        all_swin = false;
-                        break;
+                    all_env_moves_swin = false;
+                } else {
+                    for (const auto& s_prime : env_succ_it->second) {
+                        auto cls_it = classification_.find(s_prime);
+                        if (cls_it == classification_.end() ||
+                            cls_it->second != StateClass::Swin) {
+                            all_env_moves_swin = false;
+                            break;
+                        }
                     }
                 }
-                if (!all_swin) break;
+
+                if (all_env_moves_swin) {
+                    has_safe_sys_move = true;
+                    break;
+                }
             }
 
-            if (all_swin) {
+            if (has_safe_sys_move) {
                 classification_[s] = StateClass::Swin;
                 new_swin_states.insert(s);
                 changed = true;
@@ -311,29 +342,32 @@ void classify_scc(const vector<GameState>& scc) {
 
 | 方面 | 旧算法 | 新算法 |
 |------|--------|--------|
-| predecessors 构建 | 只在 SCC 内 | 不限制，包含所有前驱 |
-| predecessors 方向 | succ → pred | 通过完整移动 s → e → s' |
-| seed set | 只有 SCC 内 esa | + predecessors keys 中的 Swin |
-| 传播方向 | 遍历 predecessors | 遍历 predecessors 的 predecessors |
-| 检查条件 | 基于 player 类型 | 检查完整移动的目标是否都是 Swin |
+| predecessors 构建 | 只在 SCC 内，单层边 | 不限制，两层（sys+env） |
+| predecessors 方向 | succ → pred（任意类型） | System → System（完整移动） |
+| seed set | SCC 内 esa 状态 | 只包含 System 状态的 esa |
+| 传播方向 | 任意状态间传播 | 只在 System 状态间传播 |
+| 检查条件 | 基于 player 类型（ANY/ALL） | 检查完整移动中 env moves 是否都通向 Swin |
 
 ### 4.6 示例：E1 为什么应该是 Swin
 
 ```
 游戏图：
-    S0 --sys={p}--> E1 --env={}--> S1 (已标记 Swin)
+    S0 (System) --sys={p}--> E1 (Environment) --env={}--> S1 (System, Swin)
 
-旧算法：
-    - E1 是单节点 SCC，没有内部前驱
+旧算法问题：
+    - E1 是单节点 SCC（Environment），没有内部前驱
     - 无法传播 Swin
     - 最终标记为 Ewin ❌
 
 新算法：
-    - Step 0: predecessors[S1] = {E1}
-    - Step 1: swin_states 包含 S1（已标记）
-    - Step 2: 从 S1 找前驱 → E1
-    - 检查 E1 → S1，S1 是 Swin
-    - E1 标记为 Swin ✅
+    - Step 0: predecessors[S1] = {S0}  (S0 → E1 → S1)
+    - Step 1: swin_states 包含 S1（已标记，System 状态）
+    - Step 2: 从 S1 找前驱 → S0
+    - 检查 S0 的 sys move {p}:
+      - E1 的 env move {} → S1 (Swin)
+      - 所有 env moves 通向 Swin ✓
+    - S0 标记为 Swin ✅
+    - E1 作为 Environment 状态在 Step 3 中根据其他条件分类
 ```
 
 ---

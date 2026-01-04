@@ -555,22 +555,30 @@ bool OnTheFlyGameSolver::is_empty_string_accepting(automata::TableauState* q) co
 }
 
 bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
-    // Create a set for fast SCC membership test
-    std::unordered_set<GameState, GameStateHash, GameStateEqual> scc_set;
-    for (const auto& s : scc) {
-        scc_set.insert(s);
-    }
+    // ========== Step 0: Build predecessors map ==========
+    // Key: states about to perform sys move (System states only)
+    // Value: set of predecessor System states that can reach key via complete sys+env move
+    // Important: predecessors NOT limited to SCC, includes all external preds
+    std::unordered_map<GameState, std::unordered_set<GameState, GameStateHash>, GameStateHash, GameStateEqual> predecessors;
 
-    // Build predecessor map within SCC: state -> predecessors in SCC
-    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual> predecessors;
-    for (const auto& state : scc) {
-        auto succ_it = successors_.find(state);
-        if (succ_it != successors_.end()) {
-            for (const auto& succ : succ_it->second) {
-                // Only consider predecessors that are in the SCC
-                if (scc_set.count(succ)) {
-                    predecessors[succ].push_back(state);
-                }
+    for (const auto& s : scc) {
+        // Only System states perform sys moves
+        if (s.player != Player::System) continue;
+
+        // First level: sys move → env states
+        auto succ_it = successors_.find(s);
+        if (succ_it == successors_.end()) continue;
+
+        for (const auto& e : succ_it->second) {  // env states
+            // Second level: env move → sys states
+            auto env_succ_it = successors_.find(e);
+            if (env_succ_it == successors_.end()) continue;
+
+            for (const auto& s_prime : env_succ_it->second) {  // sys states
+                // s → s' is a complete sys+env move
+                // Assert: both s and s_prime are System states
+                assert(s_prime.player == Player::System);
+                predecessors[s_prime].insert(s);
             }
         }
     }
@@ -578,20 +586,21 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
     // DEBUG: Log SCC info
     LOG_DEBUG("classify_scc: processing SCC with ", scc.size(), " states");
 
-    // Step 1: Initialize seed set (accepting states are Swin)
+    // ========== Step 1: Initialize seed set (swin_states) ==========
+    // swin_states only contains System states (about to perform sys move)
     std::unordered_set<GameState, GameStateHash, GameStateEqual> swin_states;
     size_t accepting_seed_count = 0;
+
+    // Current SCC: all esa (empty-string accepting) states
     for (const auto& s : scc) {
         // Skip if already classified
         if (classification_.count(s)) {
-            if (classification_[s] == StateClass::Swin) {
+            if (classification_[s] == StateClass::Swin && s.player == Player::System) {
                 swin_states.insert(s);
             }
             continue;
         }
 
-        // Empty-string accepting states are Swin seeds
-        // (no U/X obligations, no contradictions)
         bool esa = is_empty_string_accepting(s.dfa_state);
         // Debug output (controlled by COSY_DEBUG_CLASSIFY environment variable)
         static const bool debug_classify = (std::getenv("COSY_DEBUG_CLASSIFY") != nullptr);
@@ -601,75 +610,99 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
                       << ", esa=" << esa << std::endl;
         }
         if (esa) {
-            swin_states.insert(s);
-            classification_[s] = StateClass::Swin;
-            accepting_seed_count++;
-            LOG_DEBUG("  Seed Swin: ", s.to_string(), " (empty-string accepting)");
+            // Only System states in swin_states
+            if (s.player == Player::System) {
+                swin_states.insert(s);
+                classification_[s] = StateClass::Swin;
+                accepting_seed_count++;
+                LOG_DEBUG("  Seed Swin: ", s.to_string(), " (empty-string accepting)");
+            } else {
+                // Environment states are classified but not added to swin_states
+                classification_[s] = StateClass::Swin;
+            }
         }
     }
+
+    // Add predecessors map keys that are already marked as Swin
+    for (const auto& pair : predecessors) {
+        const GameState& key = pair.first;
+        assert(key.player == Player::System);  // Key must be System state
+        auto cls_it = classification_.find(key);
+        if (cls_it != classification_.end() && cls_it->second == StateClass::Swin) {
+            swin_states.insert(key);
+        }
+    }
+
     LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " empty-string accepting)");
 
-    // Step 2: Fixed-point iteration
+    // ========== Step 2: Fixed-point iteration ==========
     bool changed = true;
     while (changed) {
         changed = false;
         std::unordered_set<GameState, GameStateHash, GameStateEqual> new_swin_states;
 
-        // Find predecessors of current Swin states
+        // 2a. Find all predecessors of current swin_states → tmpSet
+        std::unordered_set<GameState, GameStateHash, GameStateEqual> tmpSet;
         for (const GameState& swin : swin_states) {
+            assert(swin.player == Player::System);  // swin_states only contains System states
+
             auto pred_it = predecessors.find(swin);
             if (pred_it == predecessors.end()) continue;
 
             for (const GameState& pred : pred_it->second) {
-                // Skip if already classified
-                if (classification_.count(pred)) continue;
+                assert(pred.player == Player::System);  // Predecessors are System states
+                if (!classification_.count(pred)) {
+                    tmpSet.insert(pred);
+                }
+            }
+        }
 
-                // Check if predecessor can be classified as Swin
-                auto succ_it = successors_.find(pred);
-                if (succ_it == successors_.end()) continue;
+        // 2b. Classify states in tmpSet
+        for (const GameState& s : tmpSet) {
+            assert(s.player == Player::System);  // tmpSet only contains System states
+            if (classification_.count(s)) continue;
 
-                const auto& succs = succ_it->second;
+            auto succ_it = successors_.find(s);
+            if (succ_it == successors_.end()) continue;
 
-                if (pred.player == Player::System) {
-                    // System: ANY successor Swin → Swin
-                    bool has_swin_succ = false;
-                    for (const auto& succ : succs) {
-                        auto cls_it = classification_.find(succ);
-                        if (cls_it != classification_.end() &&
-                            cls_it->second == StateClass::Swin) {
-                            has_swin_succ = true;
-                            break;
-                        }
-                    }
-                    if (has_swin_succ) {
-                        new_swin_states.insert(pred);
-                        classification_[pred] = StateClass::Swin;
-                        changed = true;
-                    }
+            // Check if EXISTS a sys move such that ALL subsequent env moves lead to Swin
+            bool has_safe_sys_move = false;
+            for (const auto& e : succ_it->second) {  // sys move → env states
+                // For this env state, check if ALL env moves lead to Swin
+                bool all_env_moves_swin = true;
+                auto env_succ_it = successors_.find(e);
+                if (env_succ_it == successors_.end()) {
+                    all_env_moves_swin = false;
                 } else {
-                    // Environment: ALL successors Swin → Swin
-                    bool all_swin_succ = !succs.empty();
-                    for (const auto& succ : succs) {
-                        auto cls_it = classification_.find(succ);
+                    for (const auto& s_prime : env_succ_it->second) {  // env move → sys states
+                        auto cls_it = classification_.find(s_prime);
                         if (cls_it == classification_.end() ||
                             cls_it->second != StateClass::Swin) {
-                            all_swin_succ = false;
+                            all_env_moves_swin = false;
                             break;
                         }
                     }
-                    if (all_swin_succ) {
-                        new_swin_states.insert(pred);
-                        classification_[pred] = StateClass::Swin;
-                        changed = true;
-                    }
                 }
+
+                // If this sys move has all env moves leading to Swin, it's safe
+                if (all_env_moves_swin) {
+                    has_safe_sys_move = true;
+                    break;
+                }
+            }
+
+            if (has_safe_sys_move) {
+                classification_[s] = StateClass::Swin;
+                new_swin_states.insert(s);
+                changed = true;
+                LOG_DEBUG("  Classified as Swin: ", s.to_string());
             }
         }
 
         swin_states.insert(new_swin_states.begin(), new_swin_states.end());
     }
 
-    // Step 3: Mark remaining states as Ewin
+    // ========== Step 3: Mark remaining states as Ewin ==========
     for (const auto& s : scc) {
         if (!classification_.count(s)) {
             classification_[s] = StateClass::Ewin;
