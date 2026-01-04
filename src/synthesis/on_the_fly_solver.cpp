@@ -11,6 +11,8 @@
 #include <functional>
 #include <fstream>
 #include <iomanip>
+#include <set>
+#include <vector>
 
 namespace synthesis {
 
@@ -265,47 +267,31 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
     // Extract relevant variable IDs from prop_atoms
     // This optimization reduces the enumeration space from 2^n to 2^k
     // where k = number of variables actually present in the current state
-    std::vector<int> relevant_output_var_ids;
-    std::vector<int> relevant_input_var_ids;  // Local indices (0-based for inputs)
+    std::set<int> relevant_output_var_ids;
+    std::set<int> relevant_input_var_ids;  // Local indices (0-based for inputs)
 
-    // Helper function to recursively extract all literals from a formula
-    // This is needed because prop_atoms may contain non-literal formulas (Next, Until, Release)
-    // which have literals as subformulas
-    std::function<void(formula::Formula*)> extract_literals = [&](formula::Formula* f) {
-        if (!f) return;
-        if (f->is_literal()) {
-            int var_id = f->var_id();
-            if (pool_.is_output_variable(var_id)) {
-                // Avoid duplicates
-                if (std::find(relevant_output_var_ids.begin(), relevant_output_var_ids.end(), var_id)
-                    == relevant_output_var_ids.end()) {
-                    relevant_output_var_ids.push_back(var_id);
-                }
-            } else if (pool_.is_input_variable(var_id)) {
-                // Convert global input ID to local index (0-based for input_gen)
-                int local_idx = var_id - pool_.num_outputs();
-                if (std::find(relevant_input_var_ids.begin(), relevant_input_var_ids.end(), local_idx)
-                    == relevant_input_var_ids.end()) {
-                    relevant_input_var_ids.push_back(local_idx);
-                }
-            }
+    for (formula::Formula* literal : state.dfa_state->prop_atoms()) {
+        assert(literal->op() == formula::Formula::OpType::Literal);
+        int var_id = literal->var_id();
+        if (var_id < output_gen_.num_variables()) {
+            relevant_output_var_ids.insert(var_id);
         } else {
-            // Recurse on children for non-literal formulas
-            extract_literals(f->left());
-            extract_literals(f->right());
+            // Input variable: adjust to local index
+            relevant_input_var_ids.insert(var_id - output_gen_.num_variables());
         }
-    };
-
-    for (formula::Formula* f : state.dfa_state->prop_atoms()) {
-        extract_literals(f);
     }
 
     if (state.player == Player::System) {
         // System's turn: choose output assignment
         // Only enumerate assignments for variables actually in prop_atoms
-        auto outputs = relevant_output_var_ids.empty()
-            ? output_gen_.all_assignments()
-            : output_gen_.all_assignments_for_subset(relevant_output_var_ids);
+        std::vector<automata::Assignment> outputs;
+        if (relevant_output_var_ids.empty()) {
+            outputs = {{}};  // Empty assignment = {} (one true edge)
+        } else {
+            // Convert set to vector for all_assignments_for_subset
+            std::vector<int> output_vec(relevant_output_var_ids.begin(), relevant_output_var_ids.end());
+            outputs = output_gen_.all_assignments_for_subset(output_vec);
+        }
 
         for (const auto& out : outputs) {
             succs.push_back(environment_state(state.dfa_state, out));
@@ -315,9 +301,14 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
     } else {
         // Environment's turn: choose input assignment
         // Only enumerate assignments for variables actually in prop_atoms
-        auto inputs = relevant_input_var_ids.empty()
-            ? input_gen_.all_assignments()
-            : input_gen_.all_assignments_for_subset(relevant_input_var_ids);
+        std::vector<automata::Assignment> inputs;
+        if (relevant_input_var_ids.empty()) {
+            inputs = {{}};  // Empty assignment = {} (one true edge)
+        } else {
+            // Convert set to vector for all_assignments_for_subset
+            std::vector<int> input_vec(relevant_input_var_ids.begin(), relevant_input_var_ids.end());
+            inputs = input_gen_.all_assignments_for_subset(input_vec);
+        }
 
         for (const auto& in : inputs) {
             // Combine output and input into full assignment
