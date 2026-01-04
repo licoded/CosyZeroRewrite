@@ -269,7 +269,7 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
     // This optimization reduces the enumeration space from 2^n to 2^k
     // where k = number of variables actually present in the current state
     std::set<int> relevant_output_var_ids;
-    std::set<int> relevant_input_var_ids;  // Local indices (0-based for inputs)
+    std::set<int> relevant_input_var_ids;  // Global indices (no conversion needed)
 
     for (formula::Formula* pa : state.dfa_state->prop_atoms()) {
         if (pa->is_next()) continue;  // Skip Next formulas
@@ -278,8 +278,9 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
         if (var_id < output_gen_.num_variables()) {
             relevant_output_var_ids.insert(var_id);
         } else {
-            // Input variable: adjust to local index
-            relevant_input_var_ids.insert(var_id - output_gen_.num_variables());
+            // Input variable: use global index directly
+            // all_assignments_for_subset doesn't care about index range
+            relevant_input_var_ids.insert(var_id);
         }
     }
 
@@ -317,10 +318,9 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
             // system_chosen_output must have value for Environment turn (by construction)
             automata::Assignment full = state.system_chosen_output.value();
 
-            // Offset input variable IDs by number of outputs
-            // Note: 'in' already contains local indices from all_assignments_for_subset
+            // 'in' now contains global indices directly (no conversion needed)
             for (int v : in) {
-                full.insert(v + output_gen_.num_variables());
+                full.insert(v);
             }
 
             // Compute next DFA state
@@ -328,16 +328,10 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
 
             // Debug: print env edge details
             std::cerr << "  [ENV EDGE] from dfa=" << state.dfa_state << " to dfa=" << next_dfa << std::endl;
-            std::cerr << "    input assignment (local indices): {";
+            std::cerr << "    input assignment (global indices): {";
             for (auto it = in.begin(); it != in.end(); ++it) {
                 if (it != in.begin()) std::cerr << ", ";
                 std::cerr << *it;
-            }
-            std::cerr << "}" << std::endl;
-            std::cerr << "    input assignment (global ids): {";
-            for (auto it = in.begin(); it != in.end(); ++it) {
-                if (it != in.begin()) std::cerr << ", ";
-                std::cerr << (*it + output_gen_.num_variables());
             }
             std::cerr << "}" << std::endl;
             std::cerr << "    system_chosen_output: {";

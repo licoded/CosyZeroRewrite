@@ -452,13 +452,12 @@ void TraceExporter::record_expansion(const GameState& state,
             edge_label += "}";
         } else if (state.player == Player::Environment && succ.environment_chosen_input.has_value()) {
             // Env move: format input assignment
-            // Note: environment_chosen_input stores local indices (0-based for inputs)
+            // Note: environment_chosen_input now stores global indices directly
             const auto& var_names = pool_.get_all_variable_names();
             int num_outputs = pool_.num_outputs();
             edge_label = "env={";
             bool first = true;
-            for (int local_idx : succ.environment_chosen_input.value()) {
-                int global_idx = local_idx + num_outputs;
+            for (int global_idx : succ.environment_chosen_input.value()) {
                 if (global_idx >= num_outputs && global_idx < static_cast<int>(var_names.size())) {
                     if (!first) edge_label += ", ";
                     edge_label += var_names[global_idx];
