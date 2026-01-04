@@ -572,6 +572,51 @@ void TraceExporter::finalize(bool realizable) {
     LOG_INFO("TraceExporter: finalized, trace written to {}", output_path_);
 }
 
+void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver& solver) {
+    if (!enabled_ || finalized_) {
+        // If already finalized or disabled, just call the base finalize
+        finalize(realizable);
+        return;
+    }
+
+    // End any open stage
+    if (current_stage_index_ >= 0) {
+        end_stage();
+    }
+
+    // Create a final summary stage to capture the complete final state
+    begin_stage("final", "Final State");
+
+    // Capture final state as a sub-step
+    begin_sub_step("Complete game graph with final classifications");
+
+    // Get current DOT from solver
+    std::string dot = solver.to_dot();
+    set_graph_dot(dot, solver.num_expanded_states(), 0);
+
+    // Collect state data for tooltips
+    TraceStage& stage = stages_[current_stage_index_];
+    if (!stage.sub_steps.empty()) {
+        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    }
+
+    // Get classification counts
+    const auto& classification = solver.get_classification();
+    int swin = 0, ewin = 0, unknown = 0;
+    for (const auto& pair : classification) {
+        if (pair.second == StateClass::Swin) swin++;
+        else if (pair.second == StateClass::Ewin) ewin++;
+        else unknown++;
+    }
+    set_state_info(swin, ewin, unknown, static_cast<int>(classification.size()));
+
+    end_sub_step(true);
+    end_stage();
+
+    // Now call the base finalize to write the JSON
+    finalize(realizable);
+}
+
 //==============================================================================
 // Helper Methods
 //==============================================================================

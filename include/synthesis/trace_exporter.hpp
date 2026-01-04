@@ -355,6 +355,16 @@ public:
     void finalize(bool realizable);
 
     /**
+     * @brief Finalize the trace with final state capture
+     *
+     * Captures the final solver state as a sub-step before finalizing.
+     *
+     * @param realizable Whether the formula is realizable
+     * @param solver Reference to the solver for capturing final state
+     */
+    void finalize(bool realizable, const OnTheFlyGameSolver& solver);
+
+    /**
      * @brief Check if tracing is enabled
      */
     bool is_enabled() const { return enabled_; }

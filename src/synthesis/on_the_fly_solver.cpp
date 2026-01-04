@@ -233,7 +233,7 @@ bool OnTheFlyGameSolver::is_realizable() {
 
     // Finalize trace before returning
     if (trace_exporter_) {
-        trace_exporter_->finalize(result == StateClass::Swin);
+        trace_exporter_->finalize(result == StateClass::Swin, *this);
     }
 
     return result == StateClass::Swin;
