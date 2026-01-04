@@ -348,6 +348,29 @@ TEST_CASE("FP: parsed formula 'X(p) | X(q)' with p ∈ sigma", "[progression][pa
 }
 
 //==============================================================================
+// XNF-based progression tests
+//==============================================================================
+
+TEST_CASE("FP: XNF(F p) with p ∈ sigma → true", "[progression][xnf]") {
+    INFO("Formula: F p (i.e., true U p), XNF form, sigma = {p}");
+    FormulaPool pool;
+    FormulaParser parser(pool);
+    Formula* phi = parser.parse("true U p");  // F p = true U p
+
+    REQUIRE(phi != nullptr);
+
+    auto state = TableauState::initial(phi, pool);
+    Assignment sigma = make_assignment({"p"}, {"p"}, pool);
+
+    Formula* next = state->next_phi(sigma, pool);
+
+    // XNF(F p) = p | X(F p)
+    // With p ∈ sigma: fp(p, sigma) = true, fp(X(F p), sigma) = F p
+    // Result: true | F p → true (simplified)
+    REQUIRE(next->is_true());
+}
+
+//==============================================================================
 // Custom main for compact output
 //==============================================================================
 
