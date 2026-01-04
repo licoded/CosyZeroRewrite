@@ -18,8 +18,12 @@
 #include <vector>
 #include <functional>
 #include <optional>
+#include <memory>
 
 namespace synthesis {
+
+// Forward declaration (to avoid circular dependency)
+class TraceExporter;
 
 /**
  * @brief Player in the synthesis game
@@ -143,6 +147,11 @@ public:
                        formula::FormulaPool& pool,
                        int num_outputs,
                        int num_inputs);
+
+    /**
+     * @brief Destructor (needed for unique_ptr<TraceExporter>)
+     */
+    ~OnTheFlyGameSolver();
 
     /**
      * @brief Run the on-the-fly synthesis algorithm
@@ -304,6 +313,21 @@ public:
      */
     bool write_dot(const std::string& base_path) const;
 
+    /**
+     * @brief Enable execution trace recording for visualization
+     *
+     * When enabled, the solver will record each step of the synthesis process
+     * for later visualization. Trace data is written to JSON format.
+     *
+     * @param output_dir Directory to write trace files (uses default if empty)
+     */
+    void enable_trace(const std::string& output_dir = "");
+
+    /**
+     * @brief Check if tracing is enabled
+     */
+    bool is_trace_enabled() const;
+
 private:
     // Formula and pool
     formula::FormulaPool& pool_;
@@ -331,6 +355,9 @@ private:
 
     // Initial state
     GameState initial_state_;
+
+    // Trace exporter (for execution visualization)
+    std::unique_ptr<TraceExporter> trace_exporter_;
 
     /**
      * @brief Expand a game state (compute successors)

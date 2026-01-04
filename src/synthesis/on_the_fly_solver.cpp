@@ -4,11 +4,13 @@
  */
 
 #include "synthesis/on_the_fly_solver.hpp"
+#include "synthesis/trace_exporter.hpp"
 #include "log/logger.hpp"
 #include <algorithm>
 #include <sstream>
 #include <functional>
 #include <fstream>
+#include <iomanip>
 
 namespace synthesis {
 
@@ -76,6 +78,11 @@ OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
     LOG_DEBUG("OnTheFlyGameSolver: initialized with formula: ", phi->to_string());
 }
 
+OnTheFlyGameSolver::~OnTheFlyGameSolver() {
+    // Destructor defined here for unique_ptr<TraceExporter> to work with forward declaration
+    // Trace exporter will be automatically finalized by its own destructor
+}
+
 int OnTheFlyGameSolver::count_variables(formula::Formula* phi) {
     auto vars = collect_variables(phi);
     return static_cast<int>(vars.size());
@@ -92,6 +99,11 @@ bool OnTheFlyGameSolver::is_realizable() {
     // PHASE 1: Expand ALL reachable states (no early SCC/classify/propagate)
     // ========================================================================
     LOG_DEBUG("=== PHASE 1: Expanding all reachable states ===");
+
+    if (trace_exporter_) {
+        trace_exporter_->begin_stage("expand", "State Expansion Phase");
+        trace_exporter_->capture_state("Initial state", *this);
+    }
 
     worklist_.clear();
     worklist_.push_back(initial_state_);
@@ -115,6 +127,14 @@ bool OnTheFlyGameSolver::is_realizable() {
         LOG_DEBUG("Phase 1: expanded state #", expanded_.size(),
                   " (worklist remaining: ", worklist_.size(), ")");
 
+        // Trace: record expansion
+        if (trace_exporter_) {
+            auto succ_it = successors_.find(state);
+            if (succ_it != successors_.end()) {
+                trace_exporter_->record_expansion(state, succ_it->second, *this);
+            }
+        }
+
         // Add all unexpanded successors to worklist
         auto succ_it = successors_.find(state);
         if (succ_it != successors_.end()) {
@@ -134,22 +154,48 @@ bool OnTheFlyGameSolver::is_realizable() {
 
     LOG_DEBUG("Phase 1 complete: expanded ", expanded_.size(), " states");
 
+    if (trace_exporter_) {
+        trace_exporter_->end_stage();
+    }
+
     // ========================================================================
     // PHASE 2: SCC decomposition, classification, and propagation
     // ========================================================================
     LOG_DEBUG("=== PHASE 2: SCC decomposition and classification ===");
+
+    if (trace_exporter_) {
+        trace_exporter_->begin_stage("scc", "SCC Decomposition and Classification");
+        trace_exporter_->capture_state("Before SCC", *this);
+    }
 
     // Run SCC decomposition on the COMPLETE graph
     auto sccs = find_sccs();
     LOG_DEBUG("Phase 2: found ", sccs.size(), " SCCs in complete graph");
     num_sccs_found_ = sccs.size();
 
+    if (trace_exporter_) {
+        trace_exporter_->capture_state("Found " + std::to_string(sccs.size()) + " SCCs", *this);
+    }
+
     // Classify each SCC using fixed-point iteration
-    for (const auto& scc : sccs) {
+    for (size_t i = 0; i < sccs.size(); ++i) {
+        const auto& scc = sccs[i];
         if (scc.empty()) continue;
 
         LOG_DEBUG("Phase 2: processing SCC with ", scc.size(), " states");
+
+        // Trace: record SCC
+        if (trace_exporter_) {
+            std::ostringstream oss;
+            oss << "scc_" << std::setfill('0') << std::setw(3) << i;
+            trace_exporter_->record_scc(scc, oss.str(), *this);
+        }
+
         classify_scc(scc);
+    }
+
+    if (trace_exporter_) {
+        trace_exporter_->end_stage();
     }
 
     // ========================================================================
@@ -183,6 +229,11 @@ bool OnTheFlyGameSolver::is_realizable() {
         if (violations > 0) {
             LOG_WARN("OnTheFlyGameSolver: ", violations, " propagation violations detected!");
         }
+    }
+
+    // Finalize trace before returning
+    if (trace_exporter_) {
+        trace_exporter_->finalize(result == StateClass::Swin);
     }
 
     return result == StateClass::Swin;
@@ -679,6 +730,31 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
     }
 
     return violations;
+}
+
+//==============================================================================
+// Trace Exporter Integration
+//==============================================================================
+
+void OnTheFlyGameSolver::enable_trace(const std::string& output_dir) {
+    if (trace_exporter_) {
+        LOG_WARN("Trace already enabled, ignoring");
+        return;
+    }
+
+    std::string trace_dir = output_dir;
+    if (trace_dir.empty()) {
+        trace_dir = get_trace_output_path();
+    }
+
+    trace_exporter_ = std::make_unique<TraceExporter>(
+        original_formula_, pool_, trace_dir);
+
+    LOG_INFO("Trace enabled, output: ", trace_exporter_->output_path());
+}
+
+bool OnTheFlyGameSolver::is_trace_enabled() const {
+    return trace_exporter_ != nullptr && trace_exporter_->is_enabled();
 }
 
 //==============================================================================
