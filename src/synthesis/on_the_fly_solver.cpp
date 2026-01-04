@@ -326,6 +326,33 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
             // Compute next DFA state
             automata::TableauState* next_dfa = dfa_.successor(state.dfa_state, full);
 
+            // Debug: print env edge details
+            std::cerr << "  [ENV EDGE] from dfa=" << state.dfa_state << " to dfa=" << next_dfa << std::endl;
+            std::cerr << "    input assignment (local indices): {";
+            for (auto it = in.begin(); it != in.end(); ++it) {
+                if (it != in.begin()) std::cerr << ", ";
+                std::cerr << *it;
+            }
+            std::cerr << "}" << std::endl;
+            std::cerr << "    input assignment (global ids): {";
+            for (auto it = in.begin(); it != in.end(); ++it) {
+                if (it != in.begin()) std::cerr << ", ";
+                std::cerr << (*it + output_gen_.num_variables());
+            }
+            std::cerr << "}" << std::endl;
+            std::cerr << "    system_chosen_output: {";
+            for (auto it = state.system_chosen_output.value().begin(); it != state.system_chosen_output.value().end(); ++it) {
+                if (it != state.system_chosen_output.value().begin()) std::cerr << ", ";
+                std::cerr << *it;
+            }
+            std::cerr << "}" << std::endl;
+            std::cerr << "    full assignment: {";
+            for (auto it = full.begin(); it != full.end(); ++it) {
+                if (it != full.begin()) std::cerr << ", ";
+                std::cerr << *it;
+            }
+            std::cerr << "}" << std::endl;
+
             // Create system state with the input assignment stored
             // This allows us to label the env move edge with the input assignment
             // Note: Reaching true/false is NOT forced termination in LTLf.

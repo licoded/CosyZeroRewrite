@@ -432,9 +432,43 @@ void TraceExporter::record_expansion(const GameState& state,
         std::string succ_id = id_map_.get_id(succ);
         add_highlight_node(succ_id, HighlightType::NewNode);
 
-        // Add edge highlight
+        // Add edge highlight with label
         std::string edge_type = (state.player == Player::System) ? "sys_move" : "env_move";
-        add_highlight_edge(id_map_.get_id(state), succ_id, "", edge_type);
+        std::string edge_label = "";
+
+        if (state.player == Player::System && succ.system_chosen_output.has_value()) {
+            // Sys move: format output assignment
+            const auto& var_names = pool_.get_all_variable_names();
+            int num_outputs = pool_.num_outputs();
+            edge_label = "sys={";
+            bool first = true;
+            for (int idx : succ.system_chosen_output.value()) {
+                if (idx >= 0 && idx < num_outputs) {
+                    if (!first) edge_label += ", ";
+                    edge_label += var_names[idx];
+                    first = false;
+                }
+            }
+            edge_label += "}";
+        } else if (state.player == Player::Environment && succ.environment_chosen_input.has_value()) {
+            // Env move: format input assignment
+            // Note: environment_chosen_input stores local indices (0-based for inputs)
+            const auto& var_names = pool_.get_all_variable_names();
+            int num_outputs = pool_.num_outputs();
+            edge_label = "env={";
+            bool first = true;
+            for (int local_idx : succ.environment_chosen_input.value()) {
+                int global_idx = local_idx + num_outputs;
+                if (global_idx >= num_outputs && global_idx < static_cast<int>(var_names.size())) {
+                    if (!first) edge_label += ", ";
+                    edge_label += var_names[global_idx];
+                    first = false;
+                }
+            }
+            edge_label += "}";
+        }
+
+        add_highlight_edge(id_map_.get_id(state), succ_id, edge_label, edge_type);
     }
 
     // Get classification counts
