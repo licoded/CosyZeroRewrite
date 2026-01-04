@@ -740,7 +740,8 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
                         classification_[e] = StateClass::Ewin;
                         LOG_DEBUG("  [has_env_moves_ewin] Classified env state as Ewin: ", e.to_string());
                     }
-                    all_env_moves_swin = true;
+                    // If we reach here, successor has unknown classification - conservatively assume not safe
+                    all_env_moves_swin = false;
                     break;
                 }
 
