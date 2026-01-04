@@ -52,6 +52,7 @@ export function useGraphViz() {
 
     try {
       const result = vizModule!.render(dot, {
+        format: options.format || 'svg',
         engine: options.engine || 'dot'
       });
 
