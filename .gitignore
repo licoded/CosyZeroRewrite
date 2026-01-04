@@ -41,3 +41,6 @@ logs/*.txt
 benchmark_results_*.csv
 benchmark_visualization/
 tmp/
+
+# Results directory (test outputs, benchmark results, game graphs, etc.)
+results/
