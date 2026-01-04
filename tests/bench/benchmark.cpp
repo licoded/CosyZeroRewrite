@@ -107,5 +107,10 @@ int main(int argc, char* argv[]) {
     std::cout << "Results not found: " << not_found_results << std::endl;
     std::cout << "Total time: " << total_time_ms << "ms" << std::endl;
 
+    // Explicitly flush and shutdown logger to avoid hang on exit
+    LOG_FLUSH();
+    logger::Logger::instance().get()->flush();
+    spdlog::shutdown();
+
     return (failed_parse > 0) ? 1 : 0;
 }
