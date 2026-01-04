@@ -14,9 +14,6 @@
           {{ totalSteps }} steps ·
           <span v-if="actualRealizable !== null" :class="{ success: actualRealizable, failure: !actualRealizable }">
             {{ actualRealizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
-            <span v-if="trace.summary?.realizable !== actualRealizable" class="result-mismatch">
-              (summary: {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }})
-            </span>
           </span>
           <span v-else :class="{ success: trace.summary?.realizable, failure: !trace.summary?.realizable }">
             {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
@@ -402,13 +399,6 @@ onUnmounted(() => {
 .summary .failure {
   color: #DC3545;
   font-weight: 600;
-}
-
-.summary .result-mismatch {
-  color: #FF9800;
-  font-weight: normal;
-  font-size: 12px;
-  margin-left: 4px;
 }
 
 .no-data {
