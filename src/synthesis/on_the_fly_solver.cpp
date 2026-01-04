@@ -270,9 +270,10 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
     std::set<int> relevant_output_var_ids;
     std::set<int> relevant_input_var_ids;  // Local indices (0-based for inputs)
 
-    for (formula::Formula* literal : state.dfa_state->prop_atoms()) {
-        assert(literal->op() == formula::Formula::OpType::Literal);
-        int var_id = literal->var_id();
+    for (formula::Formula* pa : state.dfa_state->prop_atoms()) {
+        if (pa->is_next()) continue;  // Skip Next formulas
+        assert(pa->op() == formula::Formula::OpType::Literal);
+        int var_id = pa->var_id();
         if (var_id < output_gen_.num_variables()) {
             relevant_output_var_ids.insert(var_id);
         } else {
