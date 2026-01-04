@@ -87,12 +87,27 @@ struct SubStepMetrics {
 };
 
 /**
+ * @brief Detailed state data for tooltip display
+ * Matches the format used in game_graph HTML visualization
+ */
+struct StateData {
+    std::string id;                  // e.g., "S0", "E1"
+    std::string classification;      // "Swin", "Ewin", "Unknown"
+    std::string type;                // "System" or "Environment"
+    bool is_initial = false;
+    std::string phi;                 // Formula string
+    std::string xnf_phi;             // XNF Formula string
+    std::vector<std::string> prop_atoms;  // Propositional atoms
+};
+
+/**
  * @brief Graph data (DOT string)
  */
 struct SubStepGraphData {
     std::string dot;
     size_t num_nodes = 0;
     size_t num_edges = 0;
+    std::unordered_map<std::string, StateData> state_data;  // state_id -> StateData
 };
 
 /**
@@ -379,6 +394,13 @@ private:
     std::string generate_stage_id();
     std::string generate_step_id();
     std::string escape_json(const std::string& s) const;
+
+    /**
+     * @brief Collect state data from solver for tooltip display
+     * Populates the state_data map in graph_data with phi, xnf_phi, prop_atoms
+     */
+    void collect_state_data(SubStepGraphData& graph_data,
+                           const OnTheFlyGameSolver& solver);
 
     // JSON writing helpers
     void write_json();

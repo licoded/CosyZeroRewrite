@@ -344,6 +344,12 @@ void TraceExporter::capture_state(const std::string& description,
     std::string dot = solver.to_dot();
     set_graph_dot(dot, solver.num_expanded_states(), 0);  // edges count not readily available
 
+    // Collect state data for tooltips (phi, xnf_phi, prop_atoms)
+    TraceStage& stage = stages_[current_stage_index_];
+    if (!stage.sub_steps.empty()) {
+        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    }
+
     // Get classification counts
     const auto& classification = solver.get_classification();
     int swin = 0, ewin = 0, unknown = 0;
@@ -393,6 +399,12 @@ void TraceExporter::record_expansion(const GameState& state,
     std::string dot = solver.to_dot();
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
+    // Collect state data for tooltips
+    TraceStage& stage = stages_[current_stage_index_];
+    if (!stage.sub_steps.empty()) {
+        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    }
+
     // Highlight the expanded state and new successors
     add_highlight_node(id_map_.get_id(state), HighlightType::NewNode);
 
@@ -429,6 +441,12 @@ void TraceExporter::record_scc(const std::vector<GameState>& scc,
     // Get current DOT
     std::string dot = solver.to_dot();
     set_graph_dot(dot, solver.num_expanded_states(), 0);
+
+    // Collect state data for tooltips
+    TraceStage& stage = stages_[current_stage_index_];
+    if (!stage.sub_steps.empty()) {
+        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    }
 
     // Highlight SCC nodes
     std::vector<std::string> scc_node_ids;
@@ -467,6 +485,12 @@ void TraceExporter::record_classification_change(const GameState& state,
     // Get current DOT
     std::string dot = solver.to_dot();
     set_graph_dot(dot, solver.num_expanded_states(), 0);
+
+    // Collect state data for tooltips
+    TraceStage& stage = stages_[current_stage_index_];
+    if (!stage.sub_steps.empty()) {
+        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    }
 
     // Highlight the changed state
     add_highlight_node(id_map_.get_id(state), HighlightType::UpdatedNode);
@@ -635,10 +659,40 @@ void TraceExporter::write_sub_step(std::ofstream& out, const SubStep& step) cons
     out << "          \"graph_data\": {\n";
     out << "            \"dot\": \"" << escape_json(step.graph_data.dot) << "\",\n";
     out << "            \"num_nodes\": " << step.graph_data.num_nodes << ",\n";
-    out << "            \"num_edges\": " << step.graph_data.num_edges << "\n";
+    out << "            \"num_edges\": " << step.graph_data.num_edges << ",\n";
+    out << "            \"state_data\": {\n";
+
+    // Write state_data map
+    bool first_state = true;
+    for (const auto& pair : step.graph_data.state_data) {
+        if (!first_state) out << ",\n";
+        first_state = false;
+
+        const StateData& data = pair.second;
+        out << "              \"" << data.id << "\": {\n";
+        out << "                \"id\": \"" << data.id << "\",\n";
+        out << "                \"classification\": \"" << data.classification << "\",\n";
+        out << "                \"type\": \"" << data.type << "\",\n";
+        out << "                \"is_initial\": " << (data.is_initial ? "true" : "false") << ",\n";
+        out << "                \"phi\": \"" << escape_json(data.phi) << "\",\n";
+        out << "                \"xnf_phi\": \"" << escape_json(data.xnf_phi) << "\",\n";
+
+        // Prop atoms
+        out << "                \"prop_atoms\": [";
+        for (size_t i = 0; i < data.prop_atoms.size(); ++i) {
+            if (i > 0) out << ", ";
+            out << "\"" << escape_json(data.prop_atoms[i]) << "\"";
+        }
+        out << "]\n";
+
+        out << "              }";
+    }
+
+    if (!step.graph_data.state_data.empty()) {
+        out << "\n            ";
+    }
     out << "          },\n";
 
-    // Highlights
     out << "          \"highlights\": {\n";
     write_highlights(out, step.highlights);
     out << "          },\n";
@@ -712,6 +766,57 @@ void TraceExporter::write_state_info(std::ofstream& out, const SubStepStateInfo&
     if (info.current_scc >= 0) {
         out << ",\n";
         out << "            \"current_scc\": " << info.current_scc;
+    }
+}
+
+//==============================================================================
+// State Data Collection
+//==============================================================================
+
+void TraceExporter::collect_state_data(SubStepGraphData& graph_data,
+                                       const OnTheFlyGameSolver& solver) {
+    // Get the state information from solver
+    const auto& successors = solver.get_all_successors();
+    const auto& classification = solver.get_classification();
+    const GameState& initial_state = solver.get_initial_state();
+
+    // Build state data map
+    for (const auto& pair : successors) {
+        const GameState& state = pair.first;
+        std::string state_id = id_map_.get_id(state);
+
+        StateData data;
+        data.id = state_id;
+        data.type = (state.player == Player::System) ? "System" : "Environment";
+        data.is_initial = (state == initial_state);
+
+        // Get classification
+        auto cls_it = classification.find(state);
+        if (cls_it != classification.end()) {
+            data.classification = to_string(cls_it->second);
+        } else {
+            data.classification = "Unknown";
+        }
+
+        // Get formula information from dfa_state
+        if (state.dfa_state) {
+            formula::Formula* phi = state.dfa_state->phi();
+            data.phi = phi ? phi->to_string_with_names(pool_) : "null";
+
+            formula::Formula* xnf_phi = state.dfa_state->xnf_phi();
+            data.xnf_phi = xnf_phi ? xnf_phi->to_string_with_names(pool_) : "null";
+
+            // Get propositional atoms
+            const auto& prop_atoms = state.dfa_state->prop_atoms();
+            for (auto* f : prop_atoms) {
+                data.prop_atoms.push_back(f ? f->to_string_with_names(pool_) : "null");
+            }
+        } else {
+            data.phi = "null";
+            data.xnf_phi = "null";
+        }
+
+        graph_data.state_data[state_id] = std::move(data);
     }
 }
 

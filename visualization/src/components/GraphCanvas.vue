@@ -21,8 +21,31 @@
       class="node-tooltip"
       :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
     >
-      <div class="tooltip-header">{{ tooltip.nodeId }}</div>
-      <div class="tooltip-info">{{ tooltip.info }}</div>
+      <div class="tooltip-header">
+        {{ tooltip.stateData?.id || '' }}
+        <span v-if="tooltip.stateData?.is_initial" class="initial-badge">(initial)</span>
+      </div>
+      <span
+        :class="['classification-badge', tooltip.stateData?.classification?.toLowerCase()]"
+      >
+        {{ tooltip.stateData?.classification || 'Unknown' }}
+      </span>
+      <div class="tooltip-row">
+        <span class="tooltip-label">Type:</span>
+        <span class="tooltip-value">{{ tooltip.stateData?.type || '' }}</span>
+      </div>
+      <div v-if="tooltip.stateData?.phi && tooltip.stateData.phi !== 'null'" class="tooltip-row">
+        <span class="tooltip-label">Formula (phi):</span>
+        <span class="tooltip-value formula-text">{{ tooltip.stateData.phi }}</span>
+      </div>
+      <div v-if="tooltip.stateData?.xnf_phi && tooltip.stateData.xnf_phi !== 'null'" class="tooltip-row">
+        <span class="tooltip-label">XNF Formula:</span>
+        <span class="tooltip-value formula-text">{{ tooltip.stateData.xnf_phi }}</span>
+      </div>
+      <div v-if="tooltip.stateData?.prop_atoms && tooltip.stateData.prop_atoms.length > 0" class="tooltip-row">
+        <span class="tooltip-label">Propositional Atoms:</span>
+        <span class="tooltip-value">[{{ tooltip.stateData.prop_atoms.join(', ') }}]</span>
+      </div>
     </div>
   </div>
 </template>
@@ -30,7 +53,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue';
 import { useGraphViz } from '@/composables/useGraphViz';
-import type { SubStepHighlights, SubStepGraphData } from '@/types/trace';
+import type { SubStepHighlights, SubStepGraphData, StateData } from '@/types/trace';
 
 interface Props {
   graphData: SubStepGraphData;
@@ -52,8 +75,7 @@ const tooltip = ref({
   visible: false,
   x: 0,
   y: 0,
-  nodeId: '',
-  info: ''
+  stateData: null as StateData | null
 });
 
 /**
@@ -76,29 +98,12 @@ async function render(): Promise<void> {
 }
 
 /**
- * Parse node information from the title element
+ * Extract node ID from the title element
  * Title format: "S0\nSwin" or "E0\nEwin" or "S0 (init)\nUnknown"
  */
-function parseNodeInfo(titleText: string): { id: string; info: string } {
+function extractNodeId(titleText: string): string {
   const lines = titleText.split('\n').map(l => l.trim());
-  const nodeId = lines[0] || '';
-
-  // Get the classification line (second line, or first line if only one)
-  let info = '';
-  for (const line of lines) {
-    if (line.includes('Swin') || line.includes('Ewin') || line.includes('Unknown')) {
-      info = line;
-      break;
-    }
-  }
-
-  // Determine player type from node ID prefix
-  const player = nodeId.startsWith('S') ? 'System' : nodeId.startsWith('E') ? 'Environment' : '';
-
-  return {
-    id: nodeId,
-    info: info ? `${info} · ${player}` : player
-  };
+  return lines[0] || '';
 }
 
 /**
@@ -119,8 +124,15 @@ function handleMouseMove(event: MouseEvent): void {
       // Check if this group has a title element (indicates it's a node)
       const title = node.querySelector('title');
       if (title?.textContent) {
-        const nodeInfo = parseNodeInfo(title.textContent);
-        showTooltip(event.clientX, event.clientY, nodeInfo.id, nodeInfo.info);
+        const nodeId = extractNodeId(title.textContent);
+        // Get state data from graphData
+        const stateData = props.graphData.state_data?.[nodeId];
+        if (stateData) {
+          showTooltip(event.clientX, event.clientY, stateData);
+        } else {
+          // Fallback: show basic info if state_data not available
+          showTooltipBasic(event.clientX, event.clientY, nodeId);
+        }
         return;
       }
     }
@@ -139,20 +151,44 @@ function handleMouseOut(): void {
 }
 
 /**
- * Show tooltip at position
+ * Show detailed tooltip with state data
  */
-function showTooltip(x: number, y: number, nodeId: string, info: string): void {
+function showTooltip(x: number, y: number, stateData: StateData): void {
   // Offset tooltip slightly from cursor
   const offsetX = 15;
   const offsetY = 15;
 
+  // Position tooltip, keeping it within viewport
+  const posX = Math.min(x + offsetX, window.innerWidth - 520);
+  const posY = Math.min(y + offsetY, window.innerHeight - 200);
+
   tooltip.value = {
     visible: true,
-    x: x + offsetX,
-    y: y + offsetY,
-    nodeId,
-    info
+    x: posX,
+    y: posY,
+    stateData
   };
+}
+
+/**
+ * Show basic tooltip (fallback when state_data is not available)
+ */
+function showTooltipBasic(x: number, y: number, nodeId: string): void {
+  // Determine player type from node ID prefix
+  const type: 'System' | 'Environment' = nodeId.startsWith('S') ? 'System' : 'Environment';
+
+  // Create minimal state data
+  const stateData: StateData = {
+    id: nodeId,
+    classification: 'Unknown',
+    type: type,
+    is_initial: false,
+    phi: '',
+    xnf_phi: '',
+    prop_atoms: []
+  };
+
+  showTooltip(x, y, stateData);
 }
 
 /**
@@ -203,31 +239,77 @@ onMounted(() => {
   justify-content: center;
 }
 
-/* Tooltip */
+/* Tooltip - matches game_graph HTML style */
 .node-tooltip {
   position: fixed;
-  background: rgba(40, 44, 52, 0.95);
+  background: rgba(0, 0, 0, 0.95);
   color: white;
-  padding: 10px 14px;
+  padding: 12px 16px;
   border-radius: 6px;
   font-size: 13px;
   pointer-events: none;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(4px);
-  max-width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  max-width: 500px;
 }
 
 .tooltip-header {
   font-weight: 600;
   font-size: 14px;
-  margin-bottom: 4px;
-  color: #64B5F6;
+  margin-bottom: 8px;
+  padding-bottom: 5px;
+  border-bottom: 1px solid #444;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
-.tooltip-info {
-  color: #c9d1d9;
+.initial-badge {
   font-size: 12px;
+  color: #FFD700;
+}
+
+.classification-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.classification-badge.swin {
+  background: #228b22;
+}
+
+.classification-badge.ewin {
+  background: #cd5c5c;
+}
+
+.classification-badge.unknown,
+.classification-badge.draw {
+  background: #888;
+}
+
+.tooltip-row {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tooltip-label {
+  color: #aaa;
+  font-size: 11px;
+}
+
+.tooltip-value {
+  font-family: monospace;
+  word-break: break-all;
+}
+
+.formula-text {
+  color: #64B5F6;
 }
 
 /* Highlight styles applied via JS */

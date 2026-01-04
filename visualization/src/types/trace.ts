@@ -20,10 +20,22 @@ export interface SubStepHighlights {
   attractor_nodes?: string[];
 }
 
+// Detailed state data for tooltip display (matches game_graph HTML format)
+export interface StateData {
+  id: string;
+  classification: 'Swin' | 'Ewin' | 'Unknown' | 'Draw';
+  type: 'System' | 'Environment';
+  is_initial: boolean;
+  phi: string;
+  xnf_phi: string;
+  prop_atoms: string[];
+}
+
 export interface SubStepGraphData {
   dot: string;
   num_nodes: number;
   num_edges: number;
+  state_data: Record<string, StateData>;  // state_id -> StateData
 }
 
 export interface SubStepStateInfo {
@@ -72,17 +84,6 @@ export interface Trace {
   formula_id?: string;
   stages: TraceStage[];
   summary?: TraceSummary;
-}
-
-// State information for tooltip display
-export interface StateData {
-  id: string;
-  classification: 'Swin' | 'Ewin' | 'Unknown';
-  type: 'System' | 'Environment';
-  is_initial: boolean;
-  phi?: string;
-  xnf_phi?: string;
-  prop_atoms?: string[];
 }
 
 export type StateClass = 'Unknown' | 'Swin' | 'Ewin' | 'Draw';

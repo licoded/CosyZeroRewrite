@@ -210,7 +210,18 @@ function loadDemoData(): void {
             graph_data: {
               dot: 'digraph GameGraph { rankdir=LR; node[style=filled]; S0[shape=circle,fillcolor=lightcoral,color=blue,label="S0\\nEwin"]; }',
               num_nodes: 1,
-              num_edges: 0
+              num_edges: 0,
+              state_data: {
+                "S0": {
+                  id: "S0",
+                  classification: "Ewin",
+                  type: "System",
+                  is_initial: true,
+                  phi: "(true U p)",
+                  xnf_phi: "p | (X (true U p))",
+                  prop_atoms: ["p"]
+                }
+              }
             },
             highlights: { new_nodes: ["S0"] },
             state_info: { swin_count: 0, ewin_count: 1, unknown_count: 0, total_states: 1 },
@@ -229,7 +240,36 @@ function loadDemoData(): void {
             graph_data: {
               dot: 'digraph GameGraph { rankdir=LR; node[style=filled]; S0[shape=circle,fillcolor=lightgreen,color=blue,label="S0\\nSwin"]; S1[shape=circle,fillcolor=lightgreen,color=blue,label="S1\\nSwin"]; S2[shape=box,fillcolor=lightcoral,color=orange,label="E2\\nEwin"]; S0->S2[color=red,style=dashed]; S2->S1[color=blue,style=solid]; S1->S0[color=blue,style=solid]; }',
               num_nodes: 3,
-              num_edges: 3
+              num_edges: 3,
+              state_data: {
+                "S0": {
+                  id: "S0",
+                  classification: "Swin",
+                  type: "System",
+                  is_initial: true,
+                  phi: "(true U p)",
+                  xnf_phi: "p | (X (true U p))",
+                  prop_atoms: ["p"]
+                },
+                "S1": {
+                  id: "S1",
+                  classification: "Swin",
+                  type: "System",
+                  is_initial: false,
+                  phi: "(true U p)",
+                  xnf_phi: "p | (X (true U p))",
+                  prop_atoms: ["p"]
+                },
+                "S2": {
+                  id: "S2",
+                  classification: "Ewin",
+                  type: "Environment",
+                  is_initial: false,
+                  phi: "(true U p)",
+                  xnf_phi: "p | (X (true U p))",
+                  prop_atoms: ["p"]
+                }
+              }
             },
             highlights: { scc_nodes: ["S0", "S1", "S2"], scc_id: "scc_0" },
             state_info: { swin_count: 2, ewin_count: 1, unknown_count: 0, total_states: 3 },
