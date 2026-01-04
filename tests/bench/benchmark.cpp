@@ -74,6 +74,7 @@ public:
         , completed_(0)
         , failed_(0)
         , last_update_count_(0)
+        , last_output_len_(0)
     {
         if (show_progress_) {
             std::cout << std::flush;
@@ -126,21 +127,22 @@ public:
         }
 
         // Print with carriage return to update in place
-        // First, build the complete string (without leading \r)
+        // Build the output string
         std::ostringstream oss;
         oss << "[" << bar << "] "
             << completed << "/" << total_
             << " (" << failed << " failed)"
             << active_str;
 
-        // Add spaces to clear any leftover characters from previous update
-        size_t current_len = oss.str().length();
-        size_t max_line_len = bar_width + 80; // conservative estimate for active tasks
-        if (current_len < max_line_len) {
-            oss << std::string(max_line_len - current_len, ' ');
+        std::string output = oss.str();
+
+        // Clear any leftover characters from previous longer output
+        if (output.length() < last_output_len_) {
+            output += std::string(last_output_len_ - output.length(), ' ');
         }
 
-        std::cout << "\r" << oss.str() << std::flush;
+        last_output_len_ = output.length();
+        std::cout << "\r" << output << std::flush;
     }
 
     void finish() {
@@ -159,6 +161,7 @@ private:
     std::atomic<int> completed_;
     std::atomic<int> failed_;
     int last_update_count_;
+    size_t last_output_len_;
     std::chrono::steady_clock::time_point last_update_time_;
     std::mutex mutex_;
 };
