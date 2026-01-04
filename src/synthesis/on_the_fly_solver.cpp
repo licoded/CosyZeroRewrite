@@ -11,6 +11,7 @@
 #include <functional>
 #include <fstream>
 #include <iomanip>
+#include <iostream>
 #include <set>
 #include <vector>
 
@@ -668,7 +669,11 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
 
                 for (const auto& s_prime : env_succ_it->second) {  // env move → sys states
                     auto cls_it = classification_.find(s_prime);
-                    assert(cls_it != classification_.end());
+                    if(cls_it == classification_.end()) {
+                        // This sys move leads to an unclassified state
+                        all_env_moves_swin = false;
+                        break;
+                    }
                     if (cls_it->second == StateClass::Swin) {
                         // This env move leads to a Swin state
                         continue;
