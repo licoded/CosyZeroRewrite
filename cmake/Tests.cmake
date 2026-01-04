@@ -48,6 +48,7 @@ endfunction()
 function(add_cosy_test_standalone test_name category source_file)
     add_executable(${test_name} ${source_file})
     target_link_libraries(${test_name} PRIVATE formula)
+    target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/external)
 
     # Output to build/tests/<category>/
     set_target_properties(${test_name} PROPERTIES

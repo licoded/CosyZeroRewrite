@@ -1,36 +1,39 @@
 /**
- * Benchmark Runner for SMv2 Dataset
+ * Benchmark Runner for SMv2 Dataset (Parallel Version)
  *
- * Reads formulas from benchmarks/sm1000/ and compares with expected results.
+ * Features:
+ * - Multi-threaded execution using std::async-based thread pool
+ * - CLI11 command-line parsing
+ * - indicators progress bars
+ * - Real-time display of active and pending tasks
  *
  * Usage:
- *   benchmark_test [options] [base_dir] [bench_spec] [start] [end]
+ *   benchmark_test [options]
  *
  * Options:
- *   -v, --verbose    Print all cases (default: only failed cases)
- *   -q, --quiet      Only print summary (no per-case output)
- *   -p, --progress   Print progress (default: yes)
- *   --no-progress    Disable progress output
- *   -h, --help       Show help message
+ *   -j, --jobs <N>       Number of parallel jobs (default: CPU count)
+ *   -v, --verbose        Print all cases
+ *   -q, --quiet          Only print summary
+ *   --no-progress        Disable progress bar
+ *   --no-active          Don't show active tasks
+ *   -h, --help           Show help
  *
- * Arguments:
- *   base_dir    Benchmark directory (default: benchmarks/sm1000)
- *   bench_spec  "all", "1", or "2" (default: all)
- *   start       Starting formula number (default: 1)
- *   end         Ending formula number (default: 500)
- *
- * Examples:
- *   benchmark_test                                    # All formulas, quiet mode
- *   benchmark_test -v                                 # All formulas, verbose
- *   benchmark_test -q all 1 10                        # First 10, quiet only
- *   benchmark_test --verbose --no-progress all 1 50   # First 50, verbose, no progress
+ * === Updated: 2026-01-05 ===
  */
 
 #include "synthesis/synthesis.hpp"
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
+#include "parallel/thread_pool.hpp"
 #include "log/logger.hpp"
+
+// CLI11 - command line parsing
+#include <CLI/CLI.hpp>
+
+// indicators - progress bars
+#include <indicators/progress_bar.hpp>
+#include <indicators/cursor_control.hpp>
 
 #include <iostream>
 #include <iomanip>
@@ -38,18 +41,109 @@
 #include <sstream>
 #include <vector>
 #include <string>
+#include <atomic>
+#include <set>
+#include <mutex>
 
 using namespace formula;
 using namespace synthesis;
 
-// Output verbosity level
-enum class Verbosity {
-    Quiet,      // Only summary
-    Normal,     // Failed cases + summary (default)
-    Verbose     // All cases + summary
+// ============================================================================
+// Task result structure
+// ============================================================================
+
+struct TaskResult {
+    int bench_dir;
+    int formula_num;
+    bool success;
+    double elapsed_ms;
+    std::string formula_str;
+    std::string partition_str;
+    std::string error_msg;
+
+    TaskResult() : bench_dir(0), formula_num(0), success(false), elapsed_ms(0.0) {}
 };
 
-// Helper function to join strings
+// ============================================================================
+// Progress display
+// ============================================================================
+
+class ProgressDisplay {
+public:
+    ProgressDisplay(size_t total, bool show_progress, bool show_active)
+        : total_(total)
+        , show_progress_(show_progress)
+        , show_active_(show_active)
+        , completed_(0)
+        , failed_(0)
+    {
+        if (show_progress_) {
+            using namespace indicators;
+
+            bar_ = std::make_unique<indicators::ProgressBar>(
+                option::BarWidth{50},
+                option::Start{"["},
+                option::Fill{"="},
+                option::Lead{">"},
+                option::Remainder{" "},
+                option::End{"]"},
+                option::PrefixText{"Benchmark"},
+                option::ForegroundColor{indicators::Color::cyan},
+                option::ShowElapsedTime{true},
+                option::ShowRemainingTime{true},
+                option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
+            );
+        }
+    }
+
+    void update(int completed, int failed, const std::set<int>& active_tasks) {
+        if (show_progress_ && bar_) {
+            std::lock_guard<std::mutex> lock(mutex_);
+
+            completed_ = completed;
+            failed_ = failed;
+
+            size_t progress_value = static_cast<size_t>(completed);
+            bar_->set_progress(progress_value);
+
+            // Build active tasks string
+            std::string active_str;
+            if (show_active_ && !active_tasks.empty()) {
+                active_str = " | Active: ";
+                bool first = true;
+                for (int task : active_tasks) {
+                    if (!first) active_str += ", ";
+                    active_str += "f" + std::to_string(task);
+                    first = false;
+                }
+            }
+            bar_->set_option(indicators::option::PostfixText{
+                std::to_string(completed) + "/" + std::to_string(total_) +
+                " (" + std::to_string(failed) + " failed)" + active_str
+            });
+        }
+    }
+
+    void finish() {
+        if (bar_) {
+            bar_->mark_as_completed();
+        }
+    }
+
+private:
+    size_t total_;
+    bool show_progress_;
+    bool show_active_;
+    std::atomic<int> completed_;
+    std::atomic<int> failed_;
+    std::unique_ptr<indicators::ProgressBar> bar_;
+    std::mutex mutex_;  // Protects bar_ updates
+};
+
+// ============================================================================
+// Helper functions
+// ============================================================================
+
 static std::string join(const std::vector<std::string>& vec, const std::string& delim) {
     if (vec.empty()) return "";
     std::ostringstream oss;
@@ -60,112 +154,208 @@ static std::string join(const std::vector<std::string>& vec, const std::string& 
     return oss.str();
 }
 
-// Print usage message
-static void print_usage(const char* prog_name) {
-    std::cout << "Usage: " << prog_name << " [options] [base_dir] [bench_spec] [start] [end]\n\n"
-              << "Options:\n"
-              << "  -v, --verbose    Print all cases (default: only failed cases)\n"
-              << "  -q, --quiet      Only print summary (no per-case output)\n"
-              << "  -p, --progress   Print progress (default: yes)\n"
-              << "  --no-progress    Disable progress output\n"
-              << "  -h, --help       Show this help message\n\n"
-              << "Arguments:\n"
-              << "  base_dir    Benchmark directory (default: benchmarks/sm1000)\n"
-              << "  bench_spec  \"all\", \"1\", or \"2\" (default: all)\n"
-              << "  start       Starting formula number (default: 1)\n"
-              << "  end         Ending formula number (default: 500)\n\n"
-              << "Examples:\n"
-              << "  " << prog_name << "                                  # All 1000 formulas\n"
-              << "  " << prog_name << " -v                               # Verbose mode\n"
-              << "  " << prog_name << " -q all 1 10                      # Quiet, first 10\n"
-              << "  " << prog_name << " --no-progress all 1 50           # No progress, first 50\n"
-              << std::endl;
+static std::string make_partition_string(
+    const std::vector<std::string>& inputs,
+    const std::vector<std::string>& outputs)
+{
+    if (!inputs.empty() && !outputs.empty()) {
+        return "inputs: [" + join(inputs, ", ") + "], outputs: [" + join(outputs, ", ") + "]";
+    } else if (!outputs.empty()) {
+        return "outputs: [" + join(outputs, ", ") + "]";
+    } else if (!inputs.empty()) {
+        return "inputs: [" + join(inputs, ", ") + "]";
+    }
+    return "(no partition)";
 }
 
+// ============================================================================
+// Task processor
+// ============================================================================
+
+class BenchmarkRunner {
+public:
+    BenchmarkRunner(
+        const std::string& base_dir,
+        const std::vector<int>& bench_dirs,
+        int start_num,
+        int end_num,
+        size_t num_jobs,
+        bool show_progress,
+        bool show_active)
+        : base_dir_(base_dir)
+        , bench_dirs_(bench_dirs)
+        , start_num_(start_num)
+        , end_num_(end_num)
+        , num_jobs_(num_jobs)
+        , show_progress_(show_progress)
+        , show_active_(show_active)
+    {
+        // Calculate total tasks
+        total_tasks_ = bench_dirs_.size() * (end_num - start_num + 1);
+
+        // Initialize progress display
+        if (show_progress) {
+            progress_ = std::make_unique<ProgressDisplay>(total_tasks_, show_progress, show_active);
+        }
+    }
+
+    std::vector<TaskResult> run() {
+        std::vector<TaskResult> results;
+        results.reserve(total_tasks_);
+
+        parallel::ThreadPool pool(num_jobs_);
+
+        // Mutex for protecting shared access
+        std::mutex results_mutex;
+        std::mutex active_mutex;
+        std::set<int> active_formula_nums;
+        std::atomic<int> completed{0};
+        std::atomic<int> failed{0};
+        std::atomic<int> next_task_index{0};
+
+        // Lambda to process a single formula
+        auto process_formula = [&](int bench_dir, int formula_num) -> TaskResult {
+            TaskResult result;
+            result.bench_dir = bench_dir;
+            result.formula_num = formula_num;
+
+            // Add to active set
+            {
+                std::lock_guard<std::mutex> lock(active_mutex);
+                active_formula_nums.insert(formula_num);
+            }
+
+            auto start = std::chrono::high_resolution_clock::now();
+
+            // Read benchmark
+            std::string formula_str;
+            std::vector<std::string> outputs, inputs;
+            if (!Synthesis::read_benchmark_from_dir(
+                base_dir_, bench_dir, formula_num, formula_str, outputs, inputs))
+            {
+                result.success = false;
+                result.error_msg = "file not found";
+            } else {
+                // Parse formula
+                FormulaPool pool;
+                Formula* f = Synthesis::parse_formula(formula_str, pool);
+
+                auto end = std::chrono::high_resolution_clock::now();
+                result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+                result.formula_str = formula_str;
+                result.partition_str = make_partition_string(inputs, outputs);
+
+                if (f) {
+                    result.success = true;
+                } else {
+                    result.success = false;
+                    result.error_msg = "parse error";
+                }
+            }
+
+            // Remove from active set
+            {
+                std::lock_guard<std::mutex> lock(active_mutex);
+                active_formula_nums.erase(formula_num);
+            }
+
+            // Update progress
+            int c = ++completed;
+            if (!result.success) {
+                ++failed;
+            }
+
+            if (progress_) {
+                std::set<int> active_copy;
+                if (show_active_) {
+                    std::lock_guard<std::mutex> lock(active_mutex);
+                    active_copy = active_formula_nums;
+                }
+                progress_->update(c, failed.load(), active_copy);
+            }
+
+            return result;
+        };
+
+        // Submit all tasks
+        std::vector<std::future<TaskResult>> futures;
+
+        for (int bench_dir : bench_dirs_) {
+            for (int i = start_num_; i <= end_num_; ++i) {
+                auto future = pool.submit(process_formula, bench_dir, i);
+                futures.push_back(std::move(future));
+            }
+        }
+
+        // Collect results
+        for (auto& future : futures) {
+            results.push_back(future.get());
+        }
+
+        if (progress_) {
+            progress_->finish();
+        }
+
+        return results;
+    }
+
+private:
+    std::string base_dir_;
+    std::vector<int> bench_dirs_;
+    int start_num_;
+    int end_num_;
+    size_t num_jobs_;
+    bool show_progress_;
+    bool show_active_;
+    size_t total_tasks_;
+    std::unique_ptr<ProgressDisplay> progress_;
+};
+
+// ============================================================================
+// Main
+// ============================================================================
+
 int main(int argc, char* argv[]) {
+    CLI::App app{"SMv2 LTLf Benchmark Runner (Parallel)"};
+
     // Default values
     std::string base_dir = "benchmarks/sm1000";
     std::string bench_spec = "all";
-    int start_bench = 1;
-    int end_bench = 500;
-    Verbosity verbosity = Verbosity::Normal;
-    bool show_progress = true;
+    int start_num = 1;
+    int end_num = 500;
+    size_t num_jobs = std::thread::hardware_concurrency();
+    bool verbose = false;
+    bool quiet = false;
+    bool no_progress = false;
+    bool no_active = false;
 
-    // Parse command line arguments
-    std::vector<std::string> args;
-    for (int i = 1; i < argc; ++i) {
-        args.push_back(argv[i]);
+    // Define options
+    app.add_option("-d,--dir", base_dir, "Benchmark directory")
+        ->capture_default_str();
+    app.add_option("-b,--bench", bench_spec, "Benchmark spec (all, 1, or 2)")
+        ->capture_default_str();
+    app.add_option("-s,--start", start_num, "Starting formula number")
+        ->check(CLI::Range(1, 500));
+    app.add_option("-e,--end", end_num, "Ending formula number")
+        ->check(CLI::Range(1, 500));
+    app.add_option("-j,--jobs", num_jobs, "Number of parallel jobs")
+        ->check(CLI::PositiveNumber);
+    app.add_flag("-v,--verbose", verbose, "Print all cases");
+    app.add_flag("-q,--quiet", quiet, "Only print summary");
+    app.add_flag("--no-progress", no_progress, "Disable progress bar");
+    app.add_flag("--no-active", no_active, "Don't show active tasks");
+
+    // Parse arguments
+    try {
+        app.parse(argc, argv);
+    } catch (const CLI::ParseError& e) {
+        return app.exit(e);
     }
 
-    size_t arg_idx = 0;
-    while (arg_idx < args.size()) {
-        const std::string& arg = args[arg_idx];
-
-        if (arg == "-h" || arg == "--help") {
-            print_usage(argv[0]);
-            return 0;
-        } else if (arg == "-v" || arg == "--verbose") {
-            verbosity = Verbosity::Verbose;
-            arg_idx++;
-        } else if (arg == "-q" || arg == "--quiet") {
-            verbosity = Verbosity::Quiet;
-            arg_idx++;
-        } else if (arg == "-p" || arg == "--progress") {
-            show_progress = true;
-            arg_idx++;
-        } else if (arg == "--no-progress") {
-            show_progress = false;
-            arg_idx++;
-        } else if (arg[0] != '-') {
-            // Positional arguments: base_dir [bench_spec|start] [end]
-            base_dir = arg;
-            arg_idx++;
-
-            if (arg_idx < args.size()) {
-                std::string arg2 = args[arg_idx];
-                if (arg2 == "1" || arg2 == "2" || arg2 == "all") {
-                    // arg2 is bench_spec
-                    bench_spec = arg2;
-                    arg_idx++;
-
-                    // Check for start/end after bench_spec
-                    if (arg_idx < args.size()) {
-                        std::string arg3 = args[arg_idx];
-                        if (arg3[0] != '-') {
-                            start_bench = std::atoi(arg3.c_str());
-                            arg_idx++;
-
-                            if (arg_idx < args.size()) {
-                                std::string arg4 = args[arg_idx];
-                                if (arg4[0] != '-') {
-                                    end_bench = std::atoi(arg4.c_str());
-                                    arg_idx++;
-                                }
-                            }
-                        }
-                    }
-                } else if (arg2[0] != '-') {
-                    // arg2 is start_bench (numeric)
-                    start_bench = std::atoi(arg2.c_str());
-                    arg_idx++;
-
-                    if (arg_idx < args.size()) {
-                        std::string arg3 = args[arg_idx];
-                        if (arg3[0] != '-') {
-                            end_bench = std::atoi(arg3.c_str());
-                            arg_idx++;
-                        }
-                    }
-                    // When using numeric range, default to bench1
-                    bench_spec = "1";
-                }
-            }
-            break;
-        } else {
-            std::cerr << "Unknown option: " << arg << std::endl;
-            print_usage(argv[0]);
-            return 1;
-        }
+    // Validate range
+    if (start_num > end_num) {
+        std::cerr << "Error: start number cannot be greater than end number" << std::endl;
+        return 1;
     }
 
     // Determine which bench directories to run
@@ -176,128 +366,101 @@ int main(int argc, char* argv[]) {
         bench_dirs = {1};
     } else if (bench_spec == "2") {
         bench_dirs = {2};
+    } else {
+        std::cerr << "Error: bench_spec must be 'all', '1', or '2'" << std::endl;
+        return 1;
     }
 
-    // Print header based on verbosity
-    if (verbosity != Verbosity::Quiet) {
-        std::cout << "Benchmark Runner" << std::endl;
-        std::cout << "=================" << std::endl;
+    // Print header
+    if (!quiet) {
+        std::cout << "========================================" << std::endl;
+        std::cout << "  SMv2 Benchmark Runner (Parallel)" << std::endl;
+        std::cout << "========================================" << std::endl;
         std::cout << "Base directory: " << base_dir << std::endl;
         std::cout << "Bench directories: " << bench_spec << std::endl;
-        std::cout << "Formula range: f" << start_bench << " to f" << end_bench << std::endl;
-        std::cout << "Mode: "
-                  << (verbosity == Verbosity::Verbose ? "verbose" :
-                      verbosity == Verbosity::Quiet ? "quiet" : "normal")
-                  << std::endl;
+        std::cout << "Formula range: f" << start_num << " to f" << end_num << std::endl;
+        std::cout << "Parallel jobs: " << num_jobs << std::endl;
         std::cout << std::endl;
     }
 
-    // Statistics
+    // Run benchmarks
+    BenchmarkRunner runner(
+        base_dir, bench_dirs, start_num, end_num, num_jobs,
+        !no_progress && !quiet, !no_active
+    );
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+    auto results = runner.run();
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    // Calculate statistics
     int parsed = 0;
-    int failed_parse = 0;
+    int failed = 0;
     int found_results = 0;
     int not_found_results = 0;
     double total_time_ms = 0;
-    int total_count = 0;
 
-    for (int bench_dir : bench_dirs) {
-        for (int i = start_bench; i <= end_bench; ++i) {
-            std::string formula_str;
-            std::vector<std::string> outputs, inputs;
+    for (const auto& r : results) {
+        total_time_ms += r.elapsed_ms;
+        if (r.success) {
+            parsed++;
+        } else {
+            failed++;
+        }
 
-            auto start = std::chrono::high_resolution_clock::now();
+        // Check expected result
+        auto expected = Synthesis::read_expected_result(base_dir, r.formula_num);
+        if (expected.has_value()) {
+            found_results++;
+        } else {
+            not_found_results++;
+        }
 
-            // Read benchmark from specific directory
-            if (!Synthesis::read_benchmark_from_dir(base_dir, bench_dir, i, formula_str, outputs, inputs)) {
-                if (verbosity == Verbosity::Verbose) {
-                    std::cout << "SKIP: bench" << bench_dir << "/f" << i << " (file not found)" << std::endl;
+        // Print failed cases (or all in verbose mode)
+        if (verbose || !r.success) {
+            if (!quiet) {
+                if (r.success) {
+                    std::cout << "OK: bench" << r.bench_dir << "/f" << r.formula_num
+                              << " (" << r.elapsed_ms << "ms)" << std::endl;
+                } else {
+                    std::cout << "\033[31m" << "FAIL: bench" << r.bench_dir << "/f" << r.formula_num
+                              << " (" << r.error_msg << ")" << "\033[0m" << std::endl;
                 }
-                continue;
-            }
-
-            // Parse formula
-            FormulaPool pool;
-            Formula* f = Synthesis::parse_formula(formula_str, pool);
-
-            auto end = std::chrono::high_resolution_clock::now();
-            double elapsed = std::chrono::duration<double, std::milli>(end - start).count();
-            total_time_ms += elapsed;
-
-            // Build partition string
-            std::string partition_str;
-            if (!inputs.empty() && !outputs.empty()) {
-                partition_str = "inputs: [" + join(inputs, ", ") + "], outputs: [" + join(outputs, ", ") + "]";
-            } else if (!outputs.empty()) {
-                partition_str = "outputs: [" + join(outputs, ", ") + "]";
-            } else if (!inputs.empty()) {
-                partition_str = "inputs: [" + join(inputs, ", ") + "]";
-            } else {
-                partition_str = "(no partition)";
-            }
-
-            // Get expected result
-            auto expected = Synthesis::read_expected_result(base_dir, i);
-
-            if (f) {
-                parsed++;
-                // Only print OK cases in verbose mode
-                if (verbosity == Verbosity::Verbose) {
-                    std::cout << "OK: bench" << bench_dir << "/f" << i << " (" << elapsed << "ms)" << std::endl;
-                    std::cout << "  Formula: " << formula_str << std::endl;
-                    std::cout << "  Partition: " << partition_str << std::endl;
-                    if (expected.has_value()) {
-                        std::cout << "  Expected: " << (expected.value() ? "Realizable" : "Unrealizable") << std::endl;
-                    }
-                    std::cout << std::endl;
-                }
-            } else {
-                failed_parse++;
-                // Always print FAIL cases (unless in quiet mode)
-                if (verbosity != Verbosity::Quiet) {
-                    std::cout << "FAIL: bench" << bench_dir << "/f" << i << " (parse error)" << std::endl;
-                    std::cout << "  Formula: " << formula_str << std::endl;
-                    std::cout << "  Partition: " << partition_str << std::endl;
-                    if (expected.has_value()) {
-                        std::cout << "  Expected: " << (expected.value() ? "Realizable" : "Unrealizable") << std::endl;
-                    }
-                    std::cout << std::endl;
-                }
-            }
-
-            if (expected.has_value()) {
-                found_results++;
-            } else {
-                not_found_results++;
-            }
-
-            total_count++;
-
-            // Progress indicator (only in non-quiet mode)
-            if (show_progress && verbosity != Verbosity::Quiet && total_count % 100 == 0) {
-                std::cout << "--- Progress: " << total_count << " formulas processed ---" << std::endl;
+                std::cout << "  Formula: " << r.formula_str << std::endl;
+                std::cout << "  Partition: " << r.partition_str << std::endl;
+                std::cout << std::endl;
             }
         }
     }
 
-    // Always print summary
+    double elapsed_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
+
+    // Print summary
     std::cout << "\n========== Summary ==========" << std::endl;
     std::cout << "Parsed: " << parsed << std::endl;
-    std::cout << "Failed parse: " << failed_parse << std::endl;
+    std::cout << "Failed parse: " << failed << std::endl;
     std::cout << "Results found: " << found_results << std::endl;
     std::cout << "Results not found: " << not_found_results << std::endl;
-    std::cout << "Total time: " << std::fixed << std::setprecision(2) << total_time_ms << "ms" << std::endl;
-    std::cout << "Average time: " << std::fixed << std::setprecision(3)
-              << (total_count > 0 ? total_time_ms / total_count : 0) << "ms" << std::endl;
-    if (failed_parse == 0) {
+    std::cout << "Total formulas: " << results.size() << std::endl;
+    std::cout << "Wall time: " << std::fixed << std::setprecision(2) << elapsed_ms << "ms" << std::endl;
+    std::cout << "CPU time: " << std::fixed << std::setprecision(2) << total_time_ms << "ms" << std::endl;
+    if (results.size() > 0) {
+        std::cout << "Speedup: " << std::fixed << std::setprecision(2)
+                  << (total_time_ms / elapsed_ms) << "x" << std::endl;
+    }
+    std::cout << "Avg time per formula: " << std::fixed << std::setprecision(3)
+              << (results.size() > 0 ? total_time_ms / results.size() : 0) << "ms" << std::endl;
+
+    if (failed == 0) {
         std::cout << "Status: " << "\033[32m" << "ALL TESTS PASSED" << "\033[0m" << std::endl;
     } else {
         std::cout << "Status: " << "\033[31m" << "SOME TESTS FAILED" << "\033[0m" << std::endl;
     }
 
-    // Explicitly flush and shutdown logger to avoid hang on exit
+    // Cleanup
     LOG_FLUSH();
     logger::Logger::instance().get()->flush();
     spdlog::shutdown();
 
-    return (failed_parse > 0) ? 1 : 0;
+    return (failed > 0) ? 1 : 0;
 }
