@@ -31,13 +31,10 @@
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
 
-// indicators - progress bars
-#include <indicators/progress_bar.hpp>
-#include <indicators/cursor_control.hpp>
-
 #include <iostream>
 #include <iomanip>
 #include <chrono>
+#include <thread>
 #include <sstream>
 #include <vector>
 #include <string>
@@ -76,57 +73,82 @@ public:
         , show_active_(show_active)
         , completed_(0)
         , failed_(0)
+        , last_update_count_(0)
     {
         if (show_progress_) {
-            using namespace indicators;
+            std::cout << std::flush;
+        }
+    }
 
-            bar_ = std::make_unique<indicators::ProgressBar>(
-                option::BarWidth{50},
-                option::Start{"["},
-                option::Fill{"="},
-                option::Lead{">"},
-                option::Remainder{" "},
-                option::End{"]"},
-                option::PrefixText{"Benchmark"},
-                option::ForegroundColor{indicators::Color::cyan},
-                option::ShowElapsedTime{true},
-                option::ShowRemainingTime{true},
-                option::FontStyles{std::vector<indicators::FontStyle>{indicators::FontStyle::bold}}
-            );
+    ~ProgressDisplay() {
+        if (show_progress_) {
+            std::cout << std::endl;
         }
     }
 
     void update(int completed, int failed, const std::set<int>& active_tasks) {
-        if (show_progress_ && bar_) {
-            std::lock_guard<std::mutex> lock(mutex_);
+        if (!show_progress_) return;
 
-            completed_ = completed;
-            failed_ = failed;
+        // Update every 5 items or every 100ms
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_update_time_).count();
 
-            size_t progress_value = static_cast<size_t>(completed);
-            bar_->set_progress(progress_value);
-
-            // Build active tasks string
-            std::string active_str;
-            if (show_active_ && !active_tasks.empty()) {
-                active_str = " | Active: ";
-                bool first = true;
-                for (int task : active_tasks) {
-                    if (!first) active_str += ", ";
-                    active_str += "f" + std::to_string(task);
-                    first = false;
-                }
-            }
-            bar_->set_option(indicators::option::PostfixText{
-                std::to_string(completed) + "/" + std::to_string(total_) +
-                " (" + std::to_string(failed) + " failed)" + active_str
-            });
+        if (completed - last_update_count_ < 5 && elapsed < 100) {
+            return;
         }
+
+        std::lock_guard<std::mutex> lock(mutex_);
+        last_update_time_ = now;
+        last_update_count_ = completed;
+
+        // Calculate progress bar width
+        const int bar_width = 40;
+        int filled = (completed * bar_width) / static_cast<int>(total_);
+        if (filled > bar_width) filled = bar_width;
+
+        // Build progress bar
+        std::string bar(filled, '=');
+        if (filled < bar_width) bar += ">";
+
+        // Build active tasks string (limit to 5 items)
+        std::string active_str;
+        if (show_active_ && !active_tasks.empty()) {
+            active_str = " | ";
+            int count = 0;
+            for (int task : active_tasks) {
+                if (count > 0) active_str += ", ";
+                active_str += "f" + std::to_string(task);
+                if (++count >= 5) break;
+            }
+            if (active_tasks.size() > 5) {
+                active_str += "...";
+            }
+        }
+
+        // Print with carriage return to update in place
+        // First, build the complete string (without leading \r)
+        std::ostringstream oss;
+        oss << "[" << bar << "] "
+            << completed << "/" << total_
+            << " (" << failed << " failed)"
+            << active_str;
+
+        // Add spaces to clear any leftover characters from previous update
+        size_t current_len = oss.str().length();
+        size_t max_line_len = bar_width + 80; // conservative estimate for active tasks
+        if (current_len < max_line_len) {
+            oss << std::string(max_line_len - current_len, ' ');
+        }
+
+        std::cout << "\r" << oss.str() << std::flush;
     }
 
     void finish() {
-        if (bar_) {
-            bar_->mark_as_completed();
+        if (show_progress_) {
+            std::cout << "\r[" << std::string(40, '=') << "] "
+                      << total_ << "/" << total_
+                      << " (" << failed_ << " failed)"
+                      << " Done!" << std::endl;
         }
     }
 
@@ -136,8 +158,9 @@ private:
     bool show_active_;
     std::atomic<int> completed_;
     std::atomic<int> failed_;
-    std::unique_ptr<indicators::ProgressBar> bar_;
-    std::mutex mutex_;  // Protects bar_ updates
+    int last_update_count_;
+    std::chrono::steady_clock::time_point last_update_time_;
+    std::mutex mutex_;
 };
 
 // ============================================================================
@@ -181,7 +204,8 @@ public:
         int end_num,
         size_t num_jobs,
         bool show_progress,
-        bool show_active)
+        bool show_active,
+        int sleep_per_task)
         : base_dir_(base_dir)
         , bench_dirs_(bench_dirs)
         , start_num_(start_num)
@@ -189,6 +213,7 @@ public:
         , num_jobs_(num_jobs)
         , show_progress_(show_progress)
         , show_active_(show_active)
+        , sleep_per_task_(sleep_per_task)
     {
         // Calculate total tasks
         total_tasks_ = bench_dirs_.size() * (end_num - start_num + 1);
@@ -251,6 +276,11 @@ public:
                     result.success = false;
                     result.error_msg = "parse error";
                 }
+
+                // Artificial delay for testing progress bar
+                if (sleep_per_task_ > 0) {
+                    std::this_thread::sleep_for(std::chrono::seconds(sleep_per_task_));
+                }
             }
 
             // Remove from active set
@@ -307,6 +337,7 @@ private:
     size_t num_jobs_;
     bool show_progress_;
     bool show_active_;
+    int sleep_per_task_;
     size_t total_tasks_;
     std::unique_ptr<ProgressDisplay> progress_;
 };
@@ -328,6 +359,7 @@ int main(int argc, char* argv[]) {
     bool quiet = false;
     bool no_progress = false;
     bool no_active = false;
+    int sleep_per_task = 0;  // Sleep per task in seconds (for testing progress bar)
 
     // Define options
     app.add_option("-d,--dir", base_dir, "Benchmark directory")
@@ -344,6 +376,8 @@ int main(int argc, char* argv[]) {
     app.add_flag("-q,--quiet", quiet, "Only print summary");
     app.add_flag("--no-progress", no_progress, "Disable progress bar");
     app.add_flag("--no-active", no_active, "Don't show active tasks");
+    app.add_option("--sleep", sleep_per_task, "Sleep per task (seconds, for testing)")
+        ->check(CLI::Range(0, 60));
 
     // Parse arguments
     try {
@@ -386,7 +420,7 @@ int main(int argc, char* argv[]) {
     // Run benchmarks
     BenchmarkRunner runner(
         base_dir, bench_dirs, start_num, end_num, num_jobs,
-        !no_progress && !quiet, !no_active
+        !no_progress && !quiet, !no_active, sleep_per_task
     );
 
     auto start_time = std::chrono::high_resolution_clock::now();
