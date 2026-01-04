@@ -63,10 +63,11 @@ inline const char* to_string(StateClass cls) {
  * - DFA state (tableau state)
  * - Player to move
  * - Output assignment chosen by system (only valid during environment's turn)
+ * - Input assignment chosen by environment (only valid during system's turn)
  *
  * Invariant:
- * - When player == System: system_chosen_output is nullopt
- * - When player == Environment: system_chosen_output has a value
+ * - When player == System: system_chosen_output is nullopt, environment_chosen_input has value
+ * - When player == Environment: system_chosen_output has value, environment_chosen_input is nullopt
  */
 struct GameState {
     automata::TableauState* dfa_state;
@@ -76,15 +77,23 @@ struct GameState {
     // nullopt when player == System, has value when player == Environment
     std::optional<automata::Assignment> system_chosen_output;
 
+    // For system turn, track the input assignment chosen by environment
+    // has value when player == System, nullopt when player == Environment
+    std::optional<automata::Assignment> environment_chosen_input;
+
     // Default constructor (for uninitialized states)
     GameState()
-        : dfa_state(nullptr), player(Player::System), system_chosen_output(std::nullopt) {}
+        : dfa_state(nullptr), player(Player::System),
+          system_chosen_output(std::nullopt), environment_chosen_input(std::nullopt) {}
 
     GameState(automata::TableauState* q, Player p,
-              const std::optional<automata::Assignment>& out = std::nullopt)
-        : dfa_state(q), player(p), system_chosen_output(out) {}
+              const std::optional<automata::Assignment>& out = std::nullopt,
+              const std::optional<automata::Assignment>& in = std::nullopt)
+        : dfa_state(q), player(p), system_chosen_output(out), environment_chosen_input(in) {}
 
     bool operator==(const GameState& other) const {
+        // Note: environment_chosen_input is NOT part of identity
+        // It's only stored for labeling the env move edge in DOT output
         return dfa_state == other.dfa_state &&
                player == other.player &&
                system_chosen_output == other.system_chosen_output;
@@ -99,6 +108,9 @@ struct GameState {
 
 /**
  * @brief Hash function for GameState
+ *
+ * Note: environment_chosen_input is NOT part of the hash.
+ * It's only stored for labeling the env move edge in DOT output.
  */
 struct GameStateHash {
     size_t operator()(const GameState& s) const {
@@ -110,6 +122,7 @@ struct GameStateHash {
                 h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
             }
         }
+        // Note: environment_chosen_input is NOT hashed (not part of identity)
         return h;
     }
 };
@@ -420,9 +433,12 @@ private:
 
     /**
      * @brief Create system turn state
+     * @param q DFA state
+     * @param in Input assignment chosen by environment (optional, nullopt for initial state)
      */
-    GameState system_state(automata::TableauState* q) {
-        return GameState(q, Player::System);
+    GameState system_state(automata::TableauState* q,
+                          const std::optional<automata::Assignment>& in = std::nullopt) {
+        return GameState(q, Player::System, std::nullopt, in);
     }
 
     /**

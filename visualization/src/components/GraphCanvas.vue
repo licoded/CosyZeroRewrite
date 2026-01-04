@@ -28,12 +28,15 @@
           {{ tooltip.stateData?.id || '' }}
           <span v-if="tooltip.stateData?.is_initial" class="initial-badge">(initial)</span>
         </div>
-        <span
-          v-if="tooltip.stateData"
-          :class="['classification-badge', tooltip.stateData.classification?.toLowerCase()]"
-        >
-          {{ tooltip.stateData.classification }}
-        </span>
+        <div class="tooltip-row">
+          <span class="tooltip-label">Classification:</span>
+          <span
+            v-if="tooltip.stateData"
+            :class="['classification-badge', tooltip.stateData.classification?.toLowerCase()]"
+          >
+            {{ tooltip.stateData.classification }}
+          </span>
+        </div>
         <div class="tooltip-row">
           <span class="tooltip-label">Type:</span>
           <span class="tooltip-value">{{ tooltip.stateData?.type || '' }}</span>
@@ -469,7 +472,6 @@ onMounted(() => {
   border-radius: 4px;
   font-size: 12px;
   font-weight: bold;
-  margin-bottom: 8px;
 }
 
 .classification-badge.swin {
@@ -486,24 +488,30 @@ onMounted(() => {
 }
 
 .tooltip-row {
-  margin-top: 8px;
+  margin-top: 6px;
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
 }
 
 .tooltip-label {
   color: #aaa;
   font-size: 11px;
+  white-space: nowrap;
 }
 
 .tooltip-value {
   font-family: monospace;
-  word-break: break-all;
+  word-break: break-word;
 }
 
 .formula-text {
   color: #64B5F6;
+  max-width: 360px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
 }
 
 /* Highlight styles applied via JS */

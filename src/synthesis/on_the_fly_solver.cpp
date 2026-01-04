@@ -32,6 +32,16 @@ std::string GameState::to_string() const {
         }
         oss << "}";
     }
+    if (environment_chosen_input.has_value()) {
+        oss << ", in={";
+        bool first = true;
+        for (int v : environment_chosen_input.value()) {
+            if (!first) oss << ",";
+            oss << v;
+            first = false;
+        }
+        oss << "}";
+    }
     oss << "}";
     return oss.str();
 }
@@ -288,7 +298,9 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
                 // The winner will be determined by whether the terminal DFA state is accepting
                 LOG_DEBUG("OnTheFlyGameSolver: terminal DFA state reached, not adding successor");
             } else {
-                succs.push_back(system_state(next_dfa));
+                // Create system state with the input assignment stored
+                // This allows us to label the env move edge with the input assignment
+                succs.push_back(system_state(next_dfa, in));
             }
         }
 

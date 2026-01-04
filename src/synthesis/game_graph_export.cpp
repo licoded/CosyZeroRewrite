@@ -164,6 +164,12 @@ std::string OnTheFlyGameSolver::to_dot() const {
                 // Env move: red dashed line
                 oss << "  " << from_id << " -> " << to_id
                     << " [color=red, style=dashed";
+                // Label with input assignment (stored in the target system state)
+                if (succ.environment_chosen_input.has_value()) {
+                    oss << ", label=\"in="
+                        << id_map.get_assignment_string(succ.environment_chosen_input.value())
+                        << "\"";
+                }
                 oss << "];\n";
             }
         }
@@ -293,6 +299,8 @@ std::string OnTheFlyGameSolver::to_json() const {
             // Assignment info
             if (from.player == Player::System && succ.system_chosen_output.has_value()) {
                 oss << "      \"output\": " << id_map.get_assignment_string(succ.system_chosen_output.value()) << ",\n";
+            } else if (from.player == Player::Environment && succ.environment_chosen_input.has_value()) {
+                oss << "      \"input\": " << id_map.get_assignment_string(succ.environment_chosen_input.value()) << ",\n";
             }
             oss << "      \"is_sys_move\": " << (from.player == Player::System ? "true" : "false") << "\n";
             oss << "    }";
