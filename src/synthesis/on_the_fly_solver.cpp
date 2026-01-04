@@ -237,7 +237,7 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
                 LOG_DEBUG("OnTheFlyGameSolver: terminal DFA state reached, not adding successor");
             } else {
                 succs.push_back(system_state(next_dfa));
-            }
+            }·
         }
 
         LOG_DEBUG("OnTheFlyGameSolver: environment state -> ", succs.size(), " system states");
