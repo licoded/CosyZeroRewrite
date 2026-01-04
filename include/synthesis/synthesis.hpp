@@ -111,7 +111,23 @@ public:
     static bool read_benchmark(const std::string& base_dir, int bench_num,
                                std::string& formula_str,
                                std::vector<std::string>& outputs,
-                               std::vector<std::string>& inputs);
+                               std::vector<std::string>& inputs,
+                               int* bench_dir = nullptr);
+
+    /**
+     * @brief Read a benchmark case from a specific bench directory
+     * @param base_dir Base directory of benchmarks (e.g., "benchmarks/sm1000")
+     * @param bench_dir Bench directory number (1 or 2)
+     * @param bench_num Benchmark number within that directory (1-500)
+     * @param formula_str Formula string (out)
+     * @param outputs Output variables (out)
+     * @param inputs Input variables (out)
+     * @return true if successful
+     */
+    static bool read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num,
+                                        std::string& formula_str,
+                                        std::vector<std::string>& outputs,
+                                        std::vector<std::string>& inputs);
 
     /**
      * @brief Read the expected result from results.csv

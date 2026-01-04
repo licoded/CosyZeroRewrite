@@ -15,46 +15,83 @@
 #include <iomanip>
 #include <chrono>
 #include <filesystem>
+#include <sstream>
+#include <vector>
 
 using namespace formula;
 using namespace synthesis;
 
+// Helper function to join strings
+static std::string join(const std::vector<std::string>& vec, const std::string& delim) {
+    if (vec.empty()) return "";
+    std::ostringstream oss;
+    for (size_t i = 0; i < vec.size(); ++i) {
+        if (i > 0) oss << delim;
+        oss << vec[i];
+    }
+    return oss.str();
+}
+
 int main(int argc, char* argv[]) {
     std::string base_dir = "benchmarks/sm1000";
+    std::string bench_spec = "all";  // "all", "1", "2"
     int start_bench = 1;
-    int end_bench = 100;
+    int end_bench = 500;
 
+    // Parse arguments:
+    // argv[1]: base_dir (optional)
+    // argv[2]: bench_spec or start_bench (optional)
+    // argv[3]: end_bench (optional, only if argv[2] is a number)
     if (argc > 1) {
         base_dir = argv[1];
     }
     if (argc > 2) {
-        start_bench = std::atoi(argv[2]);
+        std::string arg2 = argv[2];
+        if (arg2 == "1" || arg2 == "2" || arg2 == "all") {
+            bench_spec = arg2;
+        } else {
+            start_bench = std::atoi(arg2.c_str());
+            if (argc > 3) {
+                end_bench = std::atoi(argv[3]);
+            }
+            bench_spec = "1";  // default to bench1 when using numeric range
+        }
     }
-    if (argc > 3) {
-        end_bench = std::atoi(argv[3]);
+
+    // Determine which bench directories to run
+    std::vector<int> bench_dirs;
+    if (bench_spec == "all") {
+        bench_dirs = {1, 2};
+    } else if (bench_spec == "1") {
+        bench_dirs = {1};
+    } else if (bench_spec == "2") {
+        bench_dirs = {2};
     }
 
     LOG_INFO("Benchmark Runner starting...");
     LOG_INFO("Base directory: {}", base_dir);
-    LOG_INFO("Benchmarks: {} to {}", start_bench, end_bench);
+    LOG_INFO("Bench directories: {}", bench_spec);
+    LOG_INFO("Formula range: f{} to f{}", start_bench, end_bench);
 
     int parsed = 0;
     int failed_parse = 0;
     int found_results = 0;
     int not_found_results = 0;
     double total_time_ms = 0;
+    int total_count = 0;
 
-    for (int i = start_bench; i <= end_bench; ++i) {
-        std::string formula_str;
-        std::vector<std::string> outputs, inputs;
+    for (int bench_dir : bench_dirs) {
+        for (int i = start_bench; i <= end_bench; ++i) {
+            std::string formula_str;
+            std::vector<std::string> outputs, inputs;
 
-        auto start = std::chrono::high_resolution_clock::now();
+            auto start = std::chrono::high_resolution_clock::now();
 
-        // Read benchmark
-        if (!Synthesis::read_benchmark(base_dir, i, formula_str, outputs, inputs)) {
-            std::cout << "SKIP: f" << i << " (file not found)" << std::endl;
-            continue;
-        }
+            // Read benchmark from specific directory
+            if (!Synthesis::read_benchmark_from_dir(base_dir, bench_dir, i, formula_str, outputs, inputs)) {
+                std::cout << "SKIP: bench" << bench_dir << "/f" << i << " (file not found)" << std::endl;
+                continue;
+            }
 
         // Parse formula
         FormulaPool pool;
@@ -64,10 +101,23 @@ int main(int argc, char* argv[]) {
         double elapsed = std::chrono::duration<double, std::milli>(end - start).count();
         total_time_ms += elapsed;
 
+        // Build partition string
+        std::string partition_str;
+        if (!inputs.empty() && !outputs.empty()) {
+            partition_str = "inputs: [" + join(inputs, ", ") + "], outputs: [" + join(outputs, ", ") + "]";
+        } else if (!outputs.empty()) {
+            partition_str = "outputs: [" + join(outputs, ", ") + "]";
+        } else if (!inputs.empty()) {
+            partition_str = "inputs: [" + join(inputs, ", ") + "]";
+        } else {
+            partition_str = "(no partition)";
+        }
+
         if (f) {
             parsed++;
-            std::cout << "OK: f" << i << " (" << formula_str.substr(0, 50) << "...) "
-                      << "(" << elapsed << "ms)" << std::endl;
+            std::cout << "OK: bench" << bench_dir << "/f" << i << " (" << elapsed << "ms)" << std::endl;
+            std::cout << "  Formula: " << formula_str << std::endl;
+            std::cout << "  Partition: " << partition_str << std::endl;
 
             // TODO: Check satisfiability (disabled due to Z3 timeout issues)
             // auto sat = Synthesis::is_satisfiable(f);
@@ -77,7 +127,9 @@ int main(int argc, char* argv[]) {
 
         } else {
             failed_parse++;
-            std::cout << "FAIL: f" << i << " (parse error)" << std::endl;
+            std::cout << "FAIL: bench" << bench_dir << "/f" << i << " (parse error)" << std::endl;
+            std::cout << "  Formula: " << formula_str << std::endl;
+            std::cout << "  Partition: " << partition_str << std::endl;
         }
 
         // Check expected result
@@ -89,11 +141,16 @@ int main(int argc, char* argv[]) {
             not_found_results++;
         }
 
+        total_count++;
+
+        std::cout << std::endl;  // Blank line between entries
+
         // Progress
-        if ((i - start_bench + 1) % 10 == 0) {
-            std::cout << "--- Progress: " << (i - start_bench + 1) << "/" << (end_bench - start_bench + 1) << " ---" << std::endl;
+        if (total_count % 10 == 0) {
+            std::cout << "--- Progress: " << total_count << " formulas processed ---" << std::endl;
         }
-    }
+    }  // end for (int i = start_bench; ...)
+    }  // end for (int bench_dir : bench_dirs)
 
     LOG_INFO("Benchmark runner completed");
     LOG_INFO("Parsed: {}, Failed: {}", parsed, failed_parse);

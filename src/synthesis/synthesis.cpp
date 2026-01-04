@@ -96,9 +96,38 @@ std::optional<bool> Synthesis::is_realizable_with_partition(
 bool Synthesis::read_benchmark(const std::string& base_dir, int bench_num,
                                std::string& formula_str,
                                std::vector<std::string>& outputs,
-                               std::vector<std::string>& inputs) {
+                               std::vector<std::string>& inputs,
+                               int* bench_dir) {
     // Determine which bench directory (1 or 2)
-    int bench_dir = (bench_num <= 800) ? 1 : 2;
+    // bench1: f1-f500, bench2: f501-f1000
+    int dir = (bench_num <= 500) ? 1 : 2;
+    if (bench_dir) *bench_dir = dir;
+
+    std::string ltlf_file = base_dir + "/bench" + std::to_string(dir) + "/f" + std::to_string(bench_num) + ".ltlf";
+    std::string part_file = base_dir + "/bench" + std::to_string(dir) + "/f" + std::to_string(bench_num) + ".part";
+
+    // Read formula
+    std::ifstream ltlf(ltlf_file);
+    if (!ltlf.is_open()) {
+        return false;
+    }
+
+    std::getline(ltlf, formula_str);
+
+    // Read partition
+    if (!load_partition(part_file, outputs, inputs)) {
+        // Default: all variables are outputs
+        outputs.clear();
+        inputs.clear();
+    }
+
+    return true;
+}
+
+bool Synthesis::read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num,
+                                        std::string& formula_str,
+                                        std::vector<std::string>& outputs,
+                                        std::vector<std::string>& inputs) {
     std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
     std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
 
