@@ -55,8 +55,15 @@ export function useGraphViz() {
         engine: options.engine || 'dot'
       });
 
-      // The render function returns an object with src property
-      return typeof result === 'string' ? result : (result?.src ?? '');
+      // RenderResult: { status: "success", output: string, errors: [] }
+      if (result?.status === 'success') {
+        return result.output;
+      }
+      if (result?.status === 'failure') {
+        error.value = `DOT rendering failed: ${result.errors?.map((e: any) => e.message).join(', ')}`;
+        return '';
+      }
+      return '';
     } catch (e) {
       error.value = `Failed to render DOT: ${e}`;
       console.error(error.value);
