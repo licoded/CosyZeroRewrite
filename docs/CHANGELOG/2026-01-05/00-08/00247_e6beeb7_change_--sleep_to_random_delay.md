@@ -21,13 +21,18 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+将 `--sleep` 参数从固定延迟改为随机延迟，使并发任务完成时间更加真实，便于观察进度条的实时更新行为。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- 随机范围：0 到 2×sleep 秒（均匀分布）
+- 平均延迟：等于 `--sleep` 参数值
+- 使用 `thread_local std::mt19937` 保证线程安全
+- 每个线程有独立的 RNG 实例，避免竞争
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 影响组件：`benchmark_test --sleep` 参数
+- 行为改变：从固定延迟变为随机延迟
+- 用途：模拟真实场景中任务完成时间的差异
 
 ## Changes
 
