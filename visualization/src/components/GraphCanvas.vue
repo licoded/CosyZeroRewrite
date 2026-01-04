@@ -11,9 +11,19 @@
       v-html="svgContent"
       ref="svgRef"
       class="svg-container"
-      @mouseover="handleMouseOver"
+      @mousemove="handleMouseMove"
       @mouseout="handleMouseOut"
     ></div>
+
+    <!-- Floating Tooltip -->
+    <div
+      v-if="tooltip.visible"
+      class="node-tooltip"
+      :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
+    >
+      <div class="tooltip-header">{{ tooltip.nodeId }}</div>
+      <div class="tooltip-info">{{ tooltip.info }}</div>
+    </div>
   </div>
 </template>
 
@@ -31,15 +41,20 @@ const props = withDefaults(defineProps<Props>(), {
   highlights: () => ({} as SubStepHighlights)
 });
 
-const emit = defineEmits<{
-  nodeHover: [nodeId: string | null];
-}>();
-
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const containerRef = ref<HTMLElement>();
 const svgRef = ref<HTMLElement>();
 
 const { isLoading, error, svgContent, renderDot, applyHighlights } = useGraphViz();
+
+// Tooltip state
+const tooltip = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+  nodeId: '',
+  info: ''
+});
 
 /**
  * Render the graph when graphData changes
@@ -61,37 +76,90 @@ async function render(): Promise<void> {
 }
 
 /**
- * Handle mouse over for node hover detection
+ * Parse node information from the title element
+ * Title format: "S0\nSwin" or "E0\nEwin" or "S0 (init)\nUnknown"
  */
-function handleMouseOver(event: MouseEvent): void {
-  const target = event.target as SVGElement;
-  if (!target || !svgRef.value) return;
+function parseNodeInfo(titleText: string): { id: string; info: string } {
+  const lines = titleText.split('\n').map(l => l.trim());
+  const nodeId = lines[0] || '';
 
-  // Find the containing group/node
-  let node: SVGElement | HTMLElement | null = target;
-  while (node && node.tagName !== 'g') {
-    node = node.parentElement;
-    if (node === svgRef.value) {
-      node = null;
+  // Get the classification line (second line, or first line if only one)
+  let info = '';
+  for (const line of lines) {
+    if (line.includes('Swin') || line.includes('Ewin') || line.includes('Unknown')) {
+      info = line;
       break;
     }
   }
 
-  if (!node) return;
+  // Determine player type from node ID prefix
+  const player = nodeId.startsWith('S') ? 'System' : nodeId.startsWith('E') ? 'Environment' : '';
 
-  // Find the title element for node ID
-  const title = node.querySelector('title');
-  if (title?.textContent) {
-    const nodeId = title.textContent.split('\n')[0].trim();
-    emit('nodeHover', nodeId);
+  return {
+    id: nodeId,
+    info: info ? `${info} · ${player}` : player
+  };
+}
+
+/**
+ * Handle mouse move for tooltip positioning
+ */
+function handleMouseMove(event: MouseEvent): void {
+  const target = event.target as SVGElement;
+  if (!target || !svgRef.value) {
+    hideTooltip();
+    return;
   }
+
+  // Find the containing group/node
+  let node: SVGElement | HTMLElement | null = target;
+  let depth = 0;
+  while (node && depth < 5) {
+    if (node.tagName === 'g') {
+      // Check if this group has a title element (indicates it's a node)
+      const title = node.querySelector('title');
+      if (title?.textContent) {
+        const nodeInfo = parseNodeInfo(title.textContent);
+        showTooltip(event.clientX, event.clientY, nodeInfo.id, nodeInfo.info);
+        return;
+      }
+    }
+    node = node.parentElement;
+    depth++;
+  }
+
+  hideTooltip();
 }
 
 /**
  * Handle mouse out
  */
 function handleMouseOut(): void {
-  emit('nodeHover', null);
+  hideTooltip();
+}
+
+/**
+ * Show tooltip at position
+ */
+function showTooltip(x: number, y: number, nodeId: string, info: string): void {
+  // Offset tooltip slightly from cursor
+  const offsetX = 15;
+  const offsetY = 15;
+
+  tooltip.value = {
+    visible: true,
+    x: x + offsetX,
+    y: y + offsetY,
+    nodeId,
+    info
+  };
+}
+
+/**
+ * Hide tooltip
+ */
+function hideTooltip(): void {
+  tooltip.value.visible = false;
 }
 
 // Watch for changes
@@ -114,7 +182,7 @@ onMounted(() => {
   justify-content: center;
   background: white;
   border-radius: 8px;
-  overflow: auto;
+  overflow: hidden;
   position: relative;
 }
 
@@ -133,6 +201,33 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* Tooltip */
+.node-tooltip {
+  position: fixed;
+  background: rgba(40, 44, 52, 0.95);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(4px);
+  max-width: 200px;
+}
+
+.tooltip-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 4px;
+  color: #64B5F6;
+}
+
+.tooltip-info {
+  color: #c9d1d9;
+  font-size: 12px;
 }
 
 /* Highlight styles applied via JS */

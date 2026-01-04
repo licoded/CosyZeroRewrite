@@ -139,10 +139,19 @@ TraceExporter::TraceExporter(formula::Formula* formula,
         return;
     }
 
-    // Generate output file path
-    // Use formula hash as identifier
+    // Generate output file path with timestamp
+    // Format: trace_YYYYMMDD_HHMMSS.json
+    auto now = std::chrono::system_clock::now();
+    auto time_t_now = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_now;
+    localtime_r(&time_t_now, &tm_now);
+
+    char time_buf[64];
+    std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
+    std::string timestamp = time_buf;
+
     std::ostringstream oss;
-    oss << output_dir_ << "/trace.json";
+    oss << output_dir_ << "/trace_" << timestamp << ".json";
     output_path_ = oss.str();
 
     LOG_DEBUG("TraceExporter: initialized, output: ", output_path_);

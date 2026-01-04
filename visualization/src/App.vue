@@ -46,7 +46,6 @@
           <GraphCanvas
             :graph-data="currentSubStep.graph_data"
             :highlights="currentSubStep.highlights"
-            @node-hover="handleNodeHover"
           />
           <div class="step-info-bar">
             <span class="step-stage">{{ getStageType(currentStageIndex) }}</span>
@@ -60,14 +59,6 @@
           </div>
         </div>
       </section>
-
-      <!-- Right: Tooltip (optional) -->
-      <aside class="details" v-if="hoveredNode">
-        <div class="node-tooltip">
-          <h3>{{ hoveredNode }}</h3>
-          <p>State information would be shown here</p>
-        </div>
-      </aside>
     </main>
 
     <!-- Footer: Stepper Controls -->
@@ -92,7 +83,6 @@ import type { Trace, SubStep, StageType } from './types/trace';
 
 const trace = ref<Trace | null>(null);
 const currentStep = ref(0);
-const hoveredNode = ref<string | null>(null);
 
 // Flatten all sub-steps for stepper
 const flatSteps = computed(() => {
@@ -161,10 +151,6 @@ function handleSelectStep(stageIndex: number, stepIndex: number): void {
   }
   globalIndex += stepIndex;
   currentStep.value = globalIndex;
-}
-
-function handleNodeHover(nodeId: string | null): void {
-  hoveredNode.value = nodeId;
 }
 
 function prevStep(): void {
@@ -417,26 +403,6 @@ onUnmounted(() => {
   color: #6c757d;
 }
 
-.details {
-  width: 240px;
-  padding: 12px;
-  border-left: 1px solid #dee2e6;
-  flex-shrink: 0;
-}
-
-.node-tooltip {
-  background: #343A40;
-  color: white;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.node-tooltip h3 {
-  margin-bottom: 8px;
-  font-size: 14px;
-}
-
 .footer {
   padding: 12px 24px;
   background: white;
@@ -446,10 +412,6 @@ onUnmounted(() => {
 
 @media (max-width: 900px) {
   .sidebar {
-    display: none;
-  }
-
-  .details {
     display: none;
   }
 }
