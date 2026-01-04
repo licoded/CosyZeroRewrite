@@ -346,6 +346,35 @@ TEST_CASE("PA: X(p U q) = {X(p U q)}", "[pa][complex]") {
     REQUIRE(result.count(next_until) == 1);
 }
 
+TEST_CASE("PA: (p & !q) | (!p & q) = {p, q} (XOR)", "[pa][complex][xor]") {
+    INFO("Formula: (p & !q) || (!p & q)");
+    FormulaPool pool;
+    pool.declare_variables({"p", "q"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* q = pool.create_variable("q");
+    Formula* not_q = pool.create_not(q);
+    Formula* not_p = pool.create_not(p);
+
+    // Build (p & !q)
+    Formula* and_p_notq = pool.create_and(p, not_q);
+    // Build (!p & q)
+    Formula* and_notp_q = pool.create_and(not_p, q);
+    // Build (p & !q) | (!p & q)
+    Formula* xor_formula = pool.create_or(and_p_notq, and_notp_q);
+
+    TableauState::FormulaSet result;
+    TableauState::compute_prop_atoms(xor_formula, result);
+
+    // Not penetrates, then And/Or expand
+    // PA(p & !q) = {p, q}, PA(!p & q) = {p, q}
+    // PA((p & !q) | (!p & q)) = {p, q}
+    REQUIRE(result.size() == 2);
+    REQUIRE(result.count(p) == 1);
+    REQUIRE(result.count(q) == 1);
+    REQUIRE(result.count(not_p) == 0);
+    REQUIRE(result.count(not_q) == 0);
+}
+
 //==============================================================================
 // PA: Parsed Formulas
 //==============================================================================
