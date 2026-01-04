@@ -18,13 +18,17 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+添加测试流程报告，记录当前项目的测试状态和核心问题。报告显示 on-the-fly solver 存在严重的正确性和性能问题，需要优先修复。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+- **on_the_fly_test 失败**: 6 个断言失败，包括最简单的原子公式 `p1`
+- **False Negatives**: 7 个 Realizable 公式被错误判定为 Unrealizable
+- **性能瓶颈**: 75%+ 测试超时，Tableau 状态爆炸或 SCC 计算效率低
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+- 影响: Synthesis 模块的核心求解器
+- 优先级: P0 - 需要立即修复
+- 后续: 建议从 on_the_fly_test 的基础案例开始调试
 
 ## Changes
 
