@@ -112,10 +112,11 @@ std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
                 // Sys move: blue solid line
                 oss << "  " << from_id << " -> " << to_id
                     << " [color=blue, style=solid";
-                // Label with output assignment using variable names
-                if (succ.system_chosen_output.has_value()) {
+                // Label with output assignment using variable names (2026-01-04: show implicit false)
+                if (succ.system_chosen_output.has_value() && from.dfa_state) {
                     oss << ", label=\"sys="
-                        << id_map.get_assignment_label(succ.system_chosen_output.value(), true)
+                        << id_map.get_assignment_label(succ.system_chosen_output.value(), true,
+                                                          &from.dfa_state->prop_atoms())
                         << "\"";
                 }
                 oss << "];\n";
@@ -123,10 +124,11 @@ std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
                 // Env move: red dashed line
                 oss << "  " << from_id << " -> " << to_id
                     << " [color=red, style=dashed";
-                // Label with input assignment using variable names
-                if (succ.environment_chosen_input.has_value()) {
+                // Label with input assignment using variable names (2026-01-04: show implicit false)
+                if (succ.environment_chosen_input.has_value() && from.dfa_state) {
                     oss << ", label=\"env="
-                        << id_map.get_assignment_label(succ.environment_chosen_input.value(), false)
+                        << id_map.get_assignment_label(succ.environment_chosen_input.value(), false,
+                                                          &from.dfa_state->prop_atoms())
                         << "\"";
                 }
                 oss << "];\n";
@@ -256,11 +258,13 @@ std::string OnTheFlyGameSolver::to_json() const {
             oss << "      \"to\": \"" << to_id << "\",\n";
             oss << "      \"type\": \"" << (from.player == Player::System ? "sys_move" : "env_move") << "\",\n";
 
-            // Assignment info (with variable names)
-            if (from.player == Player::System && succ.system_chosen_output.has_value()) {
-                oss << "      \"output\": " << id_map.get_assignment_label(succ.system_chosen_output.value(), true) << ",\n";
-            } else if (from.player == Player::Environment && succ.environment_chosen_input.has_value()) {
-                oss << "      \"input\": " << id_map.get_assignment_label(succ.environment_chosen_input.value(), false) << ",\n";
+            // Assignment info (with variable names, 2026-01-04: show implicit false)
+            if (from.player == Player::System && succ.system_chosen_output.has_value() && from.dfa_state) {
+                oss << "      \"output\": " << id_map.get_assignment_label(succ.system_chosen_output.value(), true,
+                                                                                         &from.dfa_state->prop_atoms()) << ",\n";
+            } else if (from.player == Player::Environment && succ.environment_chosen_input.has_value() && from.dfa_state) {
+                oss << "      \"input\": " << id_map.get_assignment_label(succ.environment_chosen_input.value(), false,
+                                                                                      &from.dfa_state->prop_atoms()) << ",\n";
             }
             oss << "      \"is_sys_move\": " << (from.player == Player::System ? "true" : "false") << "\n";
             oss << "    }";

@@ -411,6 +411,15 @@ private:
     void collect_state_data(SubStepGraphData& graph_data,
                            const OnTheFlyGameSolver& solver);
 
+    /**
+     * @brief Format edge label showing all relevant variables (implicit false shown as !var)
+     * @param state Source game state (for prop_atoms access)
+     * @param succ Successor game state (for assignment access)
+     * @return Formatted label like "sys={p1, !p5}" or "env={!p2, p3}"
+     */
+    std::string format_assignment_label(const GameState& state,
+                                        const GameState& succ);
+
     // JSON writing (using nlohmann/json library)
     void write_json();
 };

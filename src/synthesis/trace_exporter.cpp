@@ -6,10 +6,12 @@
 #include "synthesis/trace_exporter.hpp"
 #include "log/logger.hpp"
 #include <nlohmann/json.hpp>
+#include <algorithm>    // for std::sort
 #include <filesystem>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 
 namespace synthesis {
 
@@ -432,40 +434,9 @@ void TraceExporter::record_expansion(const GameState& state,
         std::string succ_id = id_map_.get_id(succ);
         add_highlight_node(succ_id, HighlightType::NewNode);
 
-        // Add edge highlight with label
+        // Add edge highlight with label (show implicit false variables)
         std::string edge_type = (state.player == Player::System) ? "sys_move" : "env_move";
-        std::string edge_label = "";
-
-        if (state.player == Player::System && succ.system_chosen_output.has_value()) {
-            // Sys move: format output assignment
-            const auto& var_names = pool_.get_all_variable_names();
-            int num_outputs = pool_.num_outputs();
-            edge_label = "sys={";
-            bool first = true;
-            for (int idx : succ.system_chosen_output.value()) {
-                if (idx >= 0 && idx < num_outputs) {
-                    if (!first) edge_label += ", ";
-                    edge_label += var_names[idx];
-                    first = false;
-                }
-            }
-            edge_label += "}";
-        } else if (state.player == Player::Environment && succ.environment_chosen_input.has_value()) {
-            // Env move: format input assignment
-            // Note: environment_chosen_input now stores global indices directly
-            const auto& var_names = pool_.get_all_variable_names();
-            int num_outputs = pool_.num_outputs();
-            edge_label = "env={";
-            bool first = true;
-            for (int global_idx : succ.environment_chosen_input.value()) {
-                if (global_idx >= num_outputs && global_idx < static_cast<int>(var_names.size())) {
-                    if (!first) edge_label += ", ";
-                    edge_label += var_names[global_idx];
-                    first = false;
-                }
-            }
-            edge_label += "}";
-        }
+        std::string edge_label = format_assignment_label(state, succ);
 
         add_highlight_edge(id_map_.get_id(state), succ_id, edge_label, edge_type);
     }
@@ -669,6 +640,60 @@ std::string TraceExporter::generate_step_id() {
 
 std::string TraceExporter::escape_json(const std::string& s) const {
     return escape_json_string(s);
+}
+
+std::string TraceExporter::format_assignment_label(const GameState& state,
+                                                    const GameState& succ) {
+    const auto& var_names = pool_.get_all_variable_names();
+    int num_outputs = pool_.num_outputs();
+    bool is_sys_move = (state.player == Player::System);
+
+    // Build set of true variables for quick lookup
+    std::unordered_set<int> true_vars;
+    if (is_sys_move && succ.system_chosen_output.has_value()) {
+        true_vars.insert(succ.system_chosen_output.value().begin(),
+                       succ.system_chosen_output.value().end());
+    } else if (!is_sys_move && succ.environment_chosen_input.has_value()) {
+        true_vars.insert(succ.environment_chosen_input.value().begin(),
+                       succ.environment_chosen_input.value().end());
+    }
+
+    // Collect relevant variable indices from prop_atoms
+    std::vector<int> relevant_vars;
+    if (state.dfa_state) {
+        for (const auto* phi : state.dfa_state->prop_atoms()) {
+            if (phi && phi->op() == formula::Formula::OpType::Literal) {
+                int var_id = phi->var_id();
+                if (is_sys_move && var_id >= 0 && var_id < num_outputs) {
+                    relevant_vars.push_back(var_id);
+                } else if (!is_sys_move && var_id >= num_outputs &&
+                          var_id < static_cast<int>(var_names.size())) {
+                    relevant_vars.push_back(var_id);
+                }
+            }
+        }
+    }
+
+    // Sort for consistent output
+    std::sort(relevant_vars.begin(), relevant_vars.end());
+
+    // Build label: show true vars as "var", false vars as "!var"
+    std::ostringstream oss;
+    oss << (is_sys_move ? "sys={" : "env={");
+
+    bool first = true;
+    for (int idx : relevant_vars) {
+        if (!first) oss << ", ";
+        if (true_vars.count(idx)) {
+            oss << var_names[idx];
+        } else {
+            oss << "!" << var_names[idx];
+        }
+        first = false;
+    }
+
+    oss << "}";
+    return oss.str();
 }
 
 //==============================================================================

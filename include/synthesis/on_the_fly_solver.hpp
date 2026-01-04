@@ -172,41 +172,77 @@ struct StateIdMap {
     }
 
     /**
-     * @brief Get edge label in format "sys={p, q}" or "env={}"
-     * @param a Assignment (indices)
+     * @brief Get edge label in format "sys={p, !q}" or "env={!r, s}" (2026-01-04)
+     *
+     * Shows all relevant variables:
+     * - For sys moves: shows all outputs that are in prop_atoms
+     * - For env moves: shows all inputs that are in prop_atoms
+     * - Variables set to TRUE are shown as "var"
+     * - Variables set to FALSE (implicit) are shown as "!var"
+     *
+     * @param a Assignment (indices of variables set to TRUE)
      * @param is_output true for system moves (outputs), false for env moves (inputs)
+     * @param prop_atoms Optional pointer to prop_atoms set to filter relevant variables
      * @return Label string with variable names
      */
-    std::string get_assignment_label(const automata::Assignment& a, bool is_output) const {
+    std::string get_assignment_label(const automata::Assignment& a, bool is_output,
+                                     const automata::TableauState::FormulaSet* prop_atoms = nullptr) const {
         if (!pool) return "{}";
 
         const auto& var_names = pool->get_all_variable_names();
         int num_outputs = pool->num_outputs();
 
-        // Determine variable range based on move type
-        int start_idx = is_output ? 0 : num_outputs;
-        int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
+        // Build set of true variables for quick lookup
+        std::unordered_set<int> true_vars(a.begin(), a.end());
 
+        // Collect relevant variable indices
+        std::vector<int> relevant_vars;
+
+        if (prop_atoms && !prop_atoms->empty()) {
+            // Use prop_atoms to filter relevant variables
+            for (const auto* phi : *prop_atoms) {
+                if (phi && phi->op() == formula::Formula::OpType::Literal) {
+                    int var_id = phi->var_id();
+                    // Check if this variable belongs to the correct category
+                    if (is_output && var_id >= 0 && var_id < num_outputs) {
+                        // Output variable for sys move
+                        relevant_vars.push_back(var_id);
+                    } else if (!is_output && var_id >= num_outputs && var_id < static_cast<int>(var_names.size())) {
+                        // Input variable for env move
+                        relevant_vars.push_back(var_id);
+                    }
+                }
+            }
+        } else {
+            // Fallback: use all variables in the range (old behavior)
+            int start_idx = is_output ? 0 : num_outputs;
+            int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
+            for (int idx : a) {
+                if (idx >= start_idx && idx < end_idx) {
+                    relevant_vars.push_back(idx);
+                }
+            }
+        }
+
+        // Sort for consistent output
+        std::sort(relevant_vars.begin(), relevant_vars.end());
+
+        // Build label: show true vars as "var", false vars as "!var"
         std::ostringstream oss;
         oss << "{";
 
-        if (a.empty()) {
-            // Empty assignment
-            oss << "}";
-        } else {
-            // Map indices to variable names
-            bool first = true;
-            for (int idx : a) {
-                // Check if index is in the correct range for this move type
-                if (idx >= start_idx && idx < end_idx) {
-                    if (!first) oss << ", ";
-                    oss << var_names[idx];
-                    first = false;
-                }
+        bool first = true;
+        for (int idx : relevant_vars) {
+            if (!first) oss << ", ";
+            if (true_vars.count(idx)) {
+                oss << var_names[idx];  // TRUE: just variable name
+            } else {
+                oss << "!" << var_names[idx];  // FALSE: !variable name
             }
-            oss << "}";
+            first = false;
         }
 
+        oss << "}";
         return oss.str();
     }
 
