@@ -343,8 +343,22 @@ std::string OnTheFlyGameSolver::to_html() const {
         }
     }
 
-    // Get DOT content
+    // Get DOT content and escape it for JavaScript template literal
     std::string dot_content = to_dot();
+    // Escape backslashes and backticks for JavaScript template literals
+    std::string dot_content_escaped;
+    dot_content_escaped.reserve(dot_content.size() * 1.2);
+    for (char c : dot_content) {
+        if (c == '\\') {
+            dot_content_escaped += "\\\\";
+        } else if (c == '`') {
+            dot_content_escaped += "\\`";
+        } else if (c == '$') {
+            dot_content_escaped += "\\$";
+        } else {
+            dot_content_escaped += c;
+        }
+    }
 
     // Build JSON data for states (for tooltip)
     oss << "{\n";
@@ -354,6 +368,9 @@ std::string OnTheFlyGameSolver::to_html() const {
 
         if (pair != *id_map.to_id.begin()) oss << ",\n";
         oss << "  \"" << id << "\": {\n";
+
+        // Include ID for tooltip
+        oss << "    \"id\": \"" << id << "\",\n";
 
         // Classification
         auto cls_it = classification_.find(state);
@@ -410,6 +427,20 @@ std::string OnTheFlyGameSolver::to_html() const {
         else unknown_count++;
     }
 
+    // Read viz.js content for embedding
+    std::string vizjs_content;
+    std::string vizjs_path = std::string(PROJECT_SOURCE_DIR) + "/resources/viz.js";
+    std::ifstream vizjs_file(vizjs_path);
+    if (vizjs_file.is_open()) {
+        std::stringstream vizjs_buf;
+        vizjs_buf << vizjs_file.rdbuf();
+        vizjs_content = vizjs_buf.str();
+        vizjs_file.close();
+    } else {
+        LOG_WARN("Failed to open viz.js for embedding: ", vizjs_path);
+        vizjs_content = "// viz.js not found - visualization will not work";
+    }
+
     // Build HTML
     oss << "<!DOCTYPE html>\n";
     oss << "<html lang=\"en\">\n";
@@ -417,7 +448,9 @@ std::string OnTheFlyGameSolver::to_html() const {
     oss << "  <meta charset=\"UTF-8\">\n";
     oss << "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
     oss << "  <title>Game Graph: " << formula_str << "</title>\n";
-    oss << "  <script src=\"https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js\"></script>\n";
+    oss << "  <script>\n";
+    oss << vizjs_content;
+    oss << "\n  </script>\n";
     oss << "  <style>\n";
     oss << "    body {\n";
     oss << "      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n";
@@ -569,36 +602,47 @@ std::string OnTheFlyGameSolver::to_html() const {
     oss << "  <div id=\"tooltip\"></div>\n";
     oss << "  <script>\n";
     oss << "    // Embedded DOT content\n";
-    oss << "    const DOT = `" << dot_content << "`;\n\n";
+    oss << "    const DOT = `" << dot_content_escaped << "`;\n\n";
     oss << "    // Embedded state data\n";
     oss << "    const STATE_DATA = " << json_data << ";\n\n";
-    oss << "    // Render graph using viz.js\n";
-    oss << "    const viz = new Viz();\n";
-    oss << "    viz.renderSVGElement(DOT, { scale: 1 }, function(svg) {\n";
-    oss << "      document.getElementById('graph-container').appendChild(svg);\n\n";
-    oss << "      // Add hover events to nodes\n";
-    oss << "      svg.addEventListener('mouseover', function(e) {\n";
-    oss << "        const target = e.target;\n";
-    oss << "        if (target.tagName === 'title') return;\n";
-    oss << "        let node = target;\n";
-    oss << "        while (node && node.tagName !== 'g') {\n";
-    oss << "          node = node.parentNode;\n";
+    oss << "    // Render graph using viz.js (synchronous API from webgraphviz)\n";
+    oss << "    try {\n";
+    oss << "      const svgString = Viz(DOT, 'svg');\n";
+    oss << "      if (svgString) {\n";
+    oss << "        document.getElementById('graph-container').innerHTML = '<hr>' + svgString;\n\n";
+    oss << "        // Add hover events to nodes\n";
+    oss << "        const svgElement = document.querySelector('#graph-container svg');\n";
+    oss << "        if (svgElement) {\n";
+    oss << "          svgElement.addEventListener('mouseover', function(e) {\n";
+    oss << "            const target = e.target;\n";
+    oss << "            if (target.tagName === 'title') return;\n";
+    oss << "            let node = target;\n";
+    oss << "            while (node && node.tagName !== 'g') {\n";
+    oss << "              node = node.parentNode;\n";
+    oss << "            }\n";
+    oss << "            if (!node) return;\n\n";
+    oss << "            // Find node title (the state ID)\n";
+    oss << "            const title = node.querySelector('title');\n";
+    oss << "            if (!title) return;\n";
+    oss << "            const stateId = title.textContent.trim().split('\\n')[0];\n\n";
+    oss << "            // Get state data\n";
+    oss << "            const data = STATE_DATA[stateId];\n";
+    oss << "            if (!data) return;\n\n";
+    oss << "            // Show tooltip\n";
+    oss << "            showTooltip(e, data);\n";
+    oss << "          });\n\n";
+    oss << "          svgElement.addEventListener('mouseout', function() {\n";
+    oss << "            hideTooltip();\n";
+    oss << "          });\n";
     oss << "        }\n";
-    oss << "        if (!node) return;\n\n";
-    oss << "        // Find node title (the state ID)\n";
-    oss << "        const title = node.querySelector('title');\n";
-    oss << "        if (!title) return;\n";
-    oss << "        const stateId = title.textContent.trim().split('\\n')[0];\n\n";
-    oss << "        // Get state data\n";
-    oss << "        const data = STATE_DATA[stateId];\n";
-    oss << "        if (!data) return;\n\n";
-    oss << "        // Show tooltip\n";
-    oss << "        showTooltip(e, data);\n";
-    oss << "      });\n\n";
-    oss << "      svg.addEventListener('mouseout', function() {\n";
-    oss << "        hideTooltip();\n";
-    oss << "      });\n";
-    oss << "    });\n\n";
+    oss << "      } else {\n";
+    oss << "        throw new Error('Viz returned empty result');\n";
+    oss << "      }\n";
+    oss << "    } catch (error) {\n";
+    oss << "      console.error('viz rendering error:', error);\n";
+    oss << "      document.getElementById('graph-container').innerHTML =\n";
+    oss << "        '<p style=\"color: red; padding: 20px;\">Error rendering graph: ' + error + '</p>';\n";
+    oss << "    }\n\n";
     oss << "    function showTooltip(e, data) {\n";
     oss << "      const tooltip = document.getElementById('tooltip');\n";
     oss << "      tooltip.innerHTML = buildTooltip(data);\n";
@@ -684,6 +728,17 @@ bool OnTheFlyGameSolver::write_dot(const std::string& base_path) const {
     html_file << to_html();
     html_file.close();
     LOG_INFO("Game graph HTML written to: ", html_path);
+
+    // Copy viz.js to the output directory for local usage
+    std::string src_path = PROJECT_SOURCE_DIR "/resources/viz.js";
+    std::string output_dir = base_path.substr(0, base_path.find_last_of('/'));
+    std::string vizjs_dest = output_dir + "/viz.js";
+    std::string copy_cmd = "cp \"" + src_path + "\" \"" + vizjs_dest + "\"";
+    if (system(copy_cmd.c_str()) != 0) {
+        LOG_WARN("Failed to copy viz.js to: ", vizjs_dest);
+    } else {
+        LOG_INFO("viz.js copied to: ", vizjs_dest);
+    }
 
     return true;
 }

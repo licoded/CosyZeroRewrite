@@ -35,3 +35,7 @@ endif()
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
 message(STATUS "Include directories configured")
+
+# Define PROJECT_SOURCE_DIR for C++ code (for finding resources at runtime)
+add_compile_definitions(PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+message(STATUS "PROJECT_SOURCE_DIR defined for C++: ${PROJECT_SOURCE_DIR}")
