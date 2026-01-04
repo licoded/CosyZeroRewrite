@@ -498,4 +498,23 @@ std::string AssignmentGenerator::to_string(const Assignment& a, int num_variable
     return oss.str();
 }
 
+std::vector<Assignment> AssignmentGenerator::all_assignments_for_subset(const std::vector<int>& var_indices) const {
+    std::vector<Assignment> result;
+    int k = static_cast<int>(var_indices.size());
+    int num = 1 << k;  // 2^k assignments
+
+    result.reserve(num);
+    for (int mask = 0; mask < num; ++mask) {
+        Assignment assignment;
+        for (int i = 0; i < k; ++i) {
+            if (mask & (1 << i)) {
+                assignment.insert(var_indices[i]);  // Insert global index directly
+            }
+        }
+        result.push_back(std::move(assignment));
+    }
+
+    return result;
+}
+
 } // namespace automata

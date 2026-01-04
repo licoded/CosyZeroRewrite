@@ -345,6 +345,16 @@ public:
      */
     int num_variables() const { return num_variables_; }
 
+    /**
+     * @brief Generate assignments for a subset of variables
+     * @param var_indices Indices of variables to generate assignments for (e.g., {0, 2, 5})
+     * @return Vector of all 2^k assignments where k = var_indices.size()
+     *         Each assignment contains the global variable indices (not local indices)
+     *
+     * Example: var_indices = {0, 2} returns {{}, {0}, {2}, {0, 2}}
+     */
+    std::vector<Assignment> all_assignments_for_subset(const std::vector<int>& var_indices) const;
+
 private:
     int num_variables_;
 };
