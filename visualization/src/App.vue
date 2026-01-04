@@ -13,10 +13,10 @@
           {{ trace.stages.length }} stages ·
           {{ totalSteps }} steps ·
           <span v-if="actualRealizable !== null" :class="{ success: actualRealizable, failure: !actualRealizable }">
-            {{ actualRealizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
+            {{ actualRealizable ? 'REALIZABLE' : 'UNREALIZABLE' }}
           </span>
           <span v-else :class="{ success: trace.summary?.realizable, failure: !trace.summary?.realizable }">
-            {{ trace.summary?.realizable ? 'REALIZABLE' : 'NOT REALIZABLE' }}
+            {{ trace.summary?.realizable ? 'REALIZABLE' : 'UNREALIZABLE' }}
           </span>
         </span>
       </div>

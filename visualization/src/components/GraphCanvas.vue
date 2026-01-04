@@ -247,13 +247,11 @@ function assignmentToFormula(label: string): string | null {
 }
 
 /**
- * Format assignment label (now just returns the label as-is since
- * the backend already outputs variable names)
- * E.g., "sys={p}" -> "sys={p}"
- * E.g., "env={}" -> "env={}"
+ * Format assignment label
+ * Backend now handles showing implicit false variables (e.g., "sys={p1, !p5}")
+ * So just return the label as-is.
  */
 function formatAssignmentWithNames(label: string): string {
-  // Backend already formats with variable names, just return as-is
   return label;
 }
 
