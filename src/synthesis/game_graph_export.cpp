@@ -305,6 +305,338 @@ std::string OnTheFlyGameSolver::to_json() const {
 }
 
 //==============================================================================
+// HTML Format Export (Interactive Visualization)
+//==============================================================================
+
+namespace {
+
+/**
+ * @brief Escape special characters for HTML
+ */
+std::string escape_html(const std::string& s) {
+    std::string result;
+    result.reserve(s.size() * 1.2);
+    for (char c : s) {
+        switch (c) {
+            case '&':  result += "&amp;"; break;
+            case '<':  result += "&lt;"; break;
+            case '>':  result += "&gt;"; break;
+            case '"':  result += "&quot;"; break;
+            case '\'': result += "&apos;"; break;
+            default:   result += c; break;
+        }
+    }
+    return result;
+}
+
+} // anonymous namespace
+
+std::string OnTheFlyGameSolver::to_html() const {
+    std::ostringstream oss;
+    StateIdMap id_map;
+
+    // Build ID map first
+    for (const auto& pair : successors_) {
+        id_map.get_id(pair.first);
+        for (const auto& succ : pair.second) {
+            id_map.get_id(succ);
+        }
+    }
+
+    // Get DOT content
+    std::string dot_content = to_dot();
+
+    // Build JSON data for states (for tooltip)
+    oss << "{\n";
+    for (const auto& pair : id_map.to_id) {
+        const GameState& state = pair.first;
+        const std::string& id = pair.second;
+
+        if (pair != *id_map.to_id.begin()) oss << ",\n";
+        oss << "  \"" << id << "\": {\n";
+
+        // Classification
+        auto cls_it = classification_.find(state);
+        if (cls_it != classification_.end()) {
+            oss << "    \"classification\": \"" << to_string(cls_it->second) << "\",\n";
+        } else {
+            oss << "    \"classification\": \"Unknown\",\n";
+        }
+
+        oss << "    \"type\": \"" << (state.player == Player::System ? "System" : "Environment") << "\",\n";
+        oss << "    \"is_initial\": " << (state == initial_state_ ? "true" : "false") << ",\n";
+
+        // Formula info
+        if (state.dfa_state) {
+            formula::Formula* phi = state.dfa_state->phi();
+            oss << "    \"phi\": \"" << (phi ? escape_html(phi->to_string_with_names(pool_)) : "null") << "\",\n";
+
+            formula::Formula* xnf_phi = state.dfa_state->xnf_phi();
+            oss << "    \"xnf_phi\": \"" << (xnf_phi ? escape_html(xnf_phi->to_string_with_names(pool_)) : "null") << "\",\n";
+
+            // Prop atoms
+            const auto& prop_atoms = state.dfa_state->prop_atoms();
+            oss << "    \"prop_atoms\": [";
+            bool first_atom = true;
+            for (auto* f : prop_atoms) {
+                if (!first_atom) oss << ", ";
+                oss << "\"" << escape_html(f->to_string_with_names(pool_)) << "\"";
+                first_atom = false;
+            }
+            oss << "]\n";
+        } else {
+            oss << "    \"phi\": null,\n";
+            oss << "    \"xnf_phi\": null,\n";
+            oss << "    \"prop_atoms\": []\n";
+        }
+
+        oss << "  }";
+    }
+    oss << "\n}";
+
+    std::string json_data = oss.str();
+    oss.str("");
+    oss.clear();
+
+    // Formula for title
+    std::string formula_str = original_formula_ ?
+        escape_html(original_formula_->to_string_with_names(pool_)) : "null";
+
+    // Statistics
+    size_t swin_count = 0, ewin_count = 0, unknown_count = 0;
+    for (const auto& pair : classification_) {
+        if (pair.second == StateClass::Swin) swin_count++;
+        else if (pair.second == StateClass::Ewin) ewin_count++;
+        else unknown_count++;
+    }
+
+    // Build HTML
+    oss << "<!DOCTYPE html>\n";
+    oss << "<html lang=\"en\">\n";
+    oss << "<head>\n";
+    oss << "  <meta charset=\"UTF-8\">\n";
+    oss << "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n";
+    oss << "  <title>Game Graph: " << formula_str << "</title>\n";
+    oss << "  <script src=\"https://cdn.jsdelivr.net/npm/viz.js@2.1.2/viz.js\"></script>\n";
+    oss << "  <style>\n";
+    oss << "    body {\n";
+    oss << "      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\n";
+    oss << "      margin: 0;\n";
+    oss << "      padding: 20px;\n";
+    oss << "      background: #f5f5f5;\n";
+    oss << "    }\n";
+    oss << "    .header {\n";
+    oss << "      background: white;\n";
+    oss << "      padding: 15px 20px;\n";
+    oss << "      border-radius: 8px;\n";
+    oss << "      margin-bottom: 20px;\n";
+    oss << "      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n";
+    oss << "    }\n";
+    oss << "    .header h1 {\n";
+    oss << "      margin: 0 0 10px 0;\n";
+    oss << "      font-size: 18px;\n";
+    oss << "      color: #333;\n";
+    oss << "    }\n";
+    oss << "    .header .formula {\n";
+    oss << "      font-family: monospace;\n";
+    oss << "      color: #0066cc;\n";
+    oss << "      word-break: break-all;\n";
+    oss << "    }\n";
+    oss << "    .header .stats {\n";
+    oss << "      margin-top: 10px;\n";
+    oss << "      font-size: 13px;\n";
+    oss << "      color: #666;\n";
+    oss << "    }\n";
+    oss << "    .header .stats span {\n";
+    oss << "      margin-right: 15px;\n";
+    oss << "    }\n";
+    oss << "    .header .stats .swin { color: #228b22; }\n";
+    oss << "    .header .stats .ewin { color: #cd5c5c; }\n";
+    oss << "    #graph-container {\n";
+    oss << "      background: white;\n";
+    oss << "      border-radius: 8px;\n";
+    oss << "      padding: 20px;\n";
+    oss << "      box-shadow: 0 2px 4px rgba(0,0,0,0.1);\n";
+    oss << "      overflow: auto;\n";
+    oss << "    }\n";
+    oss << "    #tooltip {\n";
+    oss << "      position: fixed;\n";
+    oss << "      display: none;\n";
+    oss << "      background: rgba(0, 0, 0, 0.95);\n";
+    oss << "      color: white;\n";
+    oss << "      padding: 12px 16px;\n";
+    oss << "      border-radius: 6px;\n";
+    oss << "      font-size: 13px;\n";
+    oss << "      max-width: 500px;\n";
+    oss << "      z-index: 1000;\n";
+    oss << "      pointer-events: none;\n";
+    oss << "      box-shadow: 0 4px 12px rgba(0,0,0,0.3);\n";
+    oss << "    }\n";
+    oss << "    #tooltip h3 {\n";
+    oss << "      margin: 0 0 8px 0;\n";
+    oss << "      font-size: 14px;\n";
+    oss << "      border-bottom: 1px solid #444;\n";
+    oss << "      padding-bottom: 5px;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .label {\n";
+    oss << "      color: #aaa;\n";
+    oss << "      font-size: 11px;\n";
+    oss << "      margin-top: 8px;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .value {\n";
+    oss << "      font-family: monospace;\n";
+    oss << "      word-break: break-all;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .classification {\n";
+    oss << "      display: inline-block;\n";
+    oss << "      padding: 2px 8px;\n";
+    oss << "      border-radius: 4px;\n";
+    oss << "      font-size: 12px;\n";
+    oss << "      font-weight: bold;\n";
+    oss << "      margin-top: 8px;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .classification.Swin {\n";
+    oss << "      background: #228b22;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .classification.Ewin {\n";
+    oss << "      background: #cd5c5c;\n";
+    oss << "    }\n";
+    oss << "    #tooltip .classification.Unknown {\n";
+    oss << "      background: #888;\n";
+    oss << "    }\n";
+    oss << "    .legend {\n";
+    oss << "      margin-top: 15px;\n";
+    oss << "      padding: 10px;\n";
+    oss << "      background: #f9f9f9;\n";
+    oss << "      border-radius: 6px;\n";
+    oss << "      font-size: 12px;\n";
+    oss << "    }\n";
+    oss << "    .legend-item {\n";
+    oss << "      display: inline-flex;\n";
+    oss << "      align-items: center;\n";
+    oss << "      margin-right: 20px;\n";
+    oss << "    }\n";
+    oss << "    .legend-box {\n";
+    oss << "      width: 16px;\n";
+    oss << "      height: 16px;\n";
+    oss << "      margin-right: 6px;\n";
+    oss << "      border: 2px solid;\n";
+    oss << "    }\n";
+    oss << "    .legend-box.sys-circle {\n";
+    oss << "      border-radius: 50%;\n";
+    oss << "      border-color: blue;\n";
+    oss << "    }\n";
+    oss << "    .legend-box.env-box {\n";
+    oss << "      border-color: orange;\n";
+    oss << "    }\n";
+    oss << "    .legend-box.swin {\n";
+    oss << "      background: lightgreen;\n";
+    oss << "    }\n";
+    oss << "    .legend-box.ewin {\n";
+    oss << "      background: lightcoral;\n";
+    oss << "    }\n";
+    oss << "  </style>\n";
+    oss << "</head>\n";
+    oss << "<body>\n";
+    oss << "  <div class=\"header\">\n";
+    oss << "    <h1>Game Graph Visualization</h1>\n";
+    oss << "    <div class=\"formula\">" << formula_str << "</div>\n";
+    oss << "    <div class=\"stats\">\n";
+    oss << "      <span>Total: " << successors_.size() << " states</span>\n";
+    oss << "      <span class=\"swin\">Swin: " << swin_count << "</span>\n";
+    oss << "      <span class=\"ewin\">Ewin: " << ewin_count << "</span>\n";
+    oss << "    </div>\n";
+    oss << "    <div class=\"legend\">\n";
+    oss << "      <span class=\"legend-item\">\n";
+    oss << "        <span class=\"legend-box sys-circle\"></span>\n";
+    oss << "        System (circle, blue)\n";
+    oss << "      </span>\n";
+    oss << "      <span class=\"legend-item\">\n";
+    oss << "        <span class=\"legend-box env-box\"></span>\n";
+    oss << "        Environment (box, orange)\n";
+    oss << "      </span>\n";
+    oss << "      <span class=\"legend-item\">\n";
+    oss << "        <span class=\"legend-box swin\"></span>\n";
+    oss << "        Swin (green)\n";
+    oss << "      </span>\n";
+    oss << "      <span class=\"legend-item\">\n";
+    oss << "        <span class=\"legend-box ewin\"></span>\n";
+    oss << "        Ewin (red)\n";
+    oss << "      </span>\n";
+    oss << "    </div>\n";
+    oss << "  </div>\n";
+    oss << "  <div id=\"graph-container\"></div>\n";
+    oss << "  <div id=\"tooltip\"></div>\n";
+    oss << "  <script>\n";
+    oss << "    // Embedded DOT content\n";
+    oss << "    const DOT = `" << dot_content << "`;\n\n";
+    oss << "    // Embedded state data\n";
+    oss << "    const STATE_DATA = " << json_data << ";\n\n";
+    oss << "    // Render graph using viz.js\n";
+    oss << "    const viz = new Viz();\n";
+    oss << "    viz.renderSVGElement(DOT, { scale: 1 }, function(svg) {\n";
+    oss << "      document.getElementById('graph-container').appendChild(svg);\n\n";
+    oss << "      // Add hover events to nodes\n";
+    oss << "      svg.addEventListener('mouseover', function(e) {\n";
+    oss << "        const target = e.target;\n";
+    oss << "        if (target.tagName === 'title') return;\n";
+    oss << "        let node = target;\n";
+    oss << "        while (node && node.tagName !== 'g') {\n";
+    oss << "          node = node.parentNode;\n";
+    oss << "        }\n";
+    oss << "        if (!node) return;\n\n";
+    oss << "        // Find node title (the state ID)\n";
+    oss << "        const title = node.querySelector('title');\n";
+    oss << "        if (!title) return;\n";
+    oss << "        const stateId = title.textContent.trim().split('\\n')[0];\n\n";
+    oss << "        // Get state data\n";
+    oss << "        const data = STATE_DATA[stateId];\n";
+    oss << "        if (!data) return;\n\n";
+    oss << "        // Show tooltip\n";
+    oss << "        showTooltip(e, data);\n";
+    oss << "      });\n\n";
+    oss << "      svg.addEventListener('mouseout', function() {\n";
+    oss << "        hideTooltip();\n";
+    oss << "      });\n";
+    oss << "    });\n\n";
+    oss << "    function showTooltip(e, data) {\n";
+    oss << "      const tooltip = document.getElementById('tooltip');\n";
+    oss << "      tooltip.innerHTML = buildTooltip(data);\n";
+    oss << "      tooltip.style.display = 'block';\n\n";
+    oss << "      // Position tooltip\n";
+    oss << "      const x = Math.min(e.clientX + 15, window.innerWidth - 520);\n";
+    oss << "      const y = Math.min(e.clientY + 15, window.innerHeight - 200);\n";
+    oss << "      tooltip.style.left = x + 'px';\n";
+    oss << "      tooltip.style.top = y + 'px';\n";
+    oss << "    }\n\n";
+    oss << "    function hideTooltip() {\n";
+    oss << "      document.getElementById('tooltip').style.display = 'none';\n";
+    oss << "    }\n\n";
+    oss << "    function buildTooltip(data) {\n";
+    oss << "      let html = '<h3>' + data.id;\n";
+    oss << "      if (data.is_initial) html += ' (initial)';\n";
+    oss << "      html += '</h3>';\n";
+    oss << "      html += '<span class=\"classification ' + data.classification + '\">' + data.classification + '</span>';\n";
+    oss << "      html += '<div class=\"label\">Type:</div><div class=\"value\">' + data.type + '</div>';\n";
+    oss << "      if (data.phi) {\n";
+    oss << "        html += '<div class=\"label\">Formula (phi):</div><div class=\"value\">' + data.phi + '</div>';\n";
+    oss << "      }\n";
+    oss << "      if (data.xnf_phi) {\n";
+    oss << "        html += '<div class=\"label\">XNF Formula:</div><div class=\"value\">' + data.xnf_phi + '</div>';\n";
+    oss << "      }\n";
+    oss << "      if (data.prop_atoms && data.prop_atoms.length > 0) {\n";
+    oss << "        html += '<div class=\"label\">Propositional Atoms:</div><div class=\"value\">[' + data.prop_atoms.join(', ') + ']</div>';\n";
+    oss << "      }\n";
+    oss << "      return html;\n";
+    oss << "    }\n";
+    oss << "  </script>\n";
+    oss << "</body>\n";
+    oss << "</html>\n";
+
+    return oss.str();
+}
+
+//==============================================================================
 // File Writing
 //==============================================================================
 
@@ -341,6 +673,17 @@ bool OnTheFlyGameSolver::write_dot(const std::string& base_path) const {
     json_file << to_json();
     json_file.close();
     LOG_INFO("Game graph JSON written to: ", json_path);
+
+    // Write HTML file
+    std::string html_path = base_path + ".html";
+    std::ofstream html_file(html_path);
+    if (!html_file.is_open()) {
+        LOG_WARN("Failed to open HTML file for writing: ", html_path);
+        return false;
+    }
+    html_file << to_html();
+    html_file.close();
+    LOG_INFO("Game graph HTML written to: ", html_path);
 
     return true;
 }

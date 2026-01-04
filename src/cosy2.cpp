@@ -319,8 +319,10 @@ int main(int argc, char* argv[]) {
         std::string base_path = "results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
 
         if (solver.write_dot(base_path)) {
-            std::cout << "  Game graph exported to: " << base_path << ".dot" << std::endl;
-            std::cout << "  Metadata exported to: " << base_path << ".json" << std::endl;
+            std::cout << "  Game graph exported:" << std::endl;
+            std::cout << "    DOT:  " << base_path << ".dot" << std::endl;
+            std::cout << "    JSON: " << base_path << ".json" << std::endl;
+            std::cout << "    HTML: " << base_path << ".html (interactive)" << std::endl;
         } else {
             std::cerr << "  Warning: Failed to export game graph" << std::endl;
         }

@@ -275,17 +275,32 @@ public:
     std::string to_json() const;
 
     /**
-     * @brief Write game graph to files (DOT + JSON)
+     * @brief Export game graph to interactive HTML (single self-contained file)
      *
-     * Creates two files:
+     * Generates an HTML file with:
+     * - Embedded viz.js for graph rendering (loads from CDN)
+     * - Embedded DOT content for the graph
+     * - Embedded JSON data for state metadata
+     * - Interactive tooltips showing formula information on hover
+     * - Click-to-highlight functionality
+     *
+     * @return HTML content as string
+     */
+    std::string to_html() const;
+
+    /**
+     * @brief Write game graph to files (DOT + JSON + HTML)
+     *
+     * Creates three files:
      * - <base_path>.dot - GraphViz DOT format
      * - <base_path>.json - Metadata with full formulas
+     * - <base_path>.html - Interactive HTML visualization
      *
      * The base_path should NOT include extension.
      * Example: write_dot("results/game_graph/2026-01-04/10-morning/game_graph_20260104_101500")
      *
      * @param base_path Output file path without extension
-     * @return true if both files written successfully
+     * @return true if all files written successfully
      */
     bool write_dot(const std::string& base_path) const;
 
