@@ -15,6 +15,9 @@
 #include <fstream>
 #include <sstream>
 #include <memory>
+#include <chrono>
+#include <iomanip>
+#include <ctime>
 
 using namespace formula;
 using namespace synthesis;
@@ -257,7 +260,71 @@ int main(int argc, char* argv[]) {
 
     // Run synthesis
     std::cout << "Running on-the-fly synthesis..." << std::endl;
-    bool realizable = is_realizable_on_the_fly(phi, pool);
+
+    // Create solver directly (not using convenience function)
+    // so we can access the solver for game graph export
+    int num_outputs = pool.num_outputs();
+    int num_inputs = pool.num_inputs();
+
+    // If variables not declared, extract them from the formula
+    if (num_outputs == 0 && num_inputs == 0) {
+        std::unordered_set<int> vars;
+        std::function<void(Formula*)> collect = [&](Formula* f) {
+            if (!f) return;
+            if (f->op() == Formula::OpType::Literal) {
+                vars.insert(f->var_id());
+            } else {
+                collect(f->left());
+                collect(f->right());
+            }
+        };
+        collect(phi);
+        num_outputs = static_cast<int>(vars.size());
+    }
+
+    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    bool realizable = solver.is_realizable();
+
+    // Export game graph if environment variable is set
+    const char* debug_graph = std::getenv("COSY_DEBUG_GAME_GRAPH");
+    if (debug_graph && std::string(debug_graph) == "1") {
+        std::cout << "Exporting game graph..." << std::endl;
+
+        // Generate timestamp for filename
+        auto now = std::chrono::system_clock::now();
+        auto time_t_now = std::chrono::system_clock::to_time_t(now);
+        std::tm tm_now;
+        localtime_r(&time_t_now, &tm_now);
+
+        // Format: results/game_graph/YYYY-MM-DD/HH-period/game_graph_YYYYMMDD_HHMMSS
+        char time_buf[64];
+        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d", &tm_now);
+        std::string date_dir = time_buf;
+
+        std::strftime(time_buf, sizeof(time_buf), "%H", &tm_now);
+        int hour = std::atoi(time_buf);
+
+        // Period: AM (00-11) or PM (12-23)
+        std::string period = (hour < 12) ? "AM" : "PM";
+        std::strftime(time_buf, sizeof(time_buf), "%I", &tm_now);
+        std::string hour_str = time_buf;
+        // Remove leading zero
+        if (hour_str[0] == '0') hour_str = hour_str.substr(1);
+
+        std::string subdir = hour_str + "-" + period;
+
+        std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
+        std::string timestamp = time_buf;
+
+        std::string base_path = "results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
+
+        if (solver.write_dot(base_path)) {
+            std::cout << "  Game graph exported to: " << base_path << ".dot" << std::endl;
+            std::cout << "  Metadata exported to: " << base_path << ".json" << std::endl;
+        } else {
+            std::cerr << "  Warning: Failed to export game graph" << std::endl;
+        }
+    }
 
     // Output result
     std::cout << "========================================" << std::endl;

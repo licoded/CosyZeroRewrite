@@ -246,6 +246,49 @@ public:
      */
     size_t check_propagation_consistency() const;
 
+    /**
+     * @brief Export game graph to DOT format (GraphViz)
+     *
+     * Visual elements:
+     * - System states: circles, blue border
+     * - Environment states: boxes, orange border
+     * - Swin states: light green fill
+     * - Ewin states: light red fill
+     * - Initial state: bold border (penwidth=3)
+     * - Sys moves: blue solid lines (System -> Environment)
+     * - Env moves: red dashed lines (Environment -> System)
+     *
+     * @return DOT format string
+     */
+    std::string to_dot() const;
+
+    /**
+     * @brief Export game graph metadata to JSON format
+     *
+     * Contains complete formula information for each state:
+     * - Formula strings (with variable names)
+     * - State classifications
+     * - Transition assignments
+     *
+     * @return JSON format string
+     */
+    std::string to_json() const;
+
+    /**
+     * @brief Write game graph to files (DOT + JSON)
+     *
+     * Creates two files:
+     * - <base_path>.dot - GraphViz DOT format
+     * - <base_path>.json - Metadata with full formulas
+     *
+     * The base_path should NOT include extension.
+     * Example: write_dot("results/game_graph/2026-01-04/10-morning/game_graph_20260104_101500")
+     *
+     * @param base_path Output file path without extension
+     * @return true if both files written successfully
+     */
+    bool write_dot(const std::string& base_path) const;
+
 private:
     // Formula and pool
     formula::FormulaPool& pool_;
