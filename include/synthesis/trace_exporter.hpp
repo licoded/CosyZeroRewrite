@@ -402,12 +402,8 @@ private:
     void collect_state_data(SubStepGraphData& graph_data,
                            const OnTheFlyGameSolver& solver);
 
-    // JSON writing helpers
+    // JSON writing (using nlohmann/json library)
     void write_json();
-    void write_stage(std::ofstream& out, const TraceStage& stage) const;
-    void write_sub_step(std::ofstream& out, const SubStep& step) const;
-    void write_highlights(std::ofstream& out, const SubStepHighlights& h) const;
-    void write_state_info(std::ofstream& out, const SubStepStateInfo& info) const;
 };
 
 //==============================================================================

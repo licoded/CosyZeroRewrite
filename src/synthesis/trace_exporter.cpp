@@ -5,6 +5,7 @@
 
 #include "synthesis/trace_exporter.hpp"
 #include "log/logger.hpp"
+#include <nlohmann/json.hpp>
 #include <filesystem>
 #include <iomanip>
 #include <sstream>
@@ -575,200 +576,147 @@ std::string TraceExporter::escape_json(const std::string& s) const {
 }
 
 //==============================================================================
-// JSON Writing
+// JSON Writing (using nlohmann/json)
 //==============================================================================
 
 void TraceExporter::write_json() {
-    std::ofstream out(output_path_);
-    if (!out.is_open()) {
-        LOG_ERROR("Failed to open trace file for writing: ", output_path_);
-        return;
-    }
+    using json = nlohmann::json;
 
-    // Write opening
-    out << "{\n";
+    // Build root JSON object
+    json root;
 
     // Formula
-    out << "  \"formula\": \"";
     if (formula_) {
-        out << escape_json(formula_->to_string_with_names(pool_));
+        root["formula"] = formula_->to_string_with_names(pool_);
+    } else {
+        root["formula"] = nullptr;
     }
-    out << "\",\n";
 
     // Timestamp
-    out << "  \"timestamp\": \"" << get_timestamp() << "\",\n";
+    root["timestamp"] = get_timestamp();
 
-    // Stages
-    out << "  \"stages\": [\n";
-    for (size_t i = 0; i < stages_.size(); ++i) {
-        write_stage(out, stages_[i]);
-        if (i < stages_.size() - 1) {
-            out << ",";
+    // Build stages array
+    json stages_array = json::array();
+    for (const auto& stage : stages_) {
+        json stage_obj;
+        stage_obj["stage_id"] = stage.stage_id;
+        stage_obj["stage_type"] = stage.stage_type;
+        stage_obj["description"] = stage.description;
+
+        // Build sub_steps array
+        json sub_steps_array = json::array();
+        for (const auto& step : stage.sub_steps) {
+            json step_obj;
+            step_obj["step_id"] = step.step_id;
+            step_obj["description"] = step.description;
+
+            // Graph data
+            json graph_data_obj;
+            graph_data_obj["dot"] = step.graph_data.dot;
+            graph_data_obj["num_nodes"] = step.graph_data.num_nodes;
+            graph_data_obj["num_edges"] = step.graph_data.num_edges;
+
+            // Add state_data only if non-empty
+            if (!step.graph_data.state_data.empty()) {
+                json state_data_obj;
+                for (const auto& pair : step.graph_data.state_data) {
+                    const StateData& data = pair.second;
+                    json data_obj;
+                    data_obj["id"] = data.id;
+                    data_obj["classification"] = data.classification;
+                    data_obj["type"] = data.type;
+                    data_obj["is_initial"] = data.is_initial;
+                    data_obj["phi"] = data.phi;
+                    data_obj["xnf_phi"] = data.xnf_phi;
+                    data_obj["prop_atoms"] = data.prop_atoms;
+                    state_data_obj[data.id] = data_obj;
+                }
+                graph_data_obj["state_data"] = state_data_obj;
+            }
+            step_obj["graph_data"] = graph_data_obj;
+
+            // Highlights
+            json highlights_obj;
+            if (!step.highlights.new_nodes.empty()) {
+                highlights_obj["new_nodes"] = step.highlights.new_nodes;
+            }
+            if (!step.highlights.new_edges.empty()) {
+                json edges_array = json::array();
+                for (const auto& e : step.highlights.new_edges) {
+                    json edge_obj;
+                    edge_obj["from"] = e.from;
+                    edge_obj["to"] = e.to;
+                    if (!e.label.empty()) edge_obj["label"] = e.label;
+                    if (!e.type.empty()) edge_obj["type"] = e.type;
+                    edges_array.push_back(edge_obj);
+                }
+                highlights_obj["new_edges"] = edges_array;
+            }
+            if (!step.highlights.scc_nodes.empty()) {
+                highlights_obj["scc_nodes"] = step.highlights.scc_nodes;
+            }
+            if (!step.highlights.pending_nodes.empty()) {
+                highlights_obj["pending_nodes"] = step.highlights.pending_nodes;
+            }
+            if (!step.highlights.updated_nodes.empty()) {
+                highlights_obj["updated_nodes"] = step.highlights.updated_nodes;
+            }
+            if (!step.highlights.attractor_nodes.empty()) {
+                highlights_obj["attractor_nodes"] = step.highlights.attractor_nodes;
+            }
+            if (!step.highlights.scc_id.empty()) {
+                highlights_obj["scc_id"] = step.highlights.scc_id;
+            }
+            step_obj["highlights"] = highlights_obj;
+
+            // State info
+            json state_info_obj;
+            state_info_obj["swin_count"] = step.state_info.swin_count;
+            state_info_obj["ewin_count"] = step.state_info.ewin_count;
+            state_info_obj["unknown_count"] = step.state_info.unknown_count;
+            state_info_obj["total_states"] = step.state_info.total_states;
+            if (step.state_info.current_scc >= 0) {
+                state_info_obj["current_scc"] = step.state_info.current_scc;
+            }
+            step_obj["state_info"] = state_info_obj;
+
+            // Metrics
+            json metrics_obj;
+            metrics_obj["duration_ms"] = step.metrics.duration_ms;
+            if (step.metrics.memory_kb > 0) {
+                metrics_obj["memory_kb"] = step.metrics.memory_kb;
+            }
+            step_obj["metrics"] = metrics_obj;
+
+            sub_steps_array.push_back(step_obj);
         }
-        out << "\n";
+        stage_obj["sub_steps"] = sub_steps_array;
+        stages_array.push_back(stage_obj);
     }
-    out << "  ],\n";
+    root["stages"] = stages_array;
 
     // Summary
-    out << "  \"summary\": {\n";
-    out << "    \"total_steps\": " << step_counter_ << ",\n";
-    out << "    \"realizable\": " << (finalized_ ? "true" : "false") << ",\n";
-    out << "    \"stages_summary\": [";
-    for (size_t i = 0; i < stages_.size(); ++i) {
-        out << "\n      {\"stage_type\": \"" << stages_[i].stage_type
-            << "\", \"steps_count\": " << stages_[i].sub_steps.size() << "}";
-        if (i < stages_.size() - 1) out << ",";
+    json summary_obj;
+    summary_obj["total_steps"] = step_counter_;
+    summary_obj["realizable"] = finalized_;
+    json stages_summary_array = json::array();
+    for (const auto& stage : stages_) {
+        json stage_summary;
+        stage_summary["stage_type"] = stage.stage_type;
+        stage_summary["steps_count"] = static_cast<int>(stage.sub_steps.size());
+        stages_summary_array.push_back(stage_summary);
     }
-    if (!stages_.empty()) out << "\n    ";
-    out << "]\n";
+    summary_obj["stages_summary"] = stages_summary_array;
+    root["summary"] = summary_obj;
 
-    out << "  }\n";
-    out << "}\n";
-
+    // Write to file with pretty printing (4-space indent)
+    std::ofstream out(output_path_);
+    if (!out.is_open()) {
+        LOG_ERROR("Failed to open trace file for writing: {}", output_path_);
+        return;
+    }
+    out << root.dump(2) << std::endl;
     out.close();
-}
-
-void TraceExporter::write_stage(std::ofstream& out, const TraceStage& stage) const {
-    out << "    {\n";
-    out << "      \"stage_id\": \"" << stage.stage_id << "\",\n";
-    out << "      \"stage_type\": \"" << stage.stage_type << "\",\n";
-    out << "      \"description\": \"" << escape_json(stage.description) << "\",\n";
-    out << "      \"sub_steps\": [";
-
-    for (size_t i = 0; i < stage.sub_steps.size(); ++i) {
-        out << "\n";
-        write_sub_step(out, stage.sub_steps[i]);
-        if (i < stage.sub_steps.size() - 1) {
-            out << ",";
-        }
-    }
-
-    if (!stage.sub_steps.empty()) {
-        out << "\n    ";
-    }
-    out << "]\n";
-    out << "    }";
-}
-
-void TraceExporter::write_sub_step(std::ofstream& out, const SubStep& step) const {
-    out << "        {\n";
-    out << "          \"step_id\": \"" << step.step_id << "\",\n";
-    out << "          \"description\": \"" << escape_json(step.description) << "\",\n";
-
-    // Graph data
-    out << "          \"graph_data\": {\n";
-    out << "            \"dot\": \"" << escape_json(step.graph_data.dot) << "\",\n";
-    out << "            \"num_nodes\": " << step.graph_data.num_nodes << ",\n";
-    out << "            \"num_edges\": " << step.graph_data.num_edges;
-
-    // Write state_data map only if non-empty
-    if (!step.graph_data.state_data.empty()) {
-        out << ",\n";
-        out << "            \"state_data\": {\n";
-
-        bool first_state = true;
-        for (const auto& pair : step.graph_data.state_data) {
-            if (!first_state) out << ",\n";
-            first_state = false;
-
-            const StateData& data = pair.second;
-            out << "              \"" << data.id << "\": {\n";
-            out << "                \"id\": \"" << data.id << "\",\n";
-            out << "                \"classification\": \"" << data.classification << "\",\n";
-            out << "                \"type\": \"" << data.type << "\",\n";
-            out << "                \"is_initial\": " << (data.is_initial ? "true" : "false") << ",\n";
-            out << "                \"phi\": \"" << escape_json(data.phi) << "\",\n";
-            out << "                \"xnf_phi\": \"" << escape_json(data.xnf_phi) << "\",\n";
-
-            // Prop atoms
-            out << "                \"prop_atoms\": [";
-            for (size_t i = 0; i < data.prop_atoms.size(); ++i) {
-                if (i > 0) out << ", ";
-                out << "\"" << escape_json(data.prop_atoms[i]) << "\"";
-            }
-            out << "]\n";
-
-            out << "              }";
-        }
-
-        out << "\n            ";
-    }
-    out << "          },\n";
-
-    out << "          \"highlights\": {\n";
-    write_highlights(out, step.highlights);
-    out << "          },\n";
-
-    // State info
-    out << "          \"state_info\": {\n";
-    write_state_info(out, step.state_info);
-    out << "          },\n";
-
-    // Metrics
-    out << "          \"metrics\": {\n";
-    out << "            \"duration_ms\": " << step.metrics.duration_ms << "\n";
-    out << "          }\n";
-
-    out << "        }";
-}
-
-void TraceExporter::write_highlights(std::ofstream& out, const SubStepHighlights& h) const {
-    bool first = true;
-
-    auto write_array = [&first, &out](const char* key, const auto& vec) {
-        if (vec.empty()) return;
-        if (!first) out << ",\n";
-        first = false;
-        out << "            \"" << key << "\": [";
-        for (size_t i = 0; i < vec.size(); ++i) {
-            out << "\"" << vec[i] << "\"";
-            if (i < vec.size() - 1) out << ", ";
-        }
-        out << "]";
-    };
-
-    auto write_edge_array = [&first, &out](const char* key, const auto& vec) {
-        if (vec.empty()) return;
-        if (!first) out << ",\n";
-        first = false;
-        out << "            \"" << key << "\": [";
-        for (size_t i = 0; i < vec.size(); ++i) {
-            out << "\n              {";
-            out << "\"from\": \"" << vec[i].from << "\", ";
-            out << "\"to\": \"" << vec[i].to << "\"";
-            if (!vec[i].label.empty()) out << ", \"label\": \"" << vec[i].label << "\"";
-            if (!vec[i].type.empty()) out << ", \"type\": \"" << vec[i].type << "\"";
-            out << "}";
-            if (i < vec.size() - 1) out << ",";
-        }
-        if (!vec.empty()) out << "\n            ";
-        out << "]";
-    };
-
-    write_array("new_nodes", h.new_nodes);
-    write_edge_array("new_edges", h.new_edges);
-    write_array("scc_nodes", h.scc_nodes);
-    write_array("pending_nodes", h.pending_nodes);
-    write_array("updated_nodes", h.updated_nodes);
-    write_array("attractor_nodes", h.attractor_nodes);
-
-    if (!h.scc_id.empty()) {
-        if (!first) out << ",\n";
-        out << "            \"scc_id\": \"" << h.scc_id << "\"";
-    }
-
-    if (!first) out << "\n";
-}
-
-void TraceExporter::write_state_info(std::ofstream& out, const SubStepStateInfo& info) const {
-    out << "            \"swin_count\": " << info.swin_count << ",\n";
-    out << "            \"ewin_count\": " << info.ewin_count << ",\n";
-    out << "            \"unknown_count\": " << info.unknown_count << ",\n";
-    out << "            \"total_states\": " << info.total_states;
-    if (info.current_scc >= 0) {
-        out << ",\n";
-        out << "            \"current_scc\": " << info.current_scc;
-    }
 }
 
 //==============================================================================

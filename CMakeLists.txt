@@ -74,7 +74,7 @@ endif()
 # Cosy2 Synthesis Tool
 # ============================================================
 add_executable(Cosy2 src/cosy2.cpp)
-target_include_directories(Cosy2 PRIVATE include)
+target_include_directories(Cosy2 PRIVATE include external)
 target_link_libraries(Cosy2 PRIVATE formula)
 # Install Cosy2 to bin directory
 install(TARGETS Cosy2 DESTINATION bin)
