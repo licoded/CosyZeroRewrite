@@ -35,6 +35,7 @@
 #include <iomanip>
 #include <chrono>
 #include <thread>
+#include <random>
 #include <sstream>
 #include <vector>
 #include <string>
@@ -284,9 +285,13 @@ public:
                     result.error_msg = "parse error";
                 }
 
-                // Artificial delay for testing progress bar
+                // Artificial delay for testing progress bar (random duration)
                 if (sleep_per_task_ > 0) {
-                    std::this_thread::sleep_for(std::chrono::seconds(sleep_per_task_));
+                    // Random sleep: 0 to 2*sleep_per_task_ (average = sleep_per_task_)
+                    static thread_local std::mt19937 rng(std::random_device{}());
+                    std::uniform_int_distribution<int> dist(0, 2 * sleep_per_task_);
+                    int sleep_ms = dist(rng) * 1000; // Convert to milliseconds
+                    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
                 }
             }
 
@@ -366,7 +371,7 @@ int main(int argc, char* argv[]) {
     bool quiet = false;
     bool no_progress = false;
     bool no_active = false;
-    int sleep_per_task = 0;  // Sleep per task in seconds (for testing progress bar)
+    int sleep_per_task = 0;  // Average random sleep per task in seconds (for testing progress bar)
 
     // Define options
     app.add_option("-d,--dir", base_dir, "Benchmark directory")
@@ -383,7 +388,7 @@ int main(int argc, char* argv[]) {
     app.add_flag("-q,--quiet", quiet, "Only print summary");
     app.add_flag("--no-progress", no_progress, "Disable progress bar");
     app.add_flag("--no-active", no_active, "Don't show active tasks");
-    app.add_option("--sleep", sleep_per_task, "Sleep per task (seconds, for testing)")
+    app.add_option("--sleep", sleep_per_task, "Average random sleep per task (seconds, for testing)")
         ->check(CLI::Range(0, 60));
 
     // Parse arguments
