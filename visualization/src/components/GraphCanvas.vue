@@ -41,6 +41,15 @@
           <span class="tooltip-label">Type:</span>
           <span class="tooltip-value">{{ tooltip.stateData?.type || '' }}</span>
         </div>
+        <!-- Available variables in current state -->
+        <div v-if="props.partition" class="tooltip-row">
+          <span class="tooltip-label">sys vars =</span>
+          <span class="tooltip-value">{{ formatVarSet(availableVars.sysVars) }}</span>
+        </div>
+        <div v-if="props.partition" class="tooltip-row">
+          <span class="tooltip-label">env vars =</span>
+          <span class="tooltip-value">{{ formatVarSet(availableVars.envVars) }}</span>
+        </div>
         <div v-if="tooltip.stateData?.phi && tooltip.stateData.phi !== 'null'" class="tooltip-row">
           <span class="tooltip-label">Formula (phi):</span>
           <span class="tooltip-value formula-text">{{ tooltip.stateData.phi }}</span>
@@ -78,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useGraphViz } from '@/composables/useGraphViz';
 import type { SubStepHighlights, SubStepGraphData, StateData, TracePartition } from '@/types/trace';
 
@@ -216,6 +225,52 @@ function assignmentToFormula(label: string): string | null {
 function formatAssignmentWithNames(label: string): string {
   // Backend already formats with variable names, just return as-is
   return label;
+}
+
+/**
+ * Extract literal variable names from prop_atoms
+ * Filters out subformulas like X(...), |, &, etc.
+ * E.g., ["X((true U p))", "p"] -> ["p"]
+ */
+function extractLiterals(propAtoms: string[]): string[] {
+  if (!propAtoms) return [];
+  return propAtoms.filter(atom => {
+    const trimmed = atom.trim();
+    // Exclude subformulas
+    if (trimmed.startsWith('X(')) return false;
+    if (trimmed.includes('|') || trimmed.includes('&')) return false;
+    if (trimmed.startsWith('(')) return false;
+    return trimmed.length > 0;
+  });
+}
+
+/**
+ * Get available variables for current state
+ * Returns sys_vars (from partition.outputs) and env_vars (from partition.inputs)
+ * that are present in prop_atoms as literals
+ */
+const availableVars = computed(() => {
+  if (!tooltip.value.stateData || !props.partition) {
+    return { sysVars: [], envVars: [] };
+  }
+
+  const literals = extractLiterals(tooltip.value.stateData.prop_atoms || []);
+  const outputs = props.partition.outputs || [];
+  const inputs = props.partition.inputs || [];
+
+  // Filter by partition to distinguish sys vs env vars
+  const sysVars = literals.filter(l => outputs.includes(l));
+  const envVars = literals.filter(l => inputs.includes(l));
+
+  return { sysVars, envVars };
+});
+
+/**
+ * Format variable set as {var1, var2} or {} for empty
+ */
+function formatVarSet(vars: string[]): string {
+  if (vars.length === 0) return '{}';
+  return '{' + vars.join(', ') + '}';
 }
 
 /**
