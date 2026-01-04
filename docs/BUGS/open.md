@@ -8,19 +8,55 @@
 
 | 优先级 | 数量 |
 |--------|------|
-| 🔴 高 | 1 |
+| 🔴 高 | 2 |
 | 🟡 中 | 0 |
 | 🟢 低 | 0 |
-| **总计** | **1** |
+| **总计** | **2** |
 
 ---
 
 ## 🔴 高优先级
 
+### F/G 操作符实现问题 (2026-01-04)
+
+**状态**: 新发现
+**影响**: F (Eventually) 和 G (Globally) 操作符结果与 Cosy 不一致
+
+**不一致案例**:
+
+| 公式 | Cosy2 | Cosy | 说明 |
+|------|-------|------|------|
+| `X(!(p3))` | UNREALIZABLE | Realizable | Next + Not |
+| `G(!(p3))` | REALIZABLE | Unrealizable | Globally + Not |
+| `G(p3)` | REALIZABLE | Unrealizable | Globally |
+| `X(F(!(p3)))` | UNREALIZABLE | Realizable | Next + Eventually |
+
+**测试命令**:
+```bash
+.inputs: p3
+.outputs: p2
+
+X(!(p3))      # Cosy2: UNREALIZABLE, Cosy: Realizable
+G(!(p3))      # Cosy2: REALIZABLE, Cosy: Unrealizable
+G(p3)         # Cosy2: REALIZABLE, Cosy: Unrealizable
+```
+
+**分析方向**:
+1. F/G 的 NNF 转换: F(φ) = true U φ, G(φ) = false R φ
+2. F/G 的 progression 实现
+3. 空串接受性判断: F 不能接受空串，G 可以接受空串
+
+**相关文件**:
+- `src/formula/nnf.cpp` - NNF 转换
+- `src/formula/xnf.cpp` - XNF 转换
+- `src/automata/progression.cpp` - Progression
+
+---
+
 ### Benchmark 准确率问题 (68% vs 100%)
 
-**状态**: 调查中
-**日期**: 2026-01-02 (更新)
+**状态**: 部分已修复
+**日期**: 2026-01-04 (更新)
 **详情**: `docs/working_issues/2026-01-02_PM_BenchmarkAccuracy/`
 
 **问题描述**:
@@ -30,18 +66,10 @@
 
 **已修复**:
 - ✅ XNF 转换实现 (Until/Release)
-- ✅ OnTheFlyDFA 集成 XNF 转换
-- ✅ G p1 测试用例修复 (Release with false 语义)
+- ✅ X(φ) 作为 XNF 基础情况，不递归转换内部
+- ✅ 原 4 个 FAIL 案例 (f101, f108, f117, f13) 测试通过
 
 **待调查**:
-- 复杂嵌套公式 (如 `p7 R ((!p3 R X(!p4)) U p0)`) 结果不正确
-- 可能需要进一步调整转移生成逻辑
-
-**失败案例**:
-- f102: MISMATCH (expected R, got U) - False Negative
-- f103, f104, f112, f114, f115: MISMATCH (expected U, got R) - False Positives
-
-**下一步**:
-- 分析 XNF 转换后的转移生成逻辑
-- 检查 Release/Until 嵌套情况的处理
+- F/G 操作符实现问题（见上方新 bug）
+- 复杂嵌套公式结果不正确
 
