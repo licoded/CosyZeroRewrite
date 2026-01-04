@@ -19,33 +19,51 @@
     <div
       v-if="tooltip.visible"
       class="node-tooltip"
+      :class="{ 'edge-tooltip': tooltip.isEdge }"
       :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
     >
-      <div class="tooltip-header">
-        {{ tooltip.stateData?.id || '' }}
-        <span v-if="tooltip.stateData?.is_initial" class="initial-badge">(initial)</span>
-      </div>
-      <span
-        :class="['classification-badge', tooltip.stateData?.classification?.toLowerCase()]"
-      >
-        {{ tooltip.stateData?.classification || 'Unknown' }}
-      </span>
-      <div class="tooltip-row">
-        <span class="tooltip-label">Type:</span>
-        <span class="tooltip-value">{{ tooltip.stateData?.type || '' }}</span>
-      </div>
-      <div v-if="tooltip.stateData?.phi && tooltip.stateData.phi !== 'null'" class="tooltip-row">
-        <span class="tooltip-label">Formula (phi):</span>
-        <span class="tooltip-value formula-text">{{ tooltip.stateData.phi }}</span>
-      </div>
-      <div v-if="tooltip.stateData?.xnf_phi && tooltip.stateData.xnf_phi !== 'null'" class="tooltip-row">
-        <span class="tooltip-label">XNF Formula:</span>
-        <span class="tooltip-value formula-text">{{ tooltip.stateData.xnf_phi }}</span>
-      </div>
-      <div v-if="tooltip.stateData?.prop_atoms && tooltip.stateData.prop_atoms.length > 0" class="tooltip-row">
-        <span class="tooltip-label">Propositional Atoms:</span>
-        <span class="tooltip-value">[{{ tooltip.stateData.prop_atoms.join(', ') }}]</span>
-      </div>
+      <!-- Node Tooltip -->
+      <template v-if="!tooltip.isEdge">
+        <div class="tooltip-header">
+          {{ tooltip.stateData?.id || '' }}
+          <span v-if="tooltip.stateData?.is_initial" class="initial-badge">(initial)</span>
+        </div>
+        <span
+          v-if="tooltip.stateData"
+          :class="['classification-badge', tooltip.stateData.classification?.toLowerCase()]"
+        >
+          {{ tooltip.stateData.classification }}
+        </span>
+        <div class="tooltip-row">
+          <span class="tooltip-label">Type:</span>
+          <span class="tooltip-value">{{ tooltip.stateData?.type || '' }}</span>
+        </div>
+        <div v-if="tooltip.stateData?.phi && tooltip.stateData.phi !== 'null'" class="tooltip-row">
+          <span class="tooltip-label">Formula (phi):</span>
+          <span class="tooltip-value formula-text">{{ tooltip.stateData.phi }}</span>
+        </div>
+        <div v-if="tooltip.stateData?.xnf_phi && tooltip.stateData.xnf_phi !== 'null'" class="tooltip-row">
+          <span class="tooltip-label">XNF Formula:</span>
+          <span class="tooltip-value formula-text">{{ tooltip.stateData.xnf_phi }}</span>
+        </div>
+        <div v-if="tooltip.stateData?.prop_atoms && tooltip.stateData.prop_atoms.length > 0" class="tooltip-row">
+          <span class="tooltip-label">Propositional Atoms:</span>
+          <span class="tooltip-value">[{{ tooltip.stateData.prop_atoms.join(', ') }}]</span>
+        </div>
+      </template>
+
+      <!-- Edge Tooltip -->
+      <template v-else>
+        <div class="tooltip-header">{{ tooltip.edgeInfo?.from }} → {{ tooltip.edgeInfo?.to }}</div>
+        <div class="tooltip-row">
+          <span class="tooltip-label">Type:</span>
+          <span class="tooltip-value">{{ tooltip.edgeInfo?.type || '' }}</span>
+        </div>
+        <div v-if="tooltip.edgeInfo?.label" class="tooltip-row">
+          <span class="tooltip-label">Assignment:</span>
+          <span class="tooltip-value formula-text">{{ tooltip.edgeInfo.label }}</span>
+        </div>
+      </template>
     </div>
   </div>
 </template>
@@ -75,7 +93,9 @@ const tooltip = ref({
   visible: false,
   x: 0,
   y: 0,
-  stateData: null as StateData | null
+  isEdge: false,
+  stateData: null as StateData | null,
+  edgeInfo: null as { from: string; to: string; type: string; label: string } | null
 });
 
 /**
@@ -98,12 +118,34 @@ async function render(): Promise<void> {
 }
 
 /**
- * Extract node ID from the title element
- * Title format: "S0\nSwin" or "E0\nEwin" or "S0 (init)\nUnknown"
+ * Parse node ID from the title element
  */
 function extractNodeId(titleText: string): string {
   const lines = titleText.split('\n').map(l => l.trim());
   return lines[0] || '';
+}
+
+/**
+ * Parse edge information from the title element
+ * Title format: "from -> to" or "from -> to [label="..."]"
+ */
+function parseEdgeInfo(titleText: string): { from: string; to: string; type: string; label: string } | null {
+  // DOT edge title format: "S0 -> E0" or with label
+  const match = titleText.match(/^(\w+)\s*->\s*(\w+)/);
+  if (!match) return null;
+
+  const from = match[1];
+  const to = match[2];
+
+  // Try to extract label from title if present
+  const labelMatch = titleText.match(/label="([^"]+)"/);
+  const label = labelMatch ? labelMatch[1] : '';
+
+  // Determine edge type from the nodes
+  const isSysMove = from.startsWith('S');
+  const type = isSysMove ? 'System move' : 'Environment move';
+
+  return { from, to, type, label };
 }
 
 /**
@@ -116,22 +158,49 @@ function handleMouseMove(event: MouseEvent): void {
     return;
   }
 
-  // Find the containing group/node
+  // Find the containing group/node/edge
   let node: SVGElement | HTMLElement | null = target;
   let depth = 0;
   while (node && depth < 5) {
-    if (node.tagName === 'g') {
+    const tagName = node.tagName.toLowerCase();
+
+    // Check for edge (class="edge" or class="link")
+    if (tagName === 'g' || tagName === 'a' || tagName === 'path') {
+      const className = (node as SVGElement).getAttribute('class') || '';
+      if (className.includes('edge') || className.includes('link')) {
+        // This is an edge - look for title element
+        const title = node.querySelector('title');
+        if (title?.textContent) {
+          const edgeInfo = parseEdgeInfo(title.textContent);
+          if (edgeInfo) {
+            showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
+            return;
+          }
+        }
+      }
+    }
+
+    if (tagName === 'g') {
       // Check if this group has a title element (indicates it's a node)
       const title = node.querySelector('title');
       if (title?.textContent) {
-        const nodeId = extractNodeId(title.textContent);
-        // Get state data from graphData
-        const stateData = props.graphData.state_data?.[nodeId];
-        if (stateData) {
-          showTooltip(event.clientX, event.clientY, stateData);
+        const titleText = title.textContent.trim();
+        // Check if it's an edge title (contains ->)
+        if (titleText.includes('->')) {
+          const edgeInfo = parseEdgeInfo(titleText);
+          if (edgeInfo) {
+            showEdgeTooltip(event.clientX, event.clientY, edgeInfo);
+          }
         } else {
-          // Fallback: show basic info if state_data not available
-          showTooltipBasic(event.clientX, event.clientY, nodeId);
+          // It's a node
+          const nodeId = extractNodeId(titleText);
+          const stateData = props.graphData.state_data?.[nodeId];
+          if (stateData) {
+            showTooltip(event.clientX, event.clientY, stateData);
+          } else {
+            // Fallback: show basic info if state_data not available
+            showTooltipBasic(event.clientX, event.clientY, nodeId);
+          }
         }
         return;
       }
@@ -151,14 +220,11 @@ function handleMouseOut(): void {
 }
 
 /**
- * Show detailed tooltip with state data
+ * Show node tooltip with state data
  */
 function showTooltip(x: number, y: number, stateData: StateData): void {
-  // Offset tooltip slightly from cursor
   const offsetX = 15;
   const offsetY = 15;
-
-  // Position tooltip, keeping it within viewport
   const posX = Math.min(x + offsetX, window.innerWidth - 520);
   const posY = Math.min(y + offsetY, window.innerHeight - 200);
 
@@ -166,18 +232,17 @@ function showTooltip(x: number, y: number, stateData: StateData): void {
     visible: true,
     x: posX,
     y: posY,
-    stateData
+    isEdge: false,
+    stateData,
+    edgeInfo: null
   };
 }
 
 /**
- * Show basic tooltip (fallback when state_data is not available)
+ * Show basic node tooltip (fallback when state_data is not available)
  */
 function showTooltipBasic(x: number, y: number, nodeId: string): void {
-  // Determine player type from node ID prefix
   const type: 'System' | 'Environment' = nodeId.startsWith('S') ? 'System' : 'Environment';
-
-  // Create minimal state data
   const stateData: StateData = {
     id: nodeId,
     classification: 'Unknown',
@@ -187,8 +252,26 @@ function showTooltipBasic(x: number, y: number, nodeId: string): void {
     xnf_phi: '',
     prop_atoms: []
   };
-
   showTooltip(x, y, stateData);
+}
+
+/**
+ * Show edge tooltip
+ */
+function showEdgeTooltip(x: number, y: number, edgeInfo: { from: string; to: string; type: string; label: string }): void {
+  const offsetX = 15;
+  const offsetY = 15;
+  const posX = Math.min(x + offsetX, window.innerWidth - 400);
+  const posY = Math.min(y + offsetY, window.innerHeight - 150);
+
+  tooltip.value = {
+    visible: true,
+    x: posX,
+    y: posY,
+    isEdge: true,
+    stateData: null,
+    edgeInfo
+  };
 }
 
 /**
