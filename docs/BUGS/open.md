@@ -17,36 +17,96 @@
 
 ## 🔴 高优先级
 
-### F/G 操作符实现问题 (2026-01-04)
+### Bug #001: X(!(p)) with outputs 判断错误 (2026-01-04)
 
 **状态**: 新发现
-**影响**: F (Eventually) 和 G (Globally) 操作符结果与 Cosy 不一致
+**影响**: Next + Not 操作符在有 outputs 时判断错误
 
-**不一致案例**:
+#### 测试案例
 
-| 公式 | Cosy2 | Cosy | 说明 |
-|------|-------|------|------|
-| `X(!(p3))` | UNREALIZABLE | Realizable | Next + Not |
-| `G(!(p3))` | REALIZABLE | Unrealizable | Globally + Not |
-| `G(p3)` | REALIZABLE | Unrealizable | Globally |
-| `X(F(!(p3)))` | UNREALIZABLE | Realizable | Next + Eventually |
+| 项目 | 值 |
+|------|-----|
+| **公式** | `X(!(p3))` |
+| **Partition** | `.inputs: p3`<br>`.outputs: p2` |
+| **Cosy2 结果** | **UNREALIZABLE** ❌ |
+| **Cosy 结果 (预期)** | **Realizable** ✅ |
+| **类型** | False Negative |
 
-**测试命令**:
+#### 分析
+
+公式 `X(!(p3))` 的语义：
+- "下一时刻 p3 不为真"
+- 当有 output (p2) 时，System 可以控制 p2
+- Environment 只能控制 p3
+
+Cosy2 判断为 UNREALIZABLE，但实际上 Environment 无法永远阻止 `!p3`（因为 p3 是 Environment 的变量，Environment 可以选择让 p3 为 false）。
+
+#### Trace 文件
+
+```
+Trace: /tmp/bug_trace_x_not_p3/trace_20260104_225920.json
+```
+
+游戏图结构：
+- S0 (init, System, phi=X(!p3)) → E0 (Environment)
+- E0 → S1 (System, phi=!p3)
+- S1 → E1 (Environment, phi=!p3)
+- E1 → S2 (env={}) / S3 (env={p3})
+
+#### 测试命令
+
 ```bash
 .inputs: p3
 .outputs: p2
 
-X(!(p3))      # Cosy2: UNREALIZABLE, Cosy: Realizable
-G(!(p3))      # Cosy2: REALIZABLE, Cosy: Unrealizable
-G(p3)         # Cosy2: REALIZABLE, Cosy: Unrealizable
+Cosy2 "X(!(p3))" -p part      # UNREALIZABLE
+Cosy "X(!(p3))" part 0       # Realizable
 ```
 
-**分析方向**:
-1. F/G 的 NNF 转换: F(φ) = true U φ, G(φ) = false R φ
-2. F/G 的 progression 实现
-3. 空串接受性判断: F 不能接受空串，G 可以接受空串
+#### 相关文件
 
-**相关文件**:
+- `src/synthesis/on_the_fly_solver.cpp` - 游戏求解
+- `src/automata/tableau.cpp` - 状态扩展
+- `src/automata/progression.cpp` - Progression 计算
+
+---
+
+### Bug #002: F/G 操作符实现问题 (2026-01-04)
+
+**状态**: 新发现
+**影响**: F (Eventually) 和 G (Globally) 操作符结果与 Cosy 不一致
+
+#### 不一致案例
+
+| 公式 | Partition | Cosy2 | Cosy | 类型 |
+|------|-----------|-------|------|------|
+| `G(!(p3))` | in=p3, out=p2 | REALIZABLE | Unrealizable | False Positive |
+| `G(p3)` | in=p3, out=p2 | REALIZABLE | Unrealizable | False Positive |
+| `X(F(!(p3)))` | in=p3, out=p2 | UNREALIZABLE | Realizable | False Negative |
+
+#### 测试命令
+
+```bash
+.inputs: p3
+.outputs: p2
+
+G(!(p3))      # Cosy2: REALIZABLE, Cosy: Unrealizable
+G(p3)         # Cosy2: REALIZABLE, Cosy: Unrealizable
+X(F(!(p3)))   # Cosy2: UNREALIZABLE, Cosy: Realizable
+```
+
+#### 分析方向
+
+1. **F/G 的 NNF 转换**:
+   - `F(φ) = true U φ`
+   - `G(φ) = false R φ`
+2. **F/G 的 progression 实现**
+3. **空串接受性判断**:
+   - F 不能接受空串（必须继续直到满足）
+   - G 可以接受空串（当右侧满足时可以结束）
+
+#### 相关文件
+
 - `src/formula/nnf.cpp` - NNF 转换
 - `src/formula/xnf.cpp` - XNF 转换
 - `src/automata/progression.cpp` - Progression
