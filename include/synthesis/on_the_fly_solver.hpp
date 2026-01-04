@@ -467,6 +467,20 @@ private:
     const std::vector<GameState>& get_successors(const GameState& state);
 
     /**
+     * @brief Get full-round successors (sys move + env move) from a System state
+     *
+     * Returns the set of System states reachable by a complete sys+env move:
+     * { s' | ∃e. sys_state →[sys] e →[env] s' }
+     *
+     * This is used for SCC decomposition where only complete rounds (sys move
+     * followed by env move) are considered as edges.
+     *
+     * @param sys_state A System state (asserts player == System)
+     * @return Vector of System states after complete sys+env moves
+     */
+    std::vector<GameState> get_full_round_successors(const GameState& sys_state);
+
+    /**
      * @brief Run Tarjan SCC algorithm on current graph
      * @return List of SCCs (each is a list of game states)
      */

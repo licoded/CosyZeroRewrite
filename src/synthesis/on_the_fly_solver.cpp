@@ -371,10 +371,40 @@ const std::vector<GameState>& OnTheFlyGameSolver::get_successors(const GameState
     return it->second;
 }
 
+std::vector<GameState> OnTheFlyGameSolver::get_full_round_successors(const GameState& sys_state) {
+    // Only valid for System states
+    assert(sys_state.player == Player::System);
+
+    std::vector<GameState> result;
+
+    // First level: sys move → env states
+    auto sys_succ_it = successors_.find(sys_state);
+    if (sys_succ_it == successors_.end()) {
+        expand_state(sys_state);
+        sys_succ_it = successors_.find(sys_state);
+    }
+
+    // Second level: for each env state, get env move → sys states
+    for (const auto& env_state : sys_succ_it->second) {
+        assert(env_state.player == Player::Environment);
+        auto env_succ_it = successors_.find(env_state);
+        if (env_succ_it == successors_.end()) {
+            continue;  // Should not happen if expansion is correct
+        }
+        for (const auto& next_sys_state : env_succ_it->second) {
+            assert(next_sys_state.player == Player::System);
+            result.push_back(next_sys_state);
+        }
+    }
+
+    return result;
+}
+
 std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs() {
     std::vector<std::vector<GameState>> result;
 
-    // Tarjan's SCC algorithm
+    // Tarjan's SCC algorithm - only on System states with full-round transitions
+    // An edge exists from s to s' iff there's a complete sys+env move: s → env → s'
     std::unordered_map<GameState, int, GameStateHash, GameStateEqual> indices;
     std::unordered_map<GameState, int, GameStateHash, GameStateEqual> lowlinks;
     std::unordered_map<GameState, bool, GameStateHash, GameStateEqual> on_stack;
@@ -383,15 +413,18 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs() {
     int index = 0;
 
     std::function<void(const GameState&)> strongconnect = [&](const GameState& v) {
+        assert(v.player == Player::System);  // Only System states are in SCC graph
+
         indices[v] = index;
         lowlinks[v] = index;
         index++;
         stack.push_back(v);
         on_stack[v] = true;
 
-        // Consider successors
-        const auto& succs = get_successors(v);
+        // Consider full-round successors (sys move → env move → sys state)
+        const auto succs = get_full_round_successors(v);
         for (const GameState& w : succs) {
+            assert(w.player == Player::System);  // All successors are System states
             if (indices.count(w) == 0) {
                 // Successor not visited
                 strongconnect(w);
@@ -416,9 +449,13 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs() {
         }
     };
 
-    // Visit all expanded states
+    // Visit all System states (Environment states are not part of SCC decomposition)
     for (const auto& pair : successors_) {
         const GameState& v = pair.first;
+        // Only process System states for SCC decomposition
+        if (v.player != Player::System) {
+            continue;
+        }
         if (indices.count(v) == 0) {
             strongconnect(v);
         }
