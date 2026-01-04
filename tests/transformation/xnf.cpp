@@ -262,16 +262,28 @@ TEST_CASE("XNF: X(p U q)", "[xnf][next-temporal]") {
     Formula* next_until = pool.create_next(until);
     Formula* result = next_until->xnf_with_tail(pool);
 
-    // X(p U q) -> X(xnf(p U q)) -> X(q ∨ (p ∧ X(p U q)))
-    // The outer Next is preserved, inner child is transformed
+    // X(φ) is already in XNF (◦-formula base case)
+    // X(p U q) stays as X(p U q), no transformation needed
     REQUIRE(result->is_next());
-    REQUIRE(result->left()->is_or());  // The transformed Until: q ∨ (p ∧ X(p U q))
+    REQUIRE(result == next_until);  // Same formula object
+    REQUIRE(result->left()->is_until());  // Inner Until preserved
+}
 
-    // The inner Next inside the OR should contain the original Until
-    Formula* right_branch = result->left()->right();  // (p ∧ X(p U q))
-    REQUIRE(right_branch->is_and());
-    REQUIRE(right_branch->right()->is_next());
-    REQUIRE(right_branch->right()->left()->is_until());  // Original Until inside Next
+TEST_CASE("XNF: X(p R q)", "[xnf][next-temporal]") {
+    INFO("Formula: X(p R q)");
+    FormulaPool pool;
+    pool.declare_variables({"p", "q"}, {});
+    Formula* p = pool.create_variable("p");
+    Formula* q = pool.create_variable("q");
+    Formula* release = pool.create_release(p, q);
+    Formula* next_release = pool.create_next(release);
+    Formula* result = next_release->xnf_with_tail(pool);
+
+    // X(φ) is already in XNF (◦-formula base case)
+    // X(p R q) stays as X(p R q), no transformation needed
+    REQUIRE(result->is_next());
+    REQUIRE(result == next_release);  // Same formula object
+    REQUIRE(result->left()->is_release());  // Inner Release preserved
 }
 
 //==============================================================================

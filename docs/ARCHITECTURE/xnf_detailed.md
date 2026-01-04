@@ -38,6 +38,8 @@
 2. **◦-formulas**: `X(φ)` (Next formulas)
 3. **•-formulas**: `!X(φ)` (Weak Next formulas)
 
+**关键点**: `X(φ)` 本身就是 XNF 公式（◦-formula），无论 `φ` 内部是什么。
+
 ## XNF 转换函数 xnf(φ)
 
 对于 **NNF 公式** φ，xnf(φ) 定义为：
@@ -48,9 +50,13 @@ xnf(φ) = φ  如果 φ 是:
   - literal (p1, !p1)
   - □false (G(false))
   - ♢true (F(true))
-  - ◦-formula (X(φ))
+  - ◦-formula (X(φ))    ← X(φ) 本身已在 XNF 中，不递归转换内部！
   - •-formula (!X(φ))
 ```
+
+**重要**: `X(φ)` 作为基础情况，**不递归转换** `φ`。
+- `X(p0 R p2)` 的 XNF 就是 `X(p0 R p2)` 本身
+- 内部的 `p0 R p2` 由后续的 rmnext progression 处理
 
 ### And/Or (保持结构)
 ```

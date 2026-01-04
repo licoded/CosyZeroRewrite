@@ -30,14 +30,17 @@ namespace formula {
  */
 Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
     // Base cases: already in XNF
-    if (is_true() || is_false() || is_literal() || is_end() || is_not()) {
+    // X(φ) is a base case: Next formulas are already in XNF (◦-formulas)
+    // See docs/ARCHITECTURE/xnf_detailed.md for definition
+    if (is_true() || is_false() || is_literal() || is_end() || is_not() || is_next()) {
         return const_cast<Formula*>(this);
     }
 
     switch (op_) {
         case Formula::OpType::Next: {
-            // X(φ): recurse on child
-            return pool.create_next(left_->xnf_with_tail(pool));
+            // Unreachable - handled in base cases above
+            // X(φ) stays as X(φ), no recursion needed
+            return const_cast<Formula*>(this);
         }
 
         case Formula::OpType::And: {
