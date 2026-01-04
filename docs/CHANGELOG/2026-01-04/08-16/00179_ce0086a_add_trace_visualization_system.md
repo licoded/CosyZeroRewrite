@@ -45,13 +45,22 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 ## AI Analysis
 
 ### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
+
+为 LTLf Synthesis 执行过程设计了完整的 Web 可视化系统。系统采用 C++ JSON Exporter + Web Visualizer 的分离架构，支持追踪执行过程中每个阶段的图状态变化，并使用多层高亮方案显示节点/边的动态变化。
 
 ### 🔍 Technical Details
-<!-- Optional: Add technical details, root cause, or implementation notes -->
+
+- **JSON Schema**: 定义了 Stage/Sub-Step/GraphData/Highlights/StateInfo 等核心数据结构
+- **DOT 存储**: 采用完整 DOT 存储方案 (方案 A)，每个步骤独立保存完整图状态
+- **多层高亮**: 节点类型(圆形/方形) → 胜利区域(绿/红) → 动态变化(新增/SCC/待处理)
+- **输出位置**: `results/trace_{timestamp}/HH-period/formula_id/trace.json`
+- **前端技术栈**: Vite + Vue 3 + TypeScript + @viz-js/viz
 
 ### 📊 Impact Analysis
-<!-- Optional: Add impact scope, affected components, or performance notes -->
+
+- 新增文档仅涉及设计规范，不影响现有代码
+- 为后续 Phase 1-4 的实现提供明确的技术规范
+- 支持离线查看 trace (单个 HTML 文件包含完整数据)
 
 ## Changes
 
