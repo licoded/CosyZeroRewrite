@@ -73,6 +73,56 @@ System 状态 (选择输出，DFA 状态更新)
     ... 循环
 ```
 
+### 2.3 Assignment/Move 表示 (2026-01-04)
+
+**关键设计决策**：Assignment σ 只包含**被设置为 true** 的变量。
+
+#### 设计说明
+
+| 方面 | 说明 |
+|------|------|
+| **σ 内容** | 只包含被选择为 true 的变量 id 集合 |
+| **默认值** | 未出现在 σ 中的变量默认为 false |
+| **适用范围** | System moves (outputs) 和 Environment moves (inputs) 都适用 |
+
+#### 语义解释
+
+```
+prop_atoms = {p1, p2, p3, p5}
+sys = {p1, p5}  (System 控制的变量)
+env = {p2, p3} (Environment 控制的变量)
+
+sys_move = {p1}
+  含义: p1=true, p5=false
+  等价于: sys_move = {p1, !p5}
+```
+
+#### Formula Progression 中的处理
+
+```cpp
+// Literal: fp(p, σ) = tt if p ∈ σ, else ff
+case Literal:
+    return sigma.count(p->var_id()) > 0 ? true : false;
+
+// Not: fp(¬p, σ) = tt if p ∉ σ, else ff
+case Not:
+    if (child->is_literal()) {
+        return sigma.count(child->var_id()) == 0 ? true : false;
+    }
+```
+
+**推论**：
+- `p` 在 σ 中 → p = true
+- `p` 不在 σ 中 → p = false
+- `!p` 当 p 在 σ 中 → !p = false
+- `!p` 当 p 不在 σ 中 → !p = true
+
+#### 设计优点
+
+1. **简洁性**：Move 只需列出设置为 true 的变量
+2. **一致性**：System 和 Environment 使用相同的表示方式
+3. **效率**：减少存储和传输的数据量
+
 ---
 
 ## 3. SCC 的真正意义

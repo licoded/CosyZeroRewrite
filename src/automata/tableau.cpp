@@ -195,8 +195,23 @@ namespace {
  * Includes immediate simplification to prevent formula explosion:
  * - (true & false) → false, (false | anything) → anything, etc.
  *
+ * === Assignment Semantics (2026-01-04) ===
+ *
+ * IMPORTANT: The sigma (σ) parameter contains ONLY variables set to TRUE.
+ * Variables NOT in sigma are implicitly FALSE.
+ *
+ * This design choice:
+ * - Simplifies move representation: only list variables set to true
+ * - Default values: unselected variables = false
+ * - Applies to BOTH System moves (outputs) and Environment moves (inputs)
+ *
+ * Examples:
+ * - prop_atoms = {p1, p2, p3, p5}, sys = {p1, p5}
+ * - sys_move = {p1} means: p1=true, p5=false
+ * - During progression: p1 evaluates to true, !p5 evaluates to true
+ *
  * @param phi Formula to progress (must be in XNF)
- * @param sigma Assignment σ (set of true variables)
+ * @param sigma Assignment σ (set of TRUE variables only, others implicitly false)
  * @param pool Formula pool for creating new formulas
  * @return Progressed formula (fp(φ, σ))
  */
