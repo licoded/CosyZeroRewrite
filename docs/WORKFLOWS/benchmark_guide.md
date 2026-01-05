@@ -1,4 +1,4 @@
-# Benchmark Guide (2026-01-04)
+# Benchmark Guide (2026-01-06)
 
 ## SMv2 Dataset Structure
 
@@ -51,30 +51,54 @@ Defines input/output variable partitioning:
 
 ```bash
 # Run all 1000 formulas (both bench1 and bench2)
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 all
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000
 
-# Run f1-f10 from both directories
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 all 1 10
+# Run f1-f20 from both directories (for quick testing)
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -s 1 -e 20
 
-# Run only bench1 formulas
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1 500
+# Run only bench1 formulas (f1-f500)
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -b 1
 
 # Run only bench2 formulas
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 2 1 500
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -b 2
 ```
 
-### Command Line Arguments
+### Command Line Options
 
 ```
-./benchmark_test <base_dir> [bench_spec] [start] [end]
+./benchmark_test [OPTIONS]
+
+Options:
+  -h,--help                   Print help message
+  -d,--dir TEXT               Benchmark directory (default: benchmarks/sm1000)
+  -b,--bench TEXT             Benchmark spec: all, 1, or 2 (default: all)
+  -s,--start INT              Starting formula number (1-500, default: 1)
+  -e,--end INT                Ending formula number (1-500, default: 500)
+  -j,--jobs UINT              Number of parallel jobs (default: auto)
+  -v,--verbose                Print all cases
+  -q,--quiet                  Only print summary
+  --no-progress               Disable progress bar
+  --no-active                 Don't show active tasks
 ```
 
-| Argument | Description | Default |
-|----------|-------------|---------|
-| base_dir | Benchmark directory (e.g., `tools/benchmarks/sm1000`) | `tools/benchmarks/sm1000` |
-| bench_spec | `all`, `1`, or `2` - which bench directories to use | `all` |
-| start | Starting formula number (1-500) | `1` |
-| end | Ending formula number (1-500) | `500` |
+### Examples
+
+```bash
+# Quick test: 20 formulas from both directories
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -s 1 -e 20 -j 1
+
+# Full test: all 1000 formulas, parallel processing
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000
+
+# Test only bench1, formulas 100-200
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -b 1 -s 100 -e 200
+
+# Verbose mode (show all results)
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -s 1 -e 5 -v
+
+# Quiet mode (summary only)
+./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -q
+```
 
 ### Output Format
 

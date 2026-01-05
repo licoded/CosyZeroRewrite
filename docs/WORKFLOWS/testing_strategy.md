@@ -177,16 +177,16 @@ make test
    - 确保所有单元测试通过
    - 确保没有引入回归问题
 
-2. **小范围抽查** (20 个随机案例)
+2. **小范围抽查** (20 个案例)
    ```bash
-   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 20
+   ./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000 -s 1 -e 20 -j 1
    ```
    - 验证基本逻辑在大范围内的稳定性
    - 发现问题立即修复，不要继续
 
 3. **全量 Benchmark** (1000 个案例)
    ```bash
-   ./build/benchmark_runner benchmarks/sm1000 1 1000
+   ./build/tests/bench/benchmark_test -d tools/benchmarks/sm1000
    ```
    - 只有在前面阶段通过后才运行
    - 避免浪费时间在明显有问题的代码上
