@@ -7,6 +7,59 @@
 
 namespace synthesis {
 
+//==============================================================================
+// Internal helpers
+//==============================================================================
+
+namespace {
+
+/**
+ * @brief Build benchmark file paths for a given directory and number
+ */
+struct BenchmarkPaths {
+    std::string ltlf_file;
+    std::string part_file;
+};
+
+BenchmarkPaths make_benchmark_paths(const std::string& base_dir, int bench_dir, int bench_num) {
+    return {
+        base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf",
+        base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part"
+    };
+}
+
+/**
+ * @brief Read benchmark files (formula and partition)
+ */
+bool read_benchmark_files(const BenchmarkPaths& paths,
+                          std::string& formula_str,
+                          std::vector<std::string>& outputs,
+                          std::vector<std::string>& inputs,
+                          bool (*load_partition_fn)(const std::string&, std::vector<std::string>&, std::vector<std::string>&)) {
+    // Read formula
+    std::ifstream ltlf(paths.ltlf_file);
+    if (!ltlf.is_open()) {
+        return false;
+    }
+
+    std::getline(ltlf, formula_str);
+
+    // Read partition
+    if (!load_partition_fn(paths.part_file, outputs, inputs)) {
+        // Default: all variables are outputs
+        outputs.clear();
+        inputs.clear();
+    }
+
+    return true;
+}
+
+} // anonymous namespace
+
+//==============================================================================
+// Synthesis interface
+//==============================================================================
+
 formula::Formula* Synthesis::parse_formula(const std::string& formula_str, formula::FormulaPool& pool) {
     formula::FormulaParser parser(pool);
     formula::Formula* f = parser.parse(formula_str);
@@ -93,50 +146,16 @@ bool Synthesis::read_benchmark(const std::string& base_dir, int bench_num,
     int dir = (bench_num <= 500) ? 1 : 2;
     if (bench_dir) *bench_dir = dir;
 
-    std::string ltlf_file = base_dir + "/bench" + std::to_string(dir) + "/f" + std::to_string(bench_num) + ".ltlf";
-    std::string part_file = base_dir + "/bench" + std::to_string(dir) + "/f" + std::to_string(bench_num) + ".part";
-
-    // Read formula
-    std::ifstream ltlf(ltlf_file);
-    if (!ltlf.is_open()) {
-        return false;
-    }
-
-    std::getline(ltlf, formula_str);
-
-    // Read partition
-    if (!load_partition(part_file, outputs, inputs)) {
-        // Default: all variables are outputs
-        outputs.clear();
-        inputs.clear();
-    }
-
-    return true;
+    auto paths = make_benchmark_paths(base_dir, dir, bench_num);
+    return read_benchmark_files(paths, formula_str, outputs, inputs, load_partition);
 }
 
 bool Synthesis::read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num,
                                         std::string& formula_str,
                                         std::vector<std::string>& outputs,
                                         std::vector<std::string>& inputs) {
-    std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
-    std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
-
-    // Read formula
-    std::ifstream ltlf(ltlf_file);
-    if (!ltlf.is_open()) {
-        return false;
-    }
-
-    std::getline(ltlf, formula_str);
-
-    // Read partition
-    if (!load_partition(part_file, outputs, inputs)) {
-        // Default: all variables are outputs
-        outputs.clear();
-        inputs.clear();
-    }
-
-    return true;
+    auto paths = make_benchmark_paths(base_dir, bench_dir, bench_num);
+    return read_benchmark_files(paths, formula_str, outputs, inputs, load_partition);
 }
 
 std::optional<bool> Synthesis::read_expected_result(const std::string& base_dir, int bench_num) {
