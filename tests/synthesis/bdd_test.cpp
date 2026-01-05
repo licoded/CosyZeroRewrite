@@ -230,6 +230,93 @@ void test_complex_formula() {
     std::cout << std::endl;
 }
 
+void test_xnf_phi_vs_prop_atoms() {
+    std::cout << "=== Test: xnf_phi vs prop_atoms (bug fix verification) ===" << std::endl;
+
+    FormulaPool pool;
+    pool.declare_variables({"p0", "p1", "p2"}, {});
+
+    // This test verifies the fix for the bug where prop_atoms was used instead of xnf_phi
+    // Example: xnf_phi = (p0 & X(p1)) | p2
+    // prop_atoms (flattened) = {p0, X(p1), p2}
+    // Old bug: skipping Next gives p0 & p2 (WRONG - lost the OR structure)
+    // Correct: (p0 & True) | p2 = p0 | p2
+
+    Formula* xnf_phi = pool.create_or(
+        pool.create_and(
+            pool.create_variable("p0"),
+            pool.create_next(pool.create_variable("p1"))
+        ),
+        pool.create_variable("p2")
+    );
+
+    Formula* rm = apply_rm_next(xnf_phi, pool);
+
+    // Result should be p0 | p2 (or p2 | p0 depending on simplification)
+    // Key point: it should be an OR, not AND
+    assert(rm->op() == Formula::OpType::Or);
+
+    // Check that both p0 and p2 are in the result (as literals or subformulas)
+    bool has_p0 = false;
+    bool has_p2 = false;
+
+    if (rm->left()->is_literal() && rm->left()->var_id() == 0) has_p0 = true;
+    if (rm->right()->is_literal() && rm->right()->var_id() == 2) has_p2 = true;
+    // Also check the other side of OR
+    if (rm->left()->is_literal() && rm->left()->var_id() == 2) has_p2 = true;
+    if (rm->right()->is_literal() && rm->right()->var_id() == 0) has_p0 = true;
+
+    assert(has_p0 && has_p2);
+
+    std::cout << "(p0 & X(p1)) | p2 rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "Correctly preserved OR structure (not flattened to AND) ✓" << std::endl;
+    std::cout << std::endl;
+}
+
+void test_nested_next() {
+    std::cout << "=== Test: Nested Next operators ===" << std::endl;
+
+    FormulaPool pool;
+    pool.declare_variables({"p0"}, {});
+
+    // X(X(p0)) → True → True
+    Formula* phi = pool.create_next(
+        pool.create_next(pool.create_variable("p0"))
+    );
+
+    Formula* rm = apply_rm_next(phi, pool);
+    assert(rm->is_true());
+
+    std::cout << "X(X(p0)) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << std::endl;
+}
+
+void test_mixed_boolean_temporal() {
+    std::cout << "=== Test: Mixed boolean and temporal ===" << std::endl;
+
+    FormulaPool pool;
+    pool.declare_variables({"a", "b", "c"}, {});
+
+    // (a | X(b)) & (X(c) | !b)
+    // rm_next: (a | True) & (True | !b) = True & True = True
+    Formula* phi = pool.create_and(
+        pool.create_or(
+            pool.create_variable("a"),
+            pool.create_next(pool.create_variable("b"))
+        ),
+        pool.create_or(
+            pool.create_next(pool.create_variable("c")),
+            pool.create_not(pool.create_variable("b"))
+        )
+    );
+
+    Formula* rm = apply_rm_next(phi, pool);
+    assert(rm->is_true());
+
+    std::cout << "(a | X(b)) & (X(c) | !b) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << std::endl;
+}
+
 int main() {
     std::cout << "========================================" << std::endl;
     std::cout << "BDD Manager Test Suite" << std::endl;
@@ -243,6 +330,9 @@ int main() {
     test_formula_with_temporal_operators();
     test_release_operator();
     test_complex_formula();
+    test_xnf_phi_vs_prop_atoms();  // Bug fix verification
+    test_nested_next();
+    test_mixed_boolean_temporal();
     test_statistics();
 
     std::cout << "========================================" << std::endl;
