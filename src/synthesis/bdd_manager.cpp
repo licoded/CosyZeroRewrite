@@ -643,14 +643,6 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
     std::vector<int> var_ids(relevant_var_ids.begin(), relevant_var_ids.end());
     int n = var_ids.size();
 
-    if (n == 0) {
-        // No relevant variables: check if BDD is non-empty
-        if (bdd != Cudd_ReadLogicZero(cudd_->mgr)) {
-            assignments.push_back({});
-        }
-        return assignments;
-    }
-
     // Create a cube of variables for abstraction (all variables not in relevant_var_ids)
     // We want to enumerate only assignments for relevant variables
     // So we abstract away (existential) the irrelevant variables
@@ -673,6 +665,21 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
     DdNode* abstracted = Cudd_bddExistAbstract(cudd_->mgr, bdd, cube);
     Cudd_Ref(abstracted);
     Cudd_RecursiveDeref(cudd_->mgr, cube);
+
+    // After abstraction, check result
+    if (n == 0) {
+        // No relevant variables: abstracted must be TRUE or FALSE
+        // (since we abstracted all variables)
+        if (abstracted == Cudd_ReadOne(cudd_->mgr)) {
+            assignments.push_back({});
+        } else if (abstracted != Cudd_ReadLogicZero(cudd_->mgr)) {
+            // Should never happen: after abstracting all variables,
+            // result must be a constant (TRUE or FALSE)
+            assert(false && "BDD after full abstraction must be TRUE or FALSE");
+        }
+        Cudd_RecursiveDeref(cudd_->mgr, abstracted);
+        return assignments;
+    }
 
     // Enumerate all satisfying assignments of the abstracted BDD
     // Use recursive enumeration
