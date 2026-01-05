@@ -112,7 +112,10 @@ const char* Formula::op_name() const {
     }
 }
 
-std::string Formula::to_string() const {
+// ========== String Representation ==========
+
+std::string Formula::to_string_impl(const VarNameResolver& resolver,
+                                     const char* end_marker) const {
     std::ostringstream oss;
 
     switch (op_) {
@@ -123,18 +126,17 @@ std::string Formula::to_string() const {
             return "false";
 
         case OpType::End:
-            return "end";
+            return end_marker;
 
         case OpType::Literal:
-            oss << "v" << var_id_;
-            return oss.str();
+            return resolver(var_id_);
 
         case OpType::Not:
             oss << "!";
             if (left_) {
                 bool needs_paren = needs_parentheses(left_, OpType::Not, false);
                 if (needs_paren) oss << "(";
-                oss << left_->to_string();
+                oss << left_->to_string_impl(resolver, end_marker);
                 if (needs_paren) oss << ")";
             }
             return oss.str();
@@ -147,7 +149,7 @@ std::string Formula::to_string() const {
             if (left_) {
                 bool left_needs_paren = needs_parentheses(left_, op_, true);
                 if (left_needs_paren) oss << "(";
-                oss << left_->to_string();
+                oss << left_->to_string_impl(resolver, end_marker);
                 if (left_needs_paren) oss << ")";
             }
             oss << " " << op_name() << " ";
@@ -155,7 +157,7 @@ std::string Formula::to_string() const {
             if (right_) {
                 bool right_needs_paren = needs_parentheses(right_, op_, false);
                 if (right_needs_paren) oss << "(";
-                oss << right_->to_string();
+                oss << right_->to_string_impl(resolver, end_marker);
                 if (right_needs_paren) oss << ")";
             }
             return oss.str();
@@ -165,7 +167,7 @@ std::string Formula::to_string() const {
             // Next outputs X(...), but skip parens if child already has them
             oss << "X";
             if (left_) {
-                std::string child_str = left_->to_string();
+                std::string child_str = left_->to_string_impl(resolver, end_marker);
                 if (is_wrapped_in_parens(child_str)) {
                     oss << child_str;  // Already has parens, reuse them
                 } else {
@@ -178,69 +180,18 @@ std::string Formula::to_string() const {
     return "?";
 }
 
+std::string Formula::to_string() const {
+    return to_string_impl(
+        [](int var_id) { return "v" + std::to_string(var_id); },
+        "end"
+    );
+}
+
 std::string Formula::to_string_with_names(const FormulaPool& pool) const {
-    std::ostringstream oss;
-
-    switch (op_) {
-        case OpType::True:
-            return "true";
-
-        case OpType::False:
-            return "false";
-
-        case OpType::End:
-            return "End";
-
-        case OpType::Literal:
-            return pool.get_variable_name(var_id_);
-
-        case OpType::Not:
-            oss << "!";
-            if (left_) {
-                bool needs_paren = needs_parentheses(left_, OpType::Not, false);
-                if (needs_paren) oss << "(";
-                oss << left_->to_string_with_names(pool);
-                if (needs_paren) oss << ")";
-            }
-            return oss.str();
-
-        case OpType::And:
-        case OpType::Or:
-        case OpType::Until:
-        case OpType::Release: {
-            // Left child
-            if (left_) {
-                bool left_needs_paren = needs_parentheses(left_, op_, true);
-                if (left_needs_paren) oss << "(";
-                oss << left_->to_string_with_names(pool);
-                if (left_needs_paren) oss << ")";
-            }
-            oss << " " << op_name() << " ";
-            // Right child
-            if (right_) {
-                bool right_needs_paren = needs_parentheses(right_, op_, false);
-                if (right_needs_paren) oss << "(";
-                oss << right_->to_string_with_names(pool);
-                if (right_needs_paren) oss << ")";
-            }
-            return oss.str();
-        }
-
-        case OpType::Next:
-            // Next outputs X(...), but skip parens if child already has them
-            oss << "X";
-            if (left_) {
-                std::string child_str = left_->to_string_with_names(pool);
-                if (is_wrapped_in_parens(child_str)) {
-                    oss << child_str;  // Already has parens, reuse them
-                } else {
-                    oss << "(" << child_str << ")";
-                }
-            }
-            return oss.str();
-    }
-
-    return "?";
+    return to_string_impl(
+        [&pool](int var_id) { return pool.get_variable_name(var_id); },
+        "End"
+    );
 }
 
 // ========== Operations (implemented in separate files) ==========

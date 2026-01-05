@@ -2,6 +2,7 @@
 #define FORMULA_HPP
 
 #include <cstddef>
+#include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -194,6 +195,26 @@ public:
     }
 
 private:
+    /**
+     * @brief Type for resolving variable names to strings
+     *
+     * Used by to_string_impl to avoid code duplication between
+     * to_string() and to_string_with_names().
+     */
+    using VarNameResolver = std::function<std::string(int)>;
+
+    /**
+     * @brief Internal implementation for to_string functions
+     *
+     * @param resolver Function to convert var_id to string (e.g., "v0" or "p1")
+     * @param end_marker String to use for End marker (e.g., "end" or "End")
+     * @return String representation of the formula
+     *
+     * This single implementation serves both to_string() and to_string_with_names()
+     * by using different resolver functions.
+     */
+    std::string to_string_impl(const VarNameResolver& resolver,
+                               const char* end_marker) const;
     /**
      * @brief Private constructor (only FormulaPool can create)
      *
