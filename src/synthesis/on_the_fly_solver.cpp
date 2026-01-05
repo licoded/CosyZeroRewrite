@@ -5,6 +5,7 @@
 
 #include "synthesis/on_the_fly_solver.hpp"
 #include "synthesis/trace_exporter.hpp"
+#include "synthesis/bdd_manager.hpp"
 #include "log/logger.hpp"
 #include <algorithm>
 #include <sstream>
@@ -86,9 +87,21 @@ OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
       output_gen_(num_outputs > 0 ? num_outputs : count_variables(phi)),
       input_gen_(num_inputs > 0 ? num_inputs : 0),  // No inputs if not specified
       num_sccs_found_(0),
-      initial_state_(dfa_.initial_state(), Player::System)
+      initial_state_(dfa_.initial_state(), Player::System),
+      enable_bdd_filtering_(false)
 {
     LOG_DEBUG("OnTheFlyGameSolver: initialized with formula: ", phi->to_string());
+
+    // Initialize BDD manager for Safe System Move optimization (Rule B)
+    // Check if BDD filtering is enabled via environment variable
+    const char* bdd_env = std::getenv("COSY_USE_BDD_FILTER");
+    enable_bdd_filtering_ = (bdd_env && std::string(bdd_env) == "1");
+
+    if (enable_bdd_filtering_) {
+        int num_vars = output_gen_.num_variables() + input_gen_.num_variables();
+        bdd_manager_ = std::make_unique<BddManager>(num_vars, output_gen_.num_variables());
+        LOG_INFO("BDD safe move filtering enabled (Rule B optimization)");
+    }
 }
 
 OnTheFlyGameSolver::~OnTheFlyGameSolver() {
@@ -295,6 +308,46 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
             std::vector<int> output_vec(relevant_output_var_ids.begin(), relevant_output_var_ids.end());
             outputs = output_gen_.all_assignments_for_subset(output_vec);
         }
+
+        // ========== Rule B: Safe System Move Optimization using BDD ==========
+        // Filter out system moves that have NO satisfying environment moves
+        // This prunes moves that are guaranteed to fail regardless of env choice
+        if (enable_bdd_filtering_ && bdd_manager_) {
+            // Build BDD from current state's formula (rm_next transformation)
+            // Get the formula from prop_atoms (conjunction of all constraints)
+            formula::Formula* state_formula = nullptr;
+            const auto& prop_atoms = state.dfa_state->prop_atoms();
+
+            // Build conjunction of all prop_atoms for BDD construction
+            if (!prop_atoms.empty()) {
+                state_formula = pool_.create_true();
+                for (formula::Formula* pa : prop_atoms) {
+                    if (pa->is_next()) continue;  // Skip Next for rm_next
+                    state_formula = pool_.create_and(state_formula, pa);
+                }
+            }
+
+            // Build BDD with rm_next transformation
+            if (state_formula && bdd_manager_->build_from_formula_rmnext(state_formula, pool_)) {
+                // Filter system moves using BDD
+                std::vector<Assignment> outputs_copy;
+                for (const auto& out : outputs) {
+                    outputs_copy.push_back(Assignment(out.begin(), out.end()));
+                }
+
+                std::vector<Assignment> safe_outputs = bdd_manager_->filter_safe_moves(outputs_copy);
+
+                // Convert back to automata::Assignment
+                outputs.clear();
+                for (const auto& safe : safe_outputs) {
+                    outputs.emplace_back(safe.begin(), safe.end());
+                }
+
+                LOG_DEBUG("BDD filtering: ", outputs_copy.size(), " -> ", outputs.size(),
+                          " safe system moves");
+            }
+        }
+        // ========================================================================
 
         for (const auto& out : outputs) {
             succs.push_back(environment_state(state.dfa_state, out));

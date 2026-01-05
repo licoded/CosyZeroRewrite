@@ -12,6 +12,12 @@ if(Z3_FOUND)
     message(STATUS "Formula library: linking with Z3")
 endif()
 
+# Link CUDD to formula library if available
+if(CUDD_FOUND)
+    target_link_libraries(formula ${CUDD_LIBRARIES})
+    message(STATUS "Formula library: linking with CUDD")
+endif()
+
 # Set library properties
 set_target_properties(formula PROPERTIES
     VERSION ${PROJECT_VERSION}

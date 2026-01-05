@@ -101,6 +101,7 @@ endif()
 if(BUILD_TESTS)
     add_cosy_test(synthesis_test synthesis tests/synthesis/synthesis.cpp)
     add_cosy_test(on_the_fly_test synthesis tests/synthesis/on_the_fly.cpp)
+    add_cosy_test_standalone(bdd_test synthesis tests/synthesis/bdd_test.cpp)
 endif()
 
 # ============================================================================
@@ -167,6 +168,7 @@ if(BUILD_TESTS)
     # Synthesis tests
     add_test(NAME synthesis_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/synthesis_test)
     add_test(NAME on_the_fly_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/on_the_fly_test)
+    add_test(NAME bdd_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/bdd_test)
 
     # Integration tests
     add_test(NAME prop_atoms_test COMMAND ${CMAKE_BINARY_DIR}/tests/integration/prop_atoms_test)

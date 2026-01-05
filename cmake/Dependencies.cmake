@@ -51,6 +51,28 @@ if(USE_SPDLOG)
 endif()
 
 # ============================================================
+# CUDD (BDD library for Safe System Move optimization)
+# ============================================================
+option(USE_CUDD "Enable CUDD BDD library for safe move optimization" ON)
+
+if(USE_CUDD)
+    find_package(CUDD QUIET)
+
+    if(CUDD_FOUND)
+        message(STATUS "CUDD found: ${CUDD_LIBRARIES}")
+        include_directories(${CUDD_INCLUDE_DIRS})
+        add_compile_definitions(FORMULA_USE_CUDD)
+
+        # Add BDD source file to FORMULA_SOURCES
+        list(APPEND FORMULA_SOURCES src/synthesis/bdd_manager.cpp)
+    else()
+        message(WARNING "CUDD requested but not found. BDD optimization will be disabled.")
+        message(STATUS "  To install: sudo apt install libcudd-dev (Ubuntu/Debian)")
+        message(STATUS "             Or build from source: https://github.com/ivmai/cudd")
+    endif()
+endif()
+
+# ============================================================
 # Z3 (SMT solver)
 # ============================================================
 option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)

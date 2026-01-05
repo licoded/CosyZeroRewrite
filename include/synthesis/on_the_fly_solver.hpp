@@ -24,8 +24,9 @@
 
 namespace synthesis {
 
-// Forward declaration (to avoid circular dependency)
+// Forward declarations (to avoid circular dependency)
 class TraceExporter;
+class BddManager;
 
 /**
  * @brief Player in the synthesis game
@@ -491,6 +492,12 @@ private:
 
     // Trace exporter (for execution visualization)
     std::unique_ptr<TraceExporter> trace_exporter_;
+
+    // BDD manager for Safe System Move optimization (Rule B)
+    std::unique_ptr<BddManager> bdd_manager_;
+
+    // Flag to enable BDD safe move filtering
+    bool enable_bdd_filtering_;
 
     /**
      * @brief Expand a game state (compute successors)
