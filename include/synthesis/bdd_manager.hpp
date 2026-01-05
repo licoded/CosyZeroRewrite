@@ -158,19 +158,57 @@ private:
      * @brief BDD cache per TableauState
      *
      * Maps state pointer to its rm_next formula.
-     * This allows different states to share/cache their BDDs.
+     * This allows different states to share/cache their formulas.
      */
     std::unordered_map<automata::TableauState*, formula::Formula*> state_formula_cache_;
 
     /**
-     * @brief Current active formula (for BDD operations)
+     * @brief Current active formula (for fallback operations)
      */
     formula::Formula* current_formula_;
+
+#ifdef FORMULA_USE_CUDD
+    /**
+     * @brief BDD cache per TableauState (actual BDD nodes)
+     *
+     * Maps state pointer to its BDD representation.
+     */
+    std::unordered_map<automata::TableauState*, DdNode*> state_bdd_cache_;
+
+    /**
+     * @brief Build BDD from a boolean formula
+     *
+     * @param f The formula (must be boolean, no Next/Until/Release)
+     * @param pool Formula pool
+     * @return BDD node (referenced, caller must deref)
+     */
+    DdNode* build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool);
+
+    /**
+     * @brief Enumerate all satisfying assignments of a BDD
+     *
+     * @param bdd The BDD node
+     * @param relevant_var_ids Only consider these variables
+     * @return List of assignments (each is a set of variable IDs set to TRUE)
+     */
+    std::vector<Assignment> enumerate_bdd_satisfying_assignments(
+        DdNode* bdd,
+        const std::set<int>& relevant_var_ids) const;
+#endif
 
     /**
      * @brief Statistics
      */
     mutable Stats stats_;
+
+    /**
+     * @brief Enumerate all possible output assignments
+     *
+     * @param relevant_output_var_ids Variables to enumerate
+     * @return All 2^k possible assignments
+     */
+    std::vector<Assignment> enumerate_all_output_assignments(
+        const std::set<int>& relevant_output_var_ids) const;
 
     /**
      * @brief Fallback: Enumerate safe moves using formula evaluation

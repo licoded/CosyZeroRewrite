@@ -8,6 +8,7 @@
 #include "log/logger.hpp"
 #include <algorithm>
 #include <cassert>
+#include <functional>
 #include <stdexcept>
 #include <set>
 
@@ -233,6 +234,17 @@ bool BddManager::is_available() const {
 
 void BddManager::clear_cache() {
     state_formula_cache_.clear();
+#ifdef FORMULA_USE_CUDD
+    // Dereference and clear BDD cache
+    if (cudd_) {
+        for (auto& entry : state_bdd_cache_) {
+            if (entry.second) {
+                Cudd_RecursiveDeref(cudd_->mgr, entry.second);
+            }
+        }
+    }
+    state_bdd_cache_.clear();
+#endif
     current_formula_ = nullptr;
 }
 
@@ -303,8 +315,95 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
         return all_moves;
     }
 
-    // Use fallback enumeration (works even with CUDD available for now)
+#ifdef FORMULA_USE_CUDD
+    if (is_available()) {
+        // Check BDD cache first
+        auto bdd_it = state_bdd_cache_.find(state);
+        DdNode* bdd = nullptr;
+
+        if (bdd_it != state_bdd_cache_.end()) {
+            bdd = bdd_it->second;
+            stats_.num_cache_hits++;
+        } else {
+            // Build BDD from rm_next formula
+            formula::Formula* rmnext_formula = get_rmnext_formula(state);
+            if (!rmnext_formula) {
+                // No constraints, all moves are safe
+                return enumerate_all_output_assignments(relevant_output_var_ids);
+            }
+
+            // Build BDD from formula
+            bdd = build_bdd_from_formula(rmnext_formula, pool);
+
+            // Cache the BDD
+            state_bdd_cache_[state] = bdd;
+            stats_.num_cache_misses++;
+            stats_.num_bdd_calls++;
+        }
+
+        // Apply universal quantification on INPUT variables
+        // safe(sys_output) = ∀ env_input. formula(sys_output, env_input)
+        //
+        // Build cube of input variables for universal abstraction
+        // env_cube = e1 ∧ e2 ∧ ... ∧ em (OR of all input variables)
+        // Note: CUDD's cube for abstraction is the conjunction of variables
+        DdNode* env_cube = Cudd_ReadLogicZero(cudd_->mgr);
+        Cudd_Ref(env_cube);
+
+        for (int i = num_outputs_; i < num_variables_; ++i) {
+            DdNode* var = Cudd_bddIthVar(cudd_->mgr, i);
+            // OR with var to build the cube
+            DdNode* new_cube = Cudd_bddOr(cudd_->mgr, env_cube, var);
+            Cudd_Ref(new_cube);
+            Cudd_RecursiveDeref(cudd_->mgr, env_cube);
+            env_cube = new_cube;
+        }
+
+        // Apply universal abstraction: ∀ env_vars. phi(sys, env)
+        // Result is a BDD over sys variables only
+        DdNode* safe_sys = Cudd_bddUnivAbstract(cudd_->mgr, bdd, env_cube);
+        Cudd_Ref(safe_sys);
+        Cudd_RecursiveDeref(cudd_->mgr, env_cube);
+
+        // Enumerate all satisfying assignments for output variables
+        std::vector<Assignment> safe_moves =
+            enumerate_bdd_satisfying_assignments(safe_sys, relevant_output_var_ids);
+
+        Cudd_RecursiveDeref(cudd_->mgr, safe_sys);
+
+        stats_.num_safe_moves_generated += safe_moves.size();
+
+        LOG_DEBUG("BddManager: enumerated ", safe_moves.size(), " safe sys moves using BDD");
+        return safe_moves;
+    }
+#endif
+
+    // Fallback: use formula evaluation (when CUDD is not available)
     return enumerate_safe_moves_fallback(current_formula_, relevant_output_var_ids);
+}
+
+std::vector<Assignment> BddManager::enumerate_all_output_assignments(
+    const std::set<int>& relevant_output_var_ids) const {
+
+    std::vector<Assignment> all_moves;
+    std::vector<int> output_vars(relevant_output_var_ids.begin(),
+                                 relevant_output_var_ids.end());
+
+    int n = output_vars.size();
+    if (n == 0) {
+        all_moves.push_back({});
+    } else {
+        for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
+            Assignment assignment;
+            for (int i = 0; i < n; ++i) {
+                if (mask & (1u << i)) {
+                    assignment.insert(output_vars[i]);
+                }
+            }
+            all_moves.push_back(std::move(assignment));
+        }
+    }
+    return all_moves;
 }
 
 std::vector<Assignment> BddManager::enumerate_safe_moves_fallback(
@@ -359,14 +458,15 @@ std::vector<Assignment> BddManager::enumerate_safe_moves_fallback(
             }
         }
 
-        // Check if there exists an env move that satisfies
-        bool has_safe_env = false;
+        // Check if ALL env moves satisfy the formula (universal quantification)
+        // safe(sys_output) = ∀ env_input. evaluate(rmnext_formula, sys_output ∪ env_input)
+        bool all_env_safe = true;
         int num_inputs = num_variables_ - num_outputs_;
 
         if (num_inputs == 0) {
             // No input variables, check directly
-            if (evaluate_formula(rmnext_formula, sys_output)) {
-                has_safe_env = true;
+            if (!evaluate_formula(rmnext_formula, sys_output)) {
+                all_env_safe = false;
             }
         } else {
             // Enumerate all input assignments
@@ -378,14 +478,15 @@ std::vector<Assignment> BddManager::enumerate_safe_moves_fallback(
                     }
                 }
 
-                if (evaluate_formula(rmnext_formula, combined)) {
-                    has_safe_env = true;
+                // If ANY env input makes formula false, sys_output is NOT safe
+                if (!evaluate_formula(rmnext_formula, combined)) {
+                    all_env_safe = false;
                     break;
                 }
             }
         }
 
-        if (has_safe_env) {
+        if (all_env_safe) {
             safe_moves.push_back(std::move(sys_output));
         }
     }
@@ -442,5 +543,200 @@ bool BddManager::evaluate_formula(formula::Formula* f, const Assignment& assignm
             return false;
     }
 }
+
+//==============================================================================
+// BDD-based Implementation (CUDD)
+//==============================================================================
+
+#ifdef FORMULA_USE_CUDD
+
+DdNode* BddManager::build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool) {
+    if (!f || !cudd_) {
+        return Cudd_ReadLogicZero(cudd_->mgr);  // Return FALSE (referenced)
+    }
+
+    using OpType = formula::Formula::OpType;
+
+    switch (f->op()) {
+        case OpType::True:
+            return Cudd_ReadOne(cudd_->mgr);
+
+        case OpType::False:
+            return Cudd_ReadLogicZero(cudd_->mgr);
+
+        case OpType::Literal: {
+            // Variable index in BDD
+            int var_id = f->var_id();
+            DdNode* var = Cudd_bddIthVar(cudd_->mgr, var_id);
+            Cudd_Ref(var);  // Reference for caller
+            return var;
+        }
+
+        case OpType::Not: {
+            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode* result = Cudd_Not(left_bdd);
+            Cudd_Ref(result);
+            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
+            return result;
+        }
+
+        case OpType::And: {
+            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode* result = Cudd_bddAnd(cudd_->mgr, left_bdd, right_bdd);
+            Cudd_Ref(result);
+            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
+            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
+            return result;
+        }
+
+        case OpType::Or: {
+            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode* result = Cudd_bddOr(cudd_->mgr, left_bdd, right_bdd);
+            Cudd_Ref(result);
+            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
+            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
+            return result;
+        }
+
+        case OpType::Until: {
+            // Boolean Until: φ U ψ ≡ ψ ∨ φ
+            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode* result = Cudd_bddOr(cudd_->mgr, left_bdd, right_bdd);
+            Cudd_Ref(result);
+            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
+            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
+            return result;
+        }
+
+        case OpType::Release: {
+            // Boolean Release: φ R ψ ≡ ψ ∧ φ
+            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode* result = Cudd_bddAnd(cudd_->mgr, left_bdd, right_bdd);
+            Cudd_Ref(result);
+            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
+            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
+            return result;
+        }
+
+        case OpType::Next:
+        case OpType::End:
+            return Cudd_ReadLogicZero(cudd_->mgr);
+
+        default:
+            return Cudd_ReadLogicZero(cudd_->mgr);
+    }
+}
+
+std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
+    DdNode* bdd,
+    const std::set<int>& relevant_var_ids) const {
+
+    std::vector<Assignment> assignments;
+
+    if (!cudd_ || !bdd) {
+        return assignments;
+    }
+
+    // Convert std::set to vector for indexed access
+    std::vector<int> var_ids(relevant_var_ids.begin(), relevant_var_ids.end());
+    int n = var_ids.size();
+
+    if (n == 0) {
+        // No relevant variables: check if BDD is non-empty
+        if (bdd != Cudd_ReadLogicZero(cudd_->mgr)) {
+            assignments.push_back({});
+        }
+        return assignments;
+    }
+
+    // Create a cube of variables for abstraction (all variables not in relevant_var_ids)
+    // We want to enumerate only assignments for relevant variables
+    // So we abstract away (existential) the irrelevant variables
+
+    // Build cube of irrelevant variables
+    DdNode* cube = Cudd_ReadOne(cudd_->mgr);
+    Cudd_Ref(cube);
+
+    for (int i = 0; i < num_variables_; ++i) {
+        if (relevant_var_ids.find(i) == relevant_var_ids.end()) {
+            DdNode* var = Cudd_bddIthVar(cudd_->mgr, i);
+            DdNode* new_cube = Cudd_bddAnd(cudd_->mgr, cube, var);
+            Cudd_Ref(new_cube);
+            Cudd_RecursiveDeref(cudd_->mgr, cube);
+            cube = new_cube;
+        }
+    }
+
+    // Abstract away irrelevant variables
+    DdNode* abstracted = Cudd_bddExistAbstract(cudd_->mgr, bdd, cube);
+    Cudd_Ref(abstracted);
+    Cudd_RecursiveDeref(cudd_->mgr, cube);
+
+    // Enumerate all satisfying assignments of the abstracted BDD
+    // Use recursive enumeration
+    std::function<void(DdNode*, int, Assignment&)> enumerate =
+        [&](DdNode* node, int var_idx, Assignment& current) {
+        if (node == Cudd_ReadLogicZero(cudd_->mgr)) {
+            return;  // False branch
+        }
+        if (node == Cudd_ReadOne(cudd_->mgr) || var_idx >= n) {
+            // Reached terminal or processed all variables
+            assignments.push_back(current);
+            return;
+        }
+
+        // Get current BDD variable index
+        int bdd_var = Cudd_NodeReadIndex(node);
+
+        // Find next relevant variable to process
+        while (var_idx < n && var_ids[var_idx] < bdd_var) {
+            // Variable var_ids[var_idx] doesn't appear in BDD
+            // Can be either 0 or 1 - enumerate both
+            // First: try 0 (don't add to assignment)
+            enumerate(node, var_idx + 1, current);
+            // Then: try 1 (add to assignment)
+            current.insert(var_ids[var_idx]);
+            enumerate(node, var_idx + 1, current);
+            current.erase(var_ids[var_idx]);
+            return;
+        }
+
+        if (var_idx >= n) {
+            assignments.push_back(current);
+            return;
+        }
+
+        if (var_ids[var_idx] == bdd_var) {
+            // This variable is in the BDD
+            DdNode* then_branch = Cudd_T(node);
+            DdNode* else_branch = Cudd_E(node);
+
+            // Try FALSE branch (else)
+            enumerate(else_branch, var_idx + 1, current);
+
+            // Try TRUE branch (then)
+            current.insert(var_ids[var_idx]);
+            enumerate(then_branch, var_idx + 1, current);
+            current.erase(var_ids[var_idx]);
+        } else {
+            // var_ids[var_idx] > bdd_var, meaning bdd_var is not in relevant set
+            // Skip it and continue with the then branch (since else would be 0)
+            enumerate(node, var_idx, current);
+        }
+    };
+
+    Assignment current;
+    enumerate(abstracted, 0, current);
+
+    Cudd_RecursiveDeref(cudd_->mgr, abstracted);
+
+    return assignments;
+}
+
+#endif // FORMULA_USE_CUDD
 
 } // namespace synthesis
