@@ -396,6 +396,18 @@ private:
     int step_counter_;
     int current_stage_index_;  // -1 if no current stage
 
+    /**
+     * @brief Cached pointer to the current active SubStep
+     *
+     * This pointer is set by begin_sub_step() and cleared by end_sub_step().
+     * All intermediate operations can use this pointer directly without
+     * repeatedly checking enabled_, current_stage_index_, and sub_steps.
+     *
+     * nullptr means no active sub_step (either disabled, not in a stage,
+     * or not between begin/end_sub_step calls).
+     */
+    SubStep* current_sub_step_ = nullptr;
+
     // State ID mapping - uses shared StateIdMap definition
     StateIdMap id_map_;
 

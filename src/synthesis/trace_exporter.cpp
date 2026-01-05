@@ -228,35 +228,48 @@ void TraceExporter::end_stage() {
 //==============================================================================
 
 void TraceExporter::begin_sub_step(const std::string& description) {
+    // All validation checks done once here
     if (!enabled_ || current_stage_index_ < 0) return;
 
-    SubStep step;
+    TraceStage& stage = stages_[current_stage_index_];
+
+    // Create new SubStep
+    stage.sub_steps.emplace_back();
+    SubStep& step = stage.sub_steps.back();
     step.step_id = generate_step_id();
     step.description = description;
-    step.metrics.duration_ms = 0;  // Will be set on end
+    step.metrics.duration_ms = 0;
 
-    stages_[current_stage_index_].sub_steps.push_back(std::move(step));
+    // Cache the pointer for subsequent operations
+    current_sub_step_ = &step;
     step_start_time_ = std::chrono::steady_clock::now();
 }
 
 void TraceExporter::end_sub_step(bool include_graph) {
-    if (!enabled_ || current_stage_index_ < 0) return;
+    if (!enabled_) return;
 
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
+    // Record duration using cached pointer
+    if (current_sub_step_) {
+        auto end_time = std::chrono::steady_clock::now();
+        current_sub_step_->metrics.duration_ms = std::chrono::duration<double, std::milli>(
+            end_time - step_start_time_).count();
+    }
 
-    SubStep& step = stage.sub_steps.back();
-
-    // Record duration
-    auto end_time = std::chrono::steady_clock::now();
-    step.metrics.duration_ms = std::chrono::duration<double, std::milli>(
-        end_time - step_start_time_).count();
+    // Clear the cached pointer
+    current_sub_step_ = nullptr;
 
     // Note: Graph data is typically set via set_graph_dot() or capture_state()
     // before calling end_sub_step()
 
-    LOG_DEBUG("TraceExporter: ended step ", step_counter_,
-              " (", step.description, "), duration: ", step.metrics.duration_ms, "ms");
+    // Get the description for logging (need to access the step again)
+    if (enabled_ && current_stage_index_ >= 0) {
+        TraceStage& stage = stages_[current_stage_index_];
+        if (!stage.sub_steps.empty()) {
+            const SubStep& step = stage.sub_steps.back();
+            LOG_DEBUG("TraceExporter: ended step ", step_counter_,
+                      " (", step.description, "), duration: ", step.metrics.duration_ms, "ms");
+        }
+    }
 }
 
 //==============================================================================
@@ -266,44 +279,35 @@ void TraceExporter::end_sub_step(bool include_graph) {
 void TraceExporter::set_graph_dot(const std::string& dot,
                                    size_t num_nodes,
                                    size_t num_edges) {
-    if (!enabled_ || current_stage_index_ < 0) return;
-
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
-
-    SubStep& step = stage.sub_steps.back();
-    step.graph_data.dot = dot;
-    step.graph_data.num_nodes = num_nodes;
-    step.graph_data.num_edges = num_edges;
+    if (current_sub_step_) {
+        current_sub_step_->graph_data.dot = dot;
+        current_sub_step_->graph_data.num_nodes = num_nodes;
+        current_sub_step_->graph_data.num_edges = num_edges;
+    }
 }
 
 void TraceExporter::add_highlight_node(const std::string& node_id,
                                        HighlightType type) {
-    if (!enabled_ || current_stage_index_ < 0) return;
-
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
-
-    SubStep& step = stage.sub_steps.back();
-
-    switch (type) {
-        case HighlightType::NewNode:
-            step.highlights.new_nodes.push_back(node_id);
-            break;
-        case HighlightType::SCCNode:
-            step.highlights.scc_nodes.push_back(node_id);
-            break;
-        case HighlightType::PendingNode:
-            step.highlights.pending_nodes.push_back(node_id);
-            break;
-        case HighlightType::UpdatedNode:
-            step.highlights.updated_nodes.push_back(node_id);
-            break;
-        case HighlightType::AttractorNode:
-            step.highlights.attractor_nodes.push_back(node_id);
-            break;
-        default:
-            break;
+    if (current_sub_step_) {
+        switch (type) {
+            case HighlightType::NewNode:
+                current_sub_step_->highlights.new_nodes.push_back(node_id);
+                break;
+            case HighlightType::SCCNode:
+                current_sub_step_->highlights.scc_nodes.push_back(node_id);
+                break;
+            case HighlightType::PendingNode:
+                current_sub_step_->highlights.pending_nodes.push_back(node_id);
+                break;
+            case HighlightType::UpdatedNode:
+                current_sub_step_->highlights.updated_nodes.push_back(node_id);
+                break;
+            case HighlightType::AttractorNode:
+                current_sub_step_->highlights.attractor_nodes.push_back(node_id);
+                break;
+            default:
+                break;
+        }
     }
 }
 
@@ -318,36 +322,24 @@ void TraceExporter::add_highlight_edge(const std::string& from,
                                        const std::string& to,
                                        const std::string& label,
                                        const std::string& type) {
-    if (!enabled_ || current_stage_index_ < 0) return;
-
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
-
-    SubStep& step = stage.sub_steps.back();
-    step.highlights.new_edges.emplace_back(from, to, label, type);
+    if (current_sub_step_) {
+        current_sub_step_->highlights.new_edges.emplace_back(from, to, label, type);
+    }
 }
 
 void TraceExporter::set_state_info(int swin, int ewin, int unknown, int total) {
-    if (!enabled_ || current_stage_index_ < 0) return;
-
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
-
-    SubStep& step = stage.sub_steps.back();
-    step.state_info.swin_count = swin;
-    step.state_info.ewin_count = ewin;
-    step.state_info.unknown_count = unknown;
-    step.state_info.total_states = (total >= 0) ? total : (swin + ewin + unknown);
+    if (current_sub_step_) {
+        current_sub_step_->state_info.swin_count = swin;
+        current_sub_step_->state_info.ewin_count = ewin;
+        current_sub_step_->state_info.unknown_count = unknown;
+        current_sub_step_->state_info.total_states = (total >= 0) ? total : (swin + ewin + unknown);
+    }
 }
 
 void TraceExporter::set_scc_id(const std::string& scc_id) {
-    if (!enabled_ || current_stage_index_ < 0) return;
-
-    TraceStage& stage = stages_[current_stage_index_];
-    if (stage.sub_steps.empty()) return;
-
-    SubStep& step = stage.sub_steps.back();
-    step.highlights.scc_id = scc_id;
+    if (current_sub_step_) {
+        current_sub_step_->highlights.scc_id = scc_id;
+    }
 }
 
 //==============================================================================
@@ -366,9 +358,8 @@ void TraceExporter::capture_state(const std::string& description,
     set_graph_dot(dot, solver.num_expanded_states(), 0);  // edges count not readily available
 
     // Collect state data for tooltips (phi, xnf_phi, prop_atoms)
-    TraceStage& stage = stages_[current_stage_index_];
-    if (!stage.sub_steps.empty()) {
-        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    if (current_sub_step_) {
+        collect_state_data(current_sub_step_->graph_data, solver);
     }
 
     // Get classification counts
@@ -421,9 +412,8 @@ void TraceExporter::record_expansion(const GameState& state,
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
-    TraceStage& stage = stages_[current_stage_index_];
-    if (!stage.sub_steps.empty()) {
-        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    if (current_sub_step_) {
+        collect_state_data(current_sub_step_->graph_data, solver);
     }
 
     // Highlight the expanded state and new successors
@@ -466,9 +456,8 @@ void TraceExporter::record_scc(const std::vector<GameState>& scc,
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
-    TraceStage& stage = stages_[current_stage_index_];
-    if (!stage.sub_steps.empty()) {
-        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    if (current_sub_step_) {
+        collect_state_data(current_sub_step_->graph_data, solver);
     }
 
     // Highlight SCC nodes
@@ -510,9 +499,8 @@ void TraceExporter::record_classification_change(const GameState& state,
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
-    TraceStage& stage = stages_[current_stage_index_];
-    if (!stage.sub_steps.empty()) {
-        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    if (current_sub_step_) {
+        collect_state_data(current_sub_step_->graph_data, solver);
     }
 
     // Highlight the changed state
@@ -600,9 +588,8 @@ void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver& solver) 
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
-    TraceStage& stage = stages_[current_stage_index_];
-    if (!stage.sub_steps.empty()) {
-        collect_state_data(stage.sub_steps.back().graph_data, solver);
+    if (current_sub_step_) {
+        collect_state_data(current_sub_step_->graph_data, solver);
     }
 
     // Get classification counts
