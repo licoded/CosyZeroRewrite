@@ -4,7 +4,7 @@
 add_library(formula STATIC ${FORMULA_SOURCES})
 
 # Add runtime dependencies directory (nlohmann/json, CLI11, indicators, etc.)
-target_include_directories(formula PUBLIC ${CMAKE_SOURCE_DIR}/deps/runtime)
+target_include_directories(formula PUBLIC ${CMAKE_SOURCE_DIR}/deps/external)
 
 # Link Z3 to formula library if available
 if(Z3_FOUND)

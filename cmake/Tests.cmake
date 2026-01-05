@@ -16,7 +16,7 @@ option(BUILD_BENCH_TESTS "Build benchmark tests" ON)
 if(BUILD_TESTS)
     # Catch2 header-only library
     add_library(catch2 INTERFACE)
-    target_include_directories(catch2 INTERFACE ${PROJECT_SOURCE_DIR}/deps/testing/catch2)
+    target_include_directories(catch2 INTERFACE ${PROJECT_SOURCE_DIR}/deps/external/catch2)
 
     enable_testing()
     message(STATUS "Testing enabled - deps/catch2")
@@ -48,7 +48,7 @@ endfunction()
 function(add_cosy_test_standalone test_name category source_file)
     add_executable(${test_name} ${source_file})
     target_link_libraries(${test_name} PRIVATE formula)
-    target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/deps/runtime)
+    target_include_directories(${test_name} PRIVATE ${PROJECT_SOURCE_DIR}/deps/external)
 
     # Output to build/tests/<category>/
     set_target_properties(${test_name} PROPERTIES

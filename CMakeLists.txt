@@ -60,21 +60,12 @@ include(cmake/Fuzzing.cmake)
 # ============================================================
 include(cmake/Installation.cmake)
 
-# ============================================================
-# Benchmark runner
-# ============================================================
-if(BUILD_BENCHMARK)
-    add_executable(benchmark_runner tools/benchmark_runner.cpp)
-    target_include_directories(benchmark_runner PRIVATE include)
-    target_link_libraries(benchmark_runner PRIVATE formula)
-    message(STATUS "Benchmark runner enabled")
-endif()
 
 # ============================================================
 # Cosy2 Synthesis Tool
 # ============================================================
 add_executable(Cosy2 src/cosy2.cpp)
-target_include_directories(Cosy2 PRIVATE include deps/runtime)
+target_include_directories(Cosy2 PRIVATE include deps/external)
 target_link_libraries(Cosy2 PRIVATE formula)
 # Install Cosy2 to bin directory
 install(TARGETS Cosy2 DESTINATION bin)
