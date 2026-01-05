@@ -48,7 +48,7 @@ TOTAL_TIME=0
 
 # Results file
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-RESULT_DIR="results/benchmark/serial/$(date +"%Y-%m-%d")"
+RESULT_DIR="output/results/benchmark/serial/$(date +"%Y-%m-%d")"
 mkdir -p "$RESULT_DIR"
 RESULT_FILE="$RESULT_DIR/serial_benchmark_${TIMESTAMP}.csv"
 

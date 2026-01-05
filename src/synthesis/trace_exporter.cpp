@@ -96,10 +96,10 @@ std::string get_trace_output_path() {
     // Get period string (e.g., "01-morning", "02-afternoon", etc.)
     std::string period = get_period_string(tm.tm_hour);
 
-    // Build path: results/trace/YYYY-MM-DD/HH-period/
+    // Build path: output/results/trace/YYYY-MM-DD/HH-period/
     // Matches the game_graph directory structure
     std::ostringstream path;
-    path << "results/trace/" << date_buf << "/" << period;
+    path << "output/results/trace/" << date_buf << "/" << period;
 
     return path.str();
 }

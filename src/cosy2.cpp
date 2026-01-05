@@ -348,7 +348,7 @@ int main(int argc, char* argv[]) {
         std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
         std::string timestamp = time_buf;
 
-        std::string base_path = "results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
+        std::string base_path = "output/results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
 
         if (solver.write_dot(base_path)) {
             std::cout << "  Game graph exported:" << std::endl;

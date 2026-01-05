@@ -195,8 +195,8 @@ int main(int argc, char* argv[]) {
     TestResult parser_result, nnf_result, xnf_result, simplify_result;
     TestResult equiv_result, idempotent_result;
 
-    std::ofstream crash_log("logs/crashes.log");
-    std::ofstream failure_log("logs/fuzz_failures.log");
+    std::ofstream crash_log("output/logs/crashes.log");
+    std::ofstream failure_log("output/logs/fuzz_failures.log");
 
     for (int i = 0; i < num_tests; ++i) {
         FormulaPool pool;

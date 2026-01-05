@@ -38,12 +38,12 @@ Thumbs.db
 *.log
 build_fuzz/
 
-# Logs directory (but keep the directory itself via .gitkeep)
-logs/*.log
-logs/*.txt
-logs/formula_*
-logs/transform_*
-logs/tableau_*
+# Output directory (logs, results, etc.)
+output/
+
+# Legacy paths (kept for compatibility)
+logs/
+results/
 
 # Benchmark results
 benchmark_results_*.csv
@@ -52,5 +52,3 @@ benchmark_results_*.csv
 # Temporary files
 tmp/
 
-# Results directory (test outputs, benchmark results, game graphs, etc.)
-results/

@@ -49,7 +49,7 @@ namespace {
             else period = "04-night";
 
             std::ostringstream log_path;
-            log_path << "logs/tableau/"
+            log_path << "output/logs/tableau/"
                       << std::put_time(tm_info, "%Y-%m-%d")
                       << "/" << period
                       << "/tableau_debug_"
