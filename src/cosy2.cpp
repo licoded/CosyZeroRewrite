@@ -293,18 +293,7 @@ int main(int argc, char* argv[]) {
 
     // If variables not declared, extract them from the formula
     if (num_outputs == 0 && num_inputs == 0) {
-        std::unordered_set<int> vars;
-        std::function<void(Formula*)> collect = [&](Formula* f) {
-            if (!f) return;
-            if (f->op() == Formula::OpType::Literal) {
-                vars.insert(f->var_id());
-            } else {
-                collect(f->left());
-                collect(f->right());
-            }
-        };
-        collect(phi);
-        num_outputs = static_cast<int>(vars.size());
+        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
     }
 
     OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);

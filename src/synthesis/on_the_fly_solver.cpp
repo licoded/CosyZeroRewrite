@@ -966,18 +966,7 @@ bool is_realizable_on_the_fly(formula::Formula* phi,
     // If variables not declared, extract them from the formula
     if (num_outputs == 0 && num_inputs == 0) {
         // Count all variables as outputs (simplified)
-        std::unordered_set<int> vars;
-        std::function<void(formula::Formula*)> collect = [&](formula::Formula* f) {
-            if (!f) return;
-            if (f->op() == formula::Formula::OpType::Literal) {
-                vars.insert(f->var_id());
-            } else {
-                collect(f->left());
-                collect(f->right());
-            }
-        };
-        collect(phi);
-        num_outputs = static_cast<int>(vars.size());
+        num_outputs = static_cast<int>(formula::Formula::collect_variables(phi).size());
     }
 
     synthesis::OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);

@@ -160,6 +160,20 @@ public:
     Formula* rmnext(FormulaPool& pool, Formula* edge,
                     const std::unordered_set<int>& all_vars) const;
 
+    // ========== Utilities ==========
+
+    /**
+     * @brief Collect all variable IDs from a formula
+     * @param f The formula to collect variables from
+     * @return Set of variable IDs appearing in the formula
+     *
+     * This is a utility method for extracting all variables used in a formula.
+     * Useful when partition information is not available.
+     *
+     * Time complexity: O(n) where n is formula size.
+     */
+    static std::unordered_set<int> collect_variables(Formula* f);
+
     // ========== String Representation ==========
 
     /**

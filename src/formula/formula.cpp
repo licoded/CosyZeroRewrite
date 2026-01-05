@@ -194,6 +194,23 @@ std::string Formula::to_string_with_names(const FormulaPool& pool) const {
     );
 }
 
+// ========== Utilities ==========
+
+std::unordered_set<int> Formula::collect_variables(Formula* f) {
+    std::unordered_set<int> vars;
+    std::function<void(Formula*)> collect = [&](Formula* f) {
+        if (!f) return;
+        if (f->is_literal()) {
+            vars.insert(f->var_id());
+        } else {
+            collect(f->left());
+            collect(f->right());
+        }
+    };
+    collect(f);
+    return vars;
+}
+
 // ========== Operations (implemented in separate files) ==========
 // nnf() - implemented in nnf.cpp
 // simplify() - implemented in simplify.cpp
