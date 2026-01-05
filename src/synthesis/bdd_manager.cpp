@@ -683,13 +683,17 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
 
     // Enumerate all satisfying assignments of the abstracted BDD
     // Use recursive enumeration
+    //
+    // Key insight: var_idx >= n is a NORMAL termination condition, not an error.
+    // It means we've processed all relevant variables (var_ids[0..n-1]), so the
+    // current assignment is complete and should be saved.
     std::function<void(DdNode*, int, Assignment&)> enumerate =
         [&](DdNode* node, int var_idx, Assignment& current) {
         if (node == Cudd_ReadLogicZero(cudd_->mgr)) {
-            return;  // False branch
+            return;  // False branch - unsatisfiable
         }
         if (node == Cudd_ReadOne(cudd_->mgr) || var_idx >= n) {
-            // Reached terminal or processed all variables
+            // Terminated successfully: reached TRUE terminal OR processed all relevant vars
             assignments.push_back(current);
             return;
         }
@@ -699,8 +703,8 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
 
         // Find next relevant variable to process
         while (var_idx < n && var_ids[var_idx] < bdd_var) {
-            // Variable var_ids[var_idx] doesn't appear in BDD
-            // Can be either 0 or 1 - enumerate both
+            // Variable var_ids[var_idx] doesn't appear in BDD (free variable)
+            // It can be either 0 or 1 - enumerate both possibilities
             // First: try 0 (don't add to assignment)
             enumerate(node, var_idx + 1, current);
             // Then: try 1 (add to assignment)
@@ -710,7 +714,10 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
             return;
         }
 
+        // After while loop, either var_idx >= n (all vars processed, NORMAL)
+        // or var_ids[var_idx] >= bdd_var (need to match BDD structure)
         if (var_idx >= n) {
+            // All relevant variables processed - current assignment is complete
             assignments.push_back(current);
             return;
         }
