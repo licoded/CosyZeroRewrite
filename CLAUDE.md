@@ -145,23 +145,23 @@ make test
 ```bash
 # ✅ 正确：从项目根目录运行
 cd /home/lic/files/rewrite_ltlf_codes/CosyZeroRewrite
-./build/benchmark_runner benchmarks/sm1000 1 100
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 100
 
 # ❌ 错误：从 build 目录运行
 cd /home/lic/files/rewrite_ltlf_codes/CosyZeroRewrite/build
-./benchmark_runner ../benchmarks/sm1000 1 100
+./benchmark_test ../tools/benchmarks/sm1000 1 100
 ```
 
 **原因**：
-- 日志文件输出到 `logs/` 目录
-- CSV 结果输出到 `results/` 目录
-- 从 build 目录运行时，这些文件会被输出到 `build/logs/` 和 `build/results/`
+- 日志文件输出到 `output/logs/` 目录
+- CSV 结果输出到 `output/results/` 目录
+- 从 build 目录运行时，这些文件会被输出到 `build/output/logs/` 和 `build/output/results/`
 - 下次 `rm -rf build && cmake .. && make` 时，这些文件会被删除！
 
 **规则**：
 1. 始终从项目根目录运行命令
-2. 可执行文件使用 `./build/xxx` 或 `build/benchmark_runner` 等相对路径
-3. 日志和结果会自动保存到项目根目录的 `logs/` 和 `results/` 下
+2. 可执行文件使用 `./build/xxx` 或 `build/tests/bench/benchmark_test` 等相对路径
+3. 日志和结果会自动保存到项目根目录的 `output/logs/` 和 `output/results/` 下
 
 ---
 
@@ -407,14 +407,14 @@ git add -A && git commit -m "refactor: xxx"
 
 2. **小范围抽查** (20-50 个随机案例)
    ```bash
-   ./build/benchmark_runner benchmarks/sm1000 1 50
+   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 50
    ```
    - 验证基本逻辑在大范围内的稳定性
    - 发现问题立即修复，不要继续
 
 3. **全量 Benchmark** (1000 个案例)
    ```bash
-   ./build/benchmark_runner benchmarks/sm1000 1 1000
+   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1000
    ```
    - 只有在前面阶段通过后才运行
    - 避免浪费时间在明显有问题的代码上
@@ -436,7 +436,7 @@ git add -A && git commit -m "refactor: xxx"
 
 ```bash
 # 串行测试示例（一次只测一个公式）
-./build/benchmark_runner benchmarks/sm1000 1 1  # 测试1个
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1  # 测试1个
 ```
 
 **⚠️ Benchmark 调试优先级**（2026-01-04 记录）：
@@ -495,10 +495,10 @@ git add -A && git commit -m "fix: xxx"
 make test
 
 # 5. 小范围测试
-./build/benchmark_runner benchmarks/sm1000 1 50
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 50
 
 # 6. 全量测试（只有前面通过后）
-./build/benchmark_runner benchmarks/sm1000 1 1000
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1000
 ```
 
 ### Bug 处理
@@ -560,7 +560,7 @@ Cosy 对 `.part` 文件有严格的格式要求：
 .inputs: p1
 ```
 
-**快速测试脚本**：使用 `./scripts/quick_test.sh` 进行公式验证，脚本已自动处理格式问题。
+**快速测试脚本**：使用 `./tools/scripts/quick_test.sh` 进行公式验证，脚本已自动处理格式问题。
 
 **调试顺序**（渐进式测试）：
 

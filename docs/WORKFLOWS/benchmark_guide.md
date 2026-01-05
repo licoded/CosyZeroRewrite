@@ -2,10 +2,10 @@
 
 ## SMv2 Dataset Structure
 
-The `benchmarks/sm1000/` directory contains 1000 LTLf synthesis formulas split across two directories:
+The `tools/benchmarks/sm1000/` directory contains 1000 LTLf synthesis formulas split across two directories:
 
 ```
-benchmarks/sm1000/
+tools/benchmarks/sm1000/
 ├── bench1/           # First 500 formulas
 │   ├── f1.ltlf
 │   ├── f1.part
@@ -51,16 +51,16 @@ Defines input/output variable partitioning:
 
 ```bash
 # Run all 1000 formulas (both bench1 and bench2)
-./build/tests/bench/benchmark_test benchmarks/sm1000 all
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 all
 
 # Run f1-f10 from both directories
-./build/tests/bench/benchmark_test benchmarks/sm1000 all 1 10
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 all 1 10
 
 # Run only bench1 formulas
-./build/tests/bench/benchmark_test benchmarks/sm1000 1 1 500
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1 500
 
 # Run only bench2 formulas
-./build/tests/bench/benchmark_test benchmarks/sm1000 2 1 500
+./build/tests/bench/benchmark_test tools/benchmarks/sm1000 2 1 500
 ```
 
 ### Command Line Arguments
@@ -71,7 +71,7 @@ Defines input/output variable partitioning:
 
 | Argument | Description | Default |
 |----------|-------------|---------|
-| base_dir | Benchmark directory (e.g., `benchmarks/sm1000`) | `benchmarks/sm1000` |
+| base_dir | Benchmark directory (e.g., `tools/benchmarks/sm1000`) | `tools/benchmarks/sm1000` |
 | bench_spec | `all`, `1`, or `2` - which bench directories to use | `all` |
 | start | Starting formula number (1-500) | `1` |
 | end | Ending formula number (1-500) | `500` |

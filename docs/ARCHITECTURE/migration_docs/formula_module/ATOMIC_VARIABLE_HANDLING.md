@@ -90,7 +90,7 @@ aalta_formula::get_name (int index)
 
 **Variable names come from parsing LTLf formulas**:
 
-1. Input files (e.g., `benchmarks/sm1000/bench1/f78.ltlf`):
+1. Input files (e.g., `tools/benchmarks/sm1000/bench1/f78.ltlf`):
    ```
    (p3) | (X((p6) & ((p8) | (X(!(p8)))))) | ((p9) & (F(!(p8))))
    ```
@@ -636,8 +636,8 @@ Rationale:
 - [aalta_formula.h:225](../../lib/deps/formula/aalta_formula.h#L225) - _max_id
 
 ### Input Files
-- Example LTLf formula: [benchmarks/sm1000/bench1/f78.ltlf](../../benchmarks/sm1000/bench1/f78.ltlf)
-- Example partition: [benchmarks/sm1000/bench1/f447.part](../../benchmarks/sm1000/bench1/f447.part)
+- Example LTLf formula: [tools/benchmarks/sm1000/bench1/f78.ltlf](../../tools/benchmarks/sm1000/bench1/f78.ltlf)
+- Example partition: [tools/benchmarks/sm1000/bench1/f447.part](../../tools/benchmarks/sm1000/bench1/f447.part)
 
 ---
 

@@ -91,7 +91,7 @@ cosy_rewrite/
 │   ├── synthesis_tests.cpp          # Synthesis tests
 │   └── integration_tests.cpp        # End-to-end tests
 │
-├── benchmarks/                      # Benchmark suites
+├── tools/benchmarks/                      # Benchmark suites
 │   └── synthesis_bench.cpp
 │
 └── docs/                            # Documentation (already exists)

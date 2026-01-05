@@ -388,7 +388,7 @@ TEST(Integration, FullPipeline) {
 
 #### Task 4.3: Performance Benchmarks
 
-**File**: `benchmarks/formula_bench.cpp`
+**File**: `tools/benchmarks/formula_bench.cpp`
 
 **Requirements**:
 - [ ] Benchmark formula creation (throughput)
@@ -443,7 +443,7 @@ TEST(Integration, FullPipeline) {
 - [ ] Run all unit tests (pass 100%)
 - [ ] Run all integration tests (pass 100%)
 - [ ] Run benchmarks (acceptable performance)
-- [ ] Test with real formulas from `benchmarks/sm1000/`
+- [ ] Test with real formulas from `tools/benchmarks/sm1000/`
 - [ ] Compare results with original implementation
 
 **Time Estimate**: 3-4 hours

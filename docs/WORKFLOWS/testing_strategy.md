@@ -179,7 +179,7 @@ make test
 
 2. **小范围抽查** (20 个随机案例)
    ```bash
-   ./build/benchmark_runner benchmarks/sm1000 1 20
+   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 20
    ```
    - 验证基本逻辑在大范围内的稳定性
    - 发现问题立即修复，不要继续

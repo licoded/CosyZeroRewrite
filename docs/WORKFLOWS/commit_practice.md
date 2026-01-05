@@ -168,7 +168,7 @@ make changelog
 make changelog COMMIT=HEAD~2
 
 # 或直接运行脚本
-./scripts/changelog.sh HEAD
+./tools/scripts/changelog.sh HEAD
 ```
 
 ### 3.6 恢复 Hook
