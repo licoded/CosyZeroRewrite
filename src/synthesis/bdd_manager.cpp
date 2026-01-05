@@ -248,25 +248,19 @@ bool BddManager::get_or_build_bdd_for_state(automata::TableauState* state,
 
     stats_.num_cache_misses++;
 
-    // Build conjunction of all prop_atoms for this state
-    const auto& prop_atoms = state->prop_atoms();
-    if (prop_atoms.empty()) {
+    // Build formula from xnf_phi and apply rm_next transformation
+    formula::Formula* xnf_phi = state->xnf_phi();
+    if (!xnf_phi) {
         // No constraints: all moves are safe
         state_formula_cache_[state] = pool.create_true();
         current_formula_ = pool.create_true();
-        LOG_DEBUG("BddManager: no prop_atoms, using True");
+        LOG_DEBUG("BddManager: no xnf_phi, using True");
         return true;
     }
 
-    // Build formula: ∧ (all non-Next prop_atoms)
-    formula::Formula* state_formula = pool.create_true();
-    for (formula::Formula* pa : prop_atoms) {
-        if (pa->is_next()) continue;  // Skip Next for rm_next
-        state_formula = pool.create_and(state_formula, pa);
-    }
-
-    // Apply rm_next transformation
-    formula::Formula* rmnext_formula = apply_rm_next(state_formula, pool);
+    // Apply rm_next transformation directly to xnf_phi
+    // This correctly handles X(φ) → True substitution
+    formula::Formula* rmnext_formula = apply_rm_next(xnf_phi, pool);
 
     // Cache the result
     state_formula_cache_[state] = rmnext_formula;
