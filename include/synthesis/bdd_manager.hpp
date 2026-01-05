@@ -9,22 +9,18 @@
  * (replacing them with True). A system move is safe if there exists at least one
  * environment move that satisfies these boolean constraints.
  *
- * The BDD is used to efficiently check the satisfiability of boolean formulas
- * over system and environment variables.
- *
- * Example:
- *   Formula: (s1 & X(!e1)) | (!s1 & X(e1))
- *   rm_next: (s1 & True) | (!s1 & True) = True
- *   If system picks s1=True, environment can pick e1=True → constraint satisfied
- *   If system picks s1=False, environment can pick e1=False → constraint satisfied
+ * The BDD is used to efficiently enumerate all safe system moves directly,
+ * avoiding the need to enumerate all possible moves and then filter.
  */
 
 #ifndef SYNTHESIS_BDD_MANAGER_HPP
 #define SYNTHESIS_BDD_MANAGER_HPP
 
 #include "formula/formula.hpp"
+#include "formula/formula_pool.hpp"
 #include "automata/tableau.hpp"
 #include <memory>
+#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -49,11 +45,11 @@ using Assignment = std::unordered_set<int>;
  * This class provides:
  * 1. rm_next operation: Extract boolean constraints by replacing X() with True
  * 2. BDD construction: Build a BDD from the boolean formula
- * 3. Satisfiability check: Test if an assignment satisfies the BDD
- * 4. Existential check: Test if there exists an env move for a given sys move
+ * 3. Direct enumeration: Enumerate all safe system moves from BDD
+ * 4. State caching: Cache BDDs per TableauState to avoid rebuilding
  *
- * Implementation note: When CUDD is not available, this class falls back
- * to a simple formula evaluator (less efficient but still correct).
+ * Key change: Instead of enumerating all moves and filtering,
+ * we directly enumerate only the safe moves from the BDD.
  */
 class BddManager {
 public:
@@ -75,72 +71,66 @@ public:
     bool is_available() const;
 
     /**
-     * @brief Build BDD from formula by removing Next operators (rm_next)
+     * @brief Get or build BDD for a TableauState
      *
-     * This extracts the boolean constraints from a formula by:
-     * 1. Replacing X(φ) with True (removing temporal constraints)
-     * 2. Converting the resulting boolean formula to BDD
+     * Caches the BDD per state to avoid rebuilding.
+     * Returns true if the BDD was built (or retrieved from cache).
      *
-     * @param phi The formula (typically from TableauState::prop_atoms)
+     * @param state The TableauState
      * @param pool Formula pool for creating intermediate formulas
-     * @return true if BDD construction succeeded
+     * @return true if BDD is ready for use
+     */
+    bool get_or_build_bdd_for_state(automata::TableauState* state,
+                                    formula::FormulaPool& pool);
+
+    /**
+     * @brief Get or build BDD for a formula
+     *
+     * @param phi The formula
+     * @param pool Formula pool for creating intermediate formulas
+     * @return true if BDD is ready for use
      */
     bool build_from_formula_rmnext(formula::Formula* phi, formula::FormulaPool& pool);
 
     /**
-     * @brief Check if a complete assignment satisfies the BDD
+     * @brief Directly enumerate all safe system moves for a state
      *
-     * @param assignment Set of variable indices set to TRUE
-     * @return true if the assignment satisfies all boolean constraints
+     * This is the PRIMARY method to use. It directly enumerates only
+     * the system moves that are safe (i.e., for which there exists
+     * at least one env move satisfying the constraint).
+     *
+     * This replaces the old "enumerate all, then filter" approach.
+     *
+     * @param state The TableauState
+     * @param relevant_output_var_ids Only consider these output variables
+     * @param pool Formula pool
+     * @return List of safe system output assignments
      */
-    bool satisfies(const Assignment& assignment) const;
+    std::vector<Assignment> enumerate_safe_sys_moves(
+        automata::TableauState* state,
+        const std::set<int>& relevant_output_var_ids,
+        formula::FormulaPool& pool);
 
     /**
-     * @brief Check if there exists an env move that satisfies the constraint
-     *
-     * Given a system move (output assignment), check if there exists at least
-     * one environment move (input assignment) such that the combined assignment
-     * satisfies the boolean constraint.
-     *
-     * This is the key operation for Rule B optimization:
-     * - If exists env move: sys move is SAFE (keep for consideration)
-     * - If no env move exists: sys move is UNSAFE (prune immediately)
-     *
-     * @param sys_output System's output assignment (variables set to TRUE)
-     * @return true if there exists at least one satisfying env move
-     */
-    bool exists_env_move_for_sys(const Assignment& sys_output) const;
-
-    /**
-     * @brief Filter system moves to only safe ones
-     *
-     * Given a list of candidate system moves, return only those that are safe
-     * (i.e., there exists at least one env move that satisfies the constraint).
-     *
-     * @param sys_outputs List of system output assignments
-     * @return Filtered list containing only safe system moves
-     */
-    std::vector<Assignment> filter_safe_moves(const std::vector<Assignment>& sys_outputs) const;
-
-    /**
-     * @brief Get the rm_next formula (for debugging)
+     * @brief Get the rm_next formula for a state (for debugging)
      *
      * Returns the formula after removing Next operators.
      */
-    formula::Formula* get_rmnext_formula() const { return rmnext_formula_; }
+    formula::Formula* get_rmnext_formula(automata::TableauState* state) const;
 
     /**
-     * @brief Reset the BDD manager for a new formula
+     * @brief Clear the BDD cache
      */
-    void clear();
+    void clear_cache();
 
     /**
      * @brief Get statistics about BDD operations
      */
     struct Stats {
         int num_bdd_calls = 0;
-        int num_safe_moves = 0;
-        int num_unsafe_moves_filtered = 0;
+        int num_safe_moves_generated = 0;
+        int num_cache_hits = 0;
+        int num_cache_misses = 0;
     };
     const Stats& get_stats() const { return stats_; }
     void reset_stats() { stats_ = {}; }
@@ -165,9 +155,17 @@ private:
     int num_outputs_;
 
     /**
-     * @brief The formula after rm_next (for fallback evaluation)
+     * @brief BDD cache per TableauState
+     *
+     * Maps state pointer to its rm_next formula.
+     * This allows different states to share/cache their BDDs.
      */
-    formula::Formula* rmnext_formula_;
+    std::unordered_map<automata::TableauState*, formula::Formula*> state_formula_cache_;
+
+    /**
+     * @brief Current active formula (for BDD operations)
+     */
+    formula::Formula* current_formula_;
 
     /**
      * @brief Statistics
@@ -175,29 +173,13 @@ private:
     mutable Stats stats_;
 
     /**
-     * @brief Build BDD node from formula (recursive)
+     * @brief Fallback: Enumerate safe moves using formula evaluation
      *
-     * @param f The formula to convert
-     * @param pool Formula pool
-     * @return BDD node index (or -1 on error)
+     * Used when CUDD is not available or BDD construction is complex.
      */
-#ifdef FORMULA_USE_CUDD
-    int build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool);
-#endif
-
-    /**
-     * @brief Fallback: Check if assignment satisfies formula (without BDD)
-     *
-     * Used when CUDD is not available.
-     */
-    bool satisfies_fallback(const Assignment& assignment, formula::Formula* f) const;
-
-    /**
-     * @brief Fallback: Check if exists env move (without BDD)
-     *
-     * Enumerates all possible input assignments to find one that satisfies.
-     */
-    bool exists_env_move_fallback(const Assignment& sys_output) const;
+    std::vector<Assignment> enumerate_safe_moves_fallback(
+        formula::Formula* rmnext_formula,
+        const std::set<int>& relevant_output_var_ids) const;
 
     /**
      * @brief Evaluate a formula on an assignment

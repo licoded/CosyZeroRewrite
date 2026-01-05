@@ -298,56 +298,38 @@ void OnTheFlyGameSolver::expand_state(const GameState& state) {
     }
 
     if (state.player == Player::System) {
-        // System's turn: choose output assignment
-        // Only enumerate assignments for variables actually in prop_atoms
-        std::vector<automata::Assignment> outputs;
-        if (relevant_output_var_ids.empty()) {
-            outputs = {{}};  // Empty assignment = {} (one true edge)
-        } else {
-            // Convert set to vector for all_assignments_for_subset
-            std::vector<int> output_vec(relevant_output_var_ids.begin(), relevant_output_var_ids.end());
-            outputs = output_gen_.all_assignments_for_subset(output_vec);
-        }
-
         // ========== Rule B: Safe System Move Optimization using BDD ==========
-        // Filter out system moves that have NO satisfying environment moves
-        // This prunes moves that are guaranteed to fail regardless of env choice
-        if (enable_bdd_filtering_ && bdd_manager_) {
-            // Build BDD from current state's formula (rm_next transformation)
-            // Get the formula from prop_atoms (conjunction of all constraints)
-            formula::Formula* state_formula = nullptr;
-            const auto& prop_atoms = state.dfa_state->prop_atoms();
+        // Directly enumerate ONLY safe system moves from BDD
+        // This replaces "enumerate all, then filter" with "enumerate only safe"
+        // ========================================================================
 
-            // Build conjunction of all prop_atoms for BDD construction
-            if (!prop_atoms.empty()) {
-                state_formula = pool_.create_true();
-                for (formula::Formula* pa : prop_atoms) {
-                    if (pa->is_next()) continue;  // Skip Next for rm_next
-                    state_formula = pool_.create_and(state_formula, pa);
-                }
+        std::vector<automata::Assignment> outputs;
+
+        if (enable_bdd_filtering_ && bdd_manager_) {
+            // NEW: Directly enumerate safe moves from BDD
+            std::vector<Assignment> safe_moves =
+                bdd_manager_->enumerate_safe_sys_moves(
+                    state.dfa_state,
+                    relevant_output_var_ids,
+                    pool_);
+
+            // Convert to automata::Assignment
+            for (const auto& safe : safe_moves) {
+                outputs.emplace_back(safe.begin(), safe.end());
             }
 
-            // Build BDD with rm_next transformation
-            if (state_formula && bdd_manager_->build_from_formula_rmnext(state_formula, pool_)) {
-                // Filter system moves using BDD
-                std::vector<Assignment> outputs_copy;
-                for (const auto& out : outputs) {
-                    outputs_copy.push_back(Assignment(out.begin(), out.end()));
-                }
-
-                std::vector<Assignment> safe_outputs = bdd_manager_->filter_safe_moves(outputs_copy);
-
-                // Convert back to automata::Assignment
-                outputs.clear();
-                for (const auto& safe : safe_outputs) {
-                    outputs.emplace_back(safe.begin(), safe.end());
-                }
-
-                LOG_DEBUG("BDD filtering: ", outputs_copy.size(), " -> ", outputs.size(),
-                          " safe system moves");
+            LOG_DEBUG("BDD enumeration: generated ", outputs.size(), " safe sys moves");
+        } else {
+            // OLD: Enumerate all assignments (without BDD optimization)
+            if (relevant_output_var_ids.empty()) {
+                outputs = {{}};  // Empty assignment = {} (one true edge)
+            } else {
+                // Convert set to vector for all_assignments_for_subset
+                std::vector<int> output_vec(relevant_output_var_ids.begin(),
+                                             relevant_output_var_ids.end());
+                outputs = output_gen_.all_assignments_for_subset(output_vec);
             }
         }
-        // ========================================================================
 
         for (const auto& out : outputs) {
             succs.push_back(environment_state(state.dfa_state, out));
