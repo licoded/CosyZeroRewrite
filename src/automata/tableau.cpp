@@ -163,7 +163,7 @@ std::unique_ptr<TableauState> TableauState::initial(formula::Formula* phi, formu
     formula::Formula* nnf_phi = phi->nnf(pool);
 
     // Convert to XNF for proper state construction
-    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool);
+    formula::Formula* xnf_phi = nnf_phi->xnf_with_end_marker(pool);
 
     // Compute PA(xnf_phi) - Propositional Atoms
     FormulaSet prop_atoms;
@@ -402,7 +402,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     // Create the actual state with proper initialization
     // First convert to NNF, then XNF
     formula::Formula* nnf_phi = phi->nnf(pool);
-    formula::Formula* xnf_phi = nnf_phi->xnf_with_tail(pool);
+    formula::Formula* xnf_phi = nnf_phi->xnf_with_end_marker(pool);
 
     // DEBUG: Log NNF and XNF
     debug_log("  nnf_phi = " + nnf_phi->to_string() + "\n");

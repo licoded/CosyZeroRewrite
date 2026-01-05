@@ -243,7 +243,7 @@ std::unique_ptr<DFA> DFABuilder::build_from_formula(
 
     // General case: use tableau construction
     // Step 1: Convert to XNF for easier handling
-    formula::Formula* xnf = formula->xnf_with_tail(pool);
+    formula::Formula* xnf = formula->xnf_with_end_marker(pool);
     formula::Formula* nnf_xnf = xnf->nnf(pool);
 
     // Step 2: Extract variables to create possible worlds

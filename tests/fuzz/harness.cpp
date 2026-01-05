@@ -22,7 +22,7 @@ void test_parser_input(const std::string& input) {
         // Exercise various operations
         std::string str = f->to_string();
         Formula* nnf = f->nnf(pool);
-        Formula* xnf = f->xnf_with_tail(pool);
+        Formula* xnf = f->xnf_with_end_marker(pool);
         Formula* simp = f->simplify(pool);
         (void)str; (void)nnf; (void)xnf; (void)simp;  // Suppress unused warnings
 
@@ -96,7 +96,7 @@ void test_formula_generation(const std::string& data) {
     if (f) {
         // Test transformations
         Formula* nnf = f->nnf(pool);
-        Formula* xnf = f->xnf_with_tail(pool);
+        Formula* xnf = f->xnf_with_end_marker(pool);
         Formula* simp = f->simplify(pool);
 
         // Test equivalence

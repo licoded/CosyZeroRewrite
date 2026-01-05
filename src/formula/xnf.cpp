@@ -28,7 +28,7 @@ namespace formula {
  *
  * See docs/ARCHITECTURE/xnf_detailed.md for complete specification.
  */
-Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
+Formula* Formula::xnf_with_end_marker(FormulaPool& pool) const {
     // Base cases: already in XNF
     // X(φ) is a base case: Next formulas are already in XNF (◦-formulas)
     // See docs/ARCHITECTURE/xnf_detailed.md for definition
@@ -46,16 +46,16 @@ Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
         case Formula::OpType::And: {
             // Distribute over And
             return pool.create_and(
-                left_->xnf_with_tail(pool),
-                right_->xnf_with_tail(pool)
+                left_->xnf_with_end_marker(pool),
+                right_->xnf_with_end_marker(pool)
             );
         }
 
         case Formula::OpType::Or: {
             // Distribute over Or
             return pool.create_or(
-                left_->xnf_with_tail(pool),
-                right_->xnf_with_tail(pool)
+                left_->xnf_with_end_marker(pool),
+                right_->xnf_with_end_marker(pool)
             );
         }
 
@@ -66,8 +66,8 @@ Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
             // Where X is strong next (implicitly !End)
             // And the inner φ₁ U φ₂ is NOT recursively transformed!
 
-            Formula* left_xnf = left_->xnf_with_tail(pool);   // xnf(φ₁)
-            Formula* right_xnf = right_->xnf_with_tail(pool);  // xnf(φ₂)
+            Formula* left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
+            Formula* right_xnf = right_->xnf_with_end_marker(pool);  // xnf(φ₂)
 
             // xnf(φ₁) ∧ X(φ₁ U φ₂)
             // NOTE: Keep original Until formula, do NOT recurse!
@@ -89,8 +89,8 @@ Formula* Formula::xnf_with_tail(FormulaPool& pool) const {
             // Empty string check is done during transition generation
             // And the inner φ₁ R φ₂ is NOT recursively transformed!
 
-            Formula* left_xnf = left_->xnf_with_tail(pool);   // xnf(φ₁)
-            Formula* right_xnf = right_->xnf_with_tail(pool);  // xnf(φ₂)
+            Formula* left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
+            Formula* right_xnf = right_->xnf_with_end_marker(pool);  // xnf(φ₂)
 
             // xnf(φ₁) ∨ X(φ₁ R φ₂)
             // NOTE: Keep original Release formula, do NOT recurse!

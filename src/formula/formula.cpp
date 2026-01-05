@@ -246,7 +246,7 @@ std::string Formula::to_string_with_names(const FormulaPool& pool) const {
 // ========== Operations (implemented in separate files) ==========
 // nnf() - implemented in nnf.cpp
 // simplify() - implemented in simplify.cpp
-// xnf_with_tail() - implemented in xnf.cpp
+// xnf_with_end_marker() - implemented in xnf.cpp
 // rmnext() - implemented in rmnext.cpp
 
 } // namespace formula

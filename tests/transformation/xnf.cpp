@@ -27,7 +27,7 @@ TEST_CASE("XNF: true stays true", "[xnf][base]") {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* f = pool.create_true();
-    Formula* result = f->xnf_with_tail(pool);
+    Formula* result = f->xnf_with_end_marker(pool);
     REQUIRE(result->is_true());
 }
 
@@ -36,7 +36,7 @@ TEST_CASE("XNF: false stays false", "[xnf][base]") {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* f = pool.create_false();
-    Formula* result = f->xnf_with_tail(pool);
+    Formula* result = f->xnf_with_end_marker(pool);
     REQUIRE(result->is_false());
 }
 
@@ -45,7 +45,7 @@ TEST_CASE("XNF: literal stays literal", "[xnf][base]") {
     FormulaPool pool;
     pool.declare_variables({"p"}, {});
     Formula* f = pool.create_variable("p");
-    Formula* result = f->xnf_with_tail(pool);
+    Formula* result = f->xnf_with_end_marker(pool);
     REQUIRE(result->is_literal());
     REQUIRE(result->var_id() == f->var_id());
 }
@@ -56,7 +56,7 @@ TEST_CASE("XNF: !p stays !p", "[xnf][base]") {
     pool.declare_variables({"p"}, {});
     Formula* p = pool.create_variable("p");
     Formula* not_p = pool.create_not(p);
-    Formula* result = not_p->xnf_with_tail(pool);
+    Formula* result = not_p->xnf_with_end_marker(pool);
     REQUIRE(result->is_not());
     REQUIRE(result->left()->is_literal());
 }
@@ -71,7 +71,7 @@ TEST_CASE("XNF: X(p) → X(p)", "[xnf][next]") {
     pool.declare_variables({"p"}, {});
     Formula* p = pool.create_variable("p");
     Formula* next_p = pool.create_next(p);
-    Formula* result = next_p->xnf_with_tail(pool);
+    Formula* result = next_p->xnf_with_end_marker(pool);
 
     // X(p) stays X(p) with p in XNF
     REQUIRE(result->is_next());
@@ -86,7 +86,7 @@ TEST_CASE("XNF: X(p ∧ q) → X(p ∧ q)", "[xnf][next]") {
     Formula* q = pool.create_variable("q");
     Formula* and_pq = pool.create_and(p, q);
     Formula* next_and = pool.create_next(and_pq);
-    Formula* result = next_and->xnf_with_tail(pool);
+    Formula* result = next_and->xnf_with_end_marker(pool);
 
     // X(p ∧ q) with inner formula in XNF
     REQUIRE(result->is_next());
@@ -100,7 +100,7 @@ TEST_CASE("XNF: X(X(p)) → X(X(p))", "[xnf][next]") {
     Formula* p = pool.create_variable("p");
     Formula* next_p = pool.create_next(p);
     Formula* next_next_p = pool.create_next(next_p);
-    Formula* result = next_next_p->xnf_with_tail(pool);
+    Formula* result = next_next_p->xnf_with_end_marker(pool);
 
     // Nested Next should preserve structure
     REQUIRE(result->is_next());
@@ -118,7 +118,7 @@ TEST_CASE("XNF: p U q → q ∨ (p ∧ X(p U q))", "[xnf][until]") {
     Formula* p = pool.create_variable("p");
     Formula* q = pool.create_variable("q");
     Formula* until_pq = pool.create_until(p, q);
-    Formula* result = until_pq->xnf_with_tail(pool);
+    Formula* result = until_pq->xnf_with_end_marker(pool);
 
     // Result should be: q ∨ (p ∧ X(p U q))
     REQUIRE(result->is_or());
@@ -138,7 +138,7 @@ TEST_CASE("XNF: (p ∧ q) U r", "[xnf][until]") {
     Formula* r = pool.create_variable("r");
     Formula* and_pq = pool.create_and(p, q);
     Formula* until_pq_r = pool.create_until(and_pq, r);
-    Formula* result = until_pq_r->xnf_with_tail(pool);
+    Formula* result = until_pq_r->xnf_with_end_marker(pool);
 
     // Result should be: r ∨ ((p ∧ q) ∧ X((p ∧ q) U r))
     REQUIRE(result->is_or());
@@ -157,7 +157,7 @@ TEST_CASE("XNF: p R q → q ∧ (p ∨ X(p R q))", "[xnf][release]") {
     Formula* p = pool.create_variable("p");
     Formula* q = pool.create_variable("q");
     Formula* release_pq = pool.create_release(p, q);
-    Formula* result = release_pq->xnf_with_tail(pool);
+    Formula* result = release_pq->xnf_with_end_marker(pool);
 
     // Result should be: q ∧ (p ∨ X(p R q))
     REQUIRE(result->is_and());
@@ -179,7 +179,7 @@ TEST_CASE("XNF: (p ∨ q) R r", "[xnf][release]") {
     Formula* r = pool.create_variable("r");
     Formula* or_pq = pool.create_or(p, q);
     Formula* release_pq_r = pool.create_release(or_pq, r);
-    Formula* result = release_pq_r->xnf_with_tail(pool);
+    Formula* result = release_pq_r->xnf_with_end_marker(pool);
 
     // Result should be: r ∧ ((p ∨ q) ∨ X((p ∨ q) R r))
     REQUIRE(result->is_and());
@@ -202,7 +202,7 @@ TEST_CASE("XNF: (p U q) ∧ (r U s)", "[xnf][and]") {
     Formula* until1 = pool.create_until(p, q);
     Formula* until2 = pool.create_until(r, s);
     Formula* and_formula = pool.create_and(until1, until2);
-    Formula* result = and_formula->xnf_with_tail(pool);
+    Formula* result = and_formula->xnf_with_end_marker(pool);
 
     // Should distribute: both Until transformed
     REQUIRE(result->is_and());
@@ -221,7 +221,7 @@ TEST_CASE("XNF: (p U q) ∨ (r R s)", "[xnf][or]") {
     Formula* until = pool.create_until(p, q);
     Formula* release = pool.create_release(r, s);
     Formula* or_formula = pool.create_or(until, release);
-    Formula* result = or_formula->xnf_with_tail(pool);
+    Formula* result = or_formula->xnf_with_end_marker(pool);
 
     // Should distribute: both transformed
     REQUIRE(result->is_or());
@@ -242,7 +242,7 @@ TEST_CASE("XNF: (p U q) U r", "[xnf][nested]") {
     Formula* r = pool.create_variable("r");
     Formula* inner_until = pool.create_until(p, q);
     Formula* outer_until = pool.create_until(inner_until, r);
-    Formula* result = outer_until->xnf_with_tail(pool);
+    Formula* result = outer_until->xnf_with_end_marker(pool);
 
     // Outer Until is transformed, inner is preserved inside Next
     REQUIRE(result->is_or());
@@ -260,7 +260,7 @@ TEST_CASE("XNF: X(p U q)", "[xnf][next-temporal]") {
     Formula* q = pool.create_variable("q");
     Formula* until = pool.create_until(p, q);
     Formula* next_until = pool.create_next(until);
-    Formula* result = next_until->xnf_with_tail(pool);
+    Formula* result = next_until->xnf_with_end_marker(pool);
 
     // X(φ) is already in XNF (◦-formula base case)
     // X(p U q) stays as X(p U q), no transformation needed
@@ -277,7 +277,7 @@ TEST_CASE("XNF: X(p R q)", "[xnf][next-temporal]") {
     Formula* q = pool.create_variable("q");
     Formula* release = pool.create_release(p, q);
     Formula* next_release = pool.create_next(release);
-    Formula* result = next_release->xnf_with_tail(pool);
+    Formula* result = next_release->xnf_with_end_marker(pool);
 
     // X(φ) is already in XNF (◦-formula base case)
     // X(p R q) stays as X(p R q), no transformation needed
@@ -300,8 +300,8 @@ TEST_CASE("XNF: re-application may expand further", "[xnf][reapplication]") {
     Formula* and_pq = pool.create_and(p, q);
     Formula* until = pool.create_until(and_pq, r);
 
-    Formula* xnf1 = until->xnf_with_tail(pool);
-    Formula* xnf2 = xnf1->xnf_with_tail(pool);
+    Formula* xnf1 = until->xnf_with_end_marker(pool);
+    Formula* xnf2 = xnf1->xnf_with_end_marker(pool);
 
     // XNF is NOT idempotent - re-application may expand nested formulas further
     // This is expected behavior due to recursion into Next operators

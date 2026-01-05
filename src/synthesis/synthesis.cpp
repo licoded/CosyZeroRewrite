@@ -51,45 +51,35 @@ bool Synthesis::load_partition(const std::string& part_file,
     return !outputs.empty() || !inputs.empty();
 }
 
-std::optional<bool> Synthesis::is_satisfiable(formula::Formula* f) {
+std::optional<bool> Synthesis::is_satisfiable([[maybe_unused]] formula::Formula* f) {
 #ifdef FORMULA_USE_Z3
     return formula::FormulaZ3::is_satisfiable(f, 0, 1000);  // 1s timeout for benchmark
 #else
-    (void)f;
     return std::nullopt;
 #endif
 }
 
-std::optional<bool> Synthesis::is_valid(formula::Formula* f) {
+std::optional<bool> Synthesis::is_valid([[maybe_unused]] formula::Formula* f) {
 #ifdef FORMULA_USE_Z3
     return formula::FormulaZ3::is_valid(f, 0, 10000);
 #else
-    (void)f;
     return std::nullopt;
 #endif
 }
 
-std::optional<bool> Synthesis::is_realizable(formula::Formula* f) {
-    // Use the new pure C++ GameSolver implementation
-    // For now, use default variable partitioning
-    std::vector<std::string> output_vars;
-    std::vector<std::string> input_vars;
-
-    // TODO: Extract variables from formula and partition them
-    // For now, return unknown
-    (void)f;
-    (void)output_vars;
-    (void)input_vars;
+std::optional<bool> Synthesis::is_realizable([[maybe_unused]] formula::Formula* f) {
+    // NOT IMPLEMENTED - This is a placeholder kept for API compatibility
+    // Use is_realizable_with_partition() for actual realizability checking
     return std::nullopt;
 }
 
 std::optional<bool> Synthesis::is_realizable_with_partition(
     formula::Formula* f,
-    const std::vector<std::string>& output_vars,
-    const std::vector<std::string>& input_vars,
+    [[maybe_unused]] const std::vector<std::string>& output_vars,
+    [[maybe_unused]] const std::vector<std::string>& input_vars,
     formula::FormulaPool& pool) {
-    (void)output_vars;
-    (void)input_vars;
+    // TODO: Use output_vars and input_vars for variable partitioning
+    // For now, GameSolver uses default partitioning from the formula
     return GameSolver::is_realizable(f, pool);
 }
 

@@ -104,8 +104,8 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         }
 
         // Both should have same XNF results
-        Formula* xnf1 = f1->xnf_with_tail(pool);
-        Formula* xnf2 = f2->xnf_with_tail(pool);
+        Formula* xnf1 = f1->xnf_with_end_marker(pool);
+        Formula* xnf2 = f2->xnf_with_end_marker(pool);
         if (xnf1 && xnf2) {
             bool xnf_equiv = FormulaChecker::are_equivalent(pool, xnf1, xnf2);
             if (!xnf_equiv) {

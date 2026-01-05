@@ -241,7 +241,7 @@ int main(int argc, char* argv[]) {
 
             // Test 3: XNF preserves semantics
             start = std::chrono::high_resolution_clock::now();
-            Formula* xnf = f->xnf_with_tail(pool);
+            Formula* xnf = f->xnf_with_end_marker(pool);
             end = std::chrono::high_resolution_clock::now();
             elapsed = std::chrono::duration<double, std::milli>(end - start).count();
 

@@ -66,15 +66,16 @@ public:
     static std::optional<bool> is_valid(formula::Formula* f);
 
     /**
-     * @brief Simplified realizability check (placeholder)
+     * @brief Simplified realizability check (NOT IMPLEMENTED - placeholder)
      *
-     * Full realizability checking requires:
-     * - LTLf → DFA conversion
-     * - Game solving on DFA
+     * ⚠️ This function is NOT IMPLEMENTED and always returns std::nullopt.
      *
-     * This is a placeholder that returns std::nullopt.
-     * Use external AALTA/Lydia tools for full synthesis.
+     * For actual realizability checking, use is_realizable_with_partition()
+     * which uses the pure C++ GameSolver implementation.
+     *
+     * @deprecated This is kept for API compatibility only.
      */
+    [[deprecated("Use is_realizable_with_partition() instead")]]
     static std::optional<bool> is_realizable(formula::Formula* f);
 
     /**

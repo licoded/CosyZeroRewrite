@@ -80,7 +80,7 @@ void run_parser_tests() {
                 // Exercise operations
                 std::string str = f->to_string();
                 Formula* nnf = f->nnf(pool);
-                Formula* xnf = f->xnf_with_tail(pool);
+                Formula* xnf = f->xnf_with_end_marker(pool);
                 Formula* simp = f->simplify(pool);
                 (void)str; (void)nnf; (void)xnf; (void)simp;
                 passed++;
@@ -177,7 +177,7 @@ void run_transformation_tests() {
 
                 // Test XNF properties
                 if (vars.size() <= 4) {
-                    Formula* xnf = f->xnf_with_tail(pool);
+                    Formula* xnf = f->xnf_with_end_marker(pool);
                     if (xnf) {
                         if (!FormulaChecker::are_equivalent(pool, f, xnf)) {
                             std::cerr << "BUG: XNF doesn't preserve semantics!" << std::endl;

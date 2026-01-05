@@ -46,6 +46,8 @@ public:
     };
 
     // ========== Immutable Accessors ==========
+    // Note: Formula is immutable via Hash Consing, but accessors return non-const
+    // pointers for internal use. A future refactor should add const versions.
 
     /** @brief Get the operator type */
     OpType op() const { return op_; }
@@ -140,7 +142,7 @@ public:
      *
      * Time complexity: O(n) - single pass expansion.
      */
-    Formula* xnf_with_tail(FormulaPool& pool) const;
+    Formula* xnf_with_end_marker(FormulaPool& pool) const;
 
     /**
      * @brief Apply formula progression (rmnext)

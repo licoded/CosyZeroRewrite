@@ -355,7 +355,7 @@ TEST_CASE("Transformation: XNF preserves semantics", "[transformation][xnf]") {
             Formula* f1 = parser.parse(formula_str);
 
             // Transform to XNF
-            Formula* f2 = f1->xnf_with_tail(pool);
+            Formula* f2 = f1->xnf_with_end_marker(pool);
 
             // Check equivalence using Z3
             auto result = FormulaZ3::are_equivalent(f1, f2, -1, 10000);
@@ -431,7 +431,7 @@ TEST_CASE("Transformation: Full pipeline (NNF → Simplify → XNF)", "[transfor
             // Full transformation pipeline
             Formula* f_nnf = f1->nnf(pool);
             Formula* f_simp = f_nnf->simplify(pool);
-            Formula* f_xnf = f_simp->xnf_with_tail(pool);
+            Formula* f_xnf = f_simp->xnf_with_end_marker(pool);
 
             // Check equivalence using Z3
             auto result = FormulaZ3::are_equivalent(f1, f_xnf, -1, 15000);

@@ -241,7 +241,7 @@ public:
      * The End marker is a special atomic proposition representing
      * "this is the last position in the finite trace".
      */
-    Formula* create_end();
+    Formula* create_end_marker();
 
     // ========== Resource Management ==========
 

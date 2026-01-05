@@ -377,11 +377,11 @@ TEST_CASE("Checker: XNF produces XNF", "[checker][xnf]") {
     FormulaParser parser(pool);
 
     Formula* f1 = parser.parse("a U b");
-    Formula* xnf1 = f1->xnf_with_tail(pool);
+    Formula* xnf1 = f1->xnf_with_end_marker(pool);
     REQUIRE(FormulaChecker::is_xnf(xnf1));
 
     Formula* f2 = parser.parse("a R b");
-    Formula* xnf2 = f2->xnf_with_tail(pool);
+    Formula* xnf2 = f2->xnf_with_end_marker(pool);
     REQUIRE(FormulaChecker::is_xnf(xnf2));
 }
 
@@ -490,7 +490,7 @@ TEST_CASE("Property: XNF preserves semantics", "[property][xnf]") {
 
     for (const auto& formula_str : formulas) {
         Formula* f = parser.parse(formula_str);
-        Formula* xnf_f = f->xnf_with_tail(pool);
+        Formula* xnf_f = f->xnf_with_end_marker(pool);
 
         // XNF should preserve semantics
         REQUIRE(FormulaChecker::are_equivalent(pool, f, xnf_f));

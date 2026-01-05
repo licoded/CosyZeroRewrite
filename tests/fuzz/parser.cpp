@@ -66,7 +66,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             nnf->to_string();
         }
 
-        Formula* xnf = f->xnf_with_tail(pool);
+        Formula* xnf = f->xnf_with_end_marker(pool);
         if (xnf) {
             xnf->to_string();
         }

@@ -222,7 +222,7 @@ Formula* Formula::rmnext(FormulaPool& pool, Formula* edge,
         // But for LTLf with finite traces: X φ rmnext edge → φ ∧ ¬End
         // The ¬End ensures we don't progress past the end
         Formula* child_next = left_->rmnext(pool, edge, all_vars);
-        return pool.create_and(child_next, pool.create_not(pool.create_end()));
+        return pool.create_and(child_next, pool.create_not(pool.create_end_marker()));
     }
 
     if (is_until() || is_release()) {

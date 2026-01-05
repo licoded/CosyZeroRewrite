@@ -67,7 +67,7 @@ Formula* to_nnf_not(FormulaPool& pool, Formula* f) {
                 pool.create_next(
                     to_nnf_not(pool, f->left())
                 ),
-                pool.create_end()  // End marker for finite traces
+                pool.create_end_marker()  // End marker for finite traces
             );
 
         case Formula::OpType::Until:

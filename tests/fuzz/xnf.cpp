@@ -392,7 +392,7 @@ int main(int argc, char* argv[]) {
         // Transform to XNF
         Formula* xnf_result = nullptr;
         try {
-            xnf_result = original->xnf_with_tail(pool);
+            xnf_result = original->xnf_with_end_marker(pool);
         } catch (const std::exception& e) {
             std::cerr << "[" << i << "] XNF error: " << e.what()
                      << "\n  Formula: " << formula_str << std::endl;

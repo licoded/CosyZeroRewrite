@@ -452,7 +452,7 @@ Formula* FormulaPool::create_release(Formula* left, Formula* right) {
     return create(Formula::OpType::Release, left, right, -1);
 }
 
-Formula* FormulaPool::create_end() {
+Formula* FormulaPool::create_end_marker() {
     return end_marker_;
 }
 

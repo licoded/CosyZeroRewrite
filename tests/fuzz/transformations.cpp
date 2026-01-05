@@ -84,7 +84,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     // Property 2: XNF should preserve semantics
     if (FormulaChecker::get_variables(f).size() <= 4) {
-        Formula* xnf = f->xnf_with_tail(pool);
+        Formula* xnf = f->xnf_with_end_marker(pool);
         if (xnf) {
             bool equiv = FormulaChecker::are_equivalent(pool, f, xnf);
             if (!equiv) {

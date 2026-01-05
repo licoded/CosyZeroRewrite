@@ -80,7 +80,7 @@ TEST_CASE("Formula: Create constants", "[formula][creation]") {
 
     Formula* t = pool.create_true();
     Formula* f = pool.create_false();
-    Formula* e = pool.create_end();
+    Formula* e = pool.create_end_marker();
 
     REQUIRE(t->is_true());
     REQUIRE(f->is_false());
@@ -337,7 +337,7 @@ TEST_CASE("XNF: Simple Until", "[xnf][transformation]") {
     Formula* b = pool.create_variable("b");
 
     Formula* until_f = pool.create_until(a, b);
-    Formula* xnf_f = until_f->xnf_with_tail(pool);
+    Formula* xnf_f = until_f->xnf_with_end_marker(pool);
 
     // a U b → (b & !End) | (a & X(a U b))
     REQUIRE(xnf_f->is_or());
@@ -352,7 +352,7 @@ TEST_CASE("XNF: Next distribution", "[xnf][transformation]") {
 
     Formula* and_ab = pool.create_and(a, b);
     Formula* next_and = pool.create_next(and_ab);
-    Formula* xnf_f = next_and->xnf_with_tail(pool);
+    Formula* xnf_f = next_and->xnf_with_end_marker(pool);
 
     // X(a & b) → X(xnf(a & b))
     REQUIRE(xnf_f->is_next());
@@ -427,7 +427,7 @@ TEST_CASE("rmnext: Or progression", "[rmnext][progression]") {
 
 TEST_CASE("rmnext: End marker", "[rmnext][progression]") {
     FormulaPool pool;
-    Formula* end = pool.create_end();
+    Formula* end = pool.create_end_marker();
 
     std::unordered_set<int> edge = {};
     Formula* result = end->rmnext(pool, nullptr, edge);
@@ -457,7 +457,7 @@ TEST_CASE("Integration: Full transformation pipeline", "[integration]") {
     // Transform: NNF → Simplify → XNF
     Formula* nnf_f = formula->nnf(pool);
     Formula* simp_f = nnf_f->simplify(pool);
-    Formula* xnf_f = simp_f->xnf_with_tail(pool);
+    Formula* xnf_f = simp_f->xnf_with_end_marker(pool);
 
     REQUIRE(xnf_f != nullptr);
     // Check if result is either Or or And
@@ -477,7 +477,7 @@ TEST_CASE("Integration: Complex formula with Next and Until", "[integration]") {
     Formula* until_f = pool.create_until(next_p, q);
 
     // Transform: NNF (already in NNF) → XNF
-    Formula* xnf_f = until_f->xnf_with_tail(pool);
+    Formula* xnf_f = until_f->xnf_with_end_marker(pool);
 
     // Should be: (q & !End) | (X(p) & X(X(p) U q))
     REQUIRE(xnf_f->is_or());
