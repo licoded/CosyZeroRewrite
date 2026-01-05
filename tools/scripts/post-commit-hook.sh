@@ -11,7 +11,7 @@ fi
 
 # Get current commit info
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
-CHANGEGEN_SCRIPT="$PROJECT_ROOT/scripts/changelog.sh"
+CHANGEGEN_SCRIPT="$PROJECT_ROOT/tools/scripts/changelog.sh"
 
 # Get commit subject
 SUBJECT=$(git log -1 --format=%s HEAD)

@@ -1,12 +1,12 @@
 #!/bin/bash
 # Quick test script for LTLf synthesis
-# Usage: ./scripts/quick_test.sh "<formula>" "<inputs>" "<outputs>"
+# Usage: ./tools/scripts/quick_test.sh "<formula>" "<inputs>" "<outputs>"
 
 # Don't exit on grep failures
 set +e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 BUILD_DIR="$PROJECT_ROOT/build"
 COSY_BIN="/home/lic/files/rewrite_ltlf_codes/Cosy_rewrite/Cosy"
 

@@ -92,7 +92,7 @@ message(STATUS "========================================")
 # ============================================================
 # Add a custom target for generating changelog entries
 add_custom_target(changelog
-    COMMAND ${CMAKE_SOURCE_DIR}/scripts/changelog.sh ${COMMIT}
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/scripts/changelog.sh ${COMMIT}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     COMMENT "Generating CHANGELOG entry for commit ${COMMIT}"
     VERBATIM
@@ -101,7 +101,7 @@ add_custom_target(changelog
 # Add a target to install the post-commit hook
 add_custom_target(install-changelog-hook
     COMMAND ${CMAKE_COMMAND} -E copy
-        ${CMAKE_SOURCE_DIR}/scripts/post-commit-hook.sh
+        ${CMAKE_SOURCE_DIR}/tools/scripts/post-commit-hook.sh
         ${CMAKE_SOURCE_DIR}/.git/hooks/post-commit
     COMMAND chmod +x ${CMAKE_SOURCE_DIR}/.git/hooks/post-commit
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}

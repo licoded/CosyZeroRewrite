@@ -12,7 +12,7 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 CHANGELOG_DIR="$PROJECT_ROOT/docs/CHANGELOG"
 
 # Default commit to process
@@ -26,7 +26,7 @@ CHANGELOG_FILE=$(find "$CHANGELOG_DIR" -name "*_${HASH}_*.md" 2>/dev/null | head
 
 if [ -z "$CHANGELOG_FILE" ]; then
     echo -e "${RED}✗ No CHANGELOG found for commit ${HASH}${NC}"
-    echo "Run ./scripts/changelog.sh $COMMIT first"
+    echo "Run ./tools/scripts/changelog.sh $COMMIT first"
     exit 1
 fi
 
