@@ -512,17 +512,18 @@ num_outputs = static_cast<int>(vars.size());
 
 ---
 
-## 改进优先级总结
+## 改进优先级总结 (2026-01-06)
 
-| 优先级 | 文件 | 问题 | 建议 | 预计减少行数 |
-|--------|------|------|------|--------------|
-| **高** | cosy2.cpp / on_the_fly_solver.cpp | 变量收集 lambda | 添加 `Formula::collect_variables()` | ~20 行 |
-| **高** | bdd_manager.cpp | BDD reference 模式 | 使用 RAII 包装器 | ~30 行 |
-| **中** | bdd_manager.cpp | 位掩码生成 | 提取 `generate_all_subsets()` | ~25 行 |
-| **中** | trace_exporter.cpp | 前置检查 | `with_current_sub_step()` 模板 | ~40 行 |
-| **低** | formula_z3.cpp | Z3 转换模式 | 模板化 Z3 构建 | ~20 行 |
+| 优先级 | 文件 | 问题 | 建议 | 预计减少行数 | 状态 |
+|--------|------|------|------|--------------|------|
+| **高** | cosy2.cpp / on_the_fly_solver.cpp | 变量收集 lambda | 添加 `Formula::collect_variables()` | ~20 行 | ✅ 已修复 |
+| **高** | bdd_manager.cpp | BDD reference 模式 | 使用 RAII 包装器 | ~30 行 | 📋 待讨论 |
+| **中** | bdd_manager.cpp | 位掩码生成 | 提取 `generate_all_subsets()` | ~25 行 | ⏸️ 待定 |
+| **中** | trace_exporter.cpp | 前置检查 | `with_current_sub_step()` 模板 | ~40 行 | ⏸️ 待定 |
+| **低** | formula_z3.cpp | Z3 转换模式 | 模板化 Z3 构建 | ~20 行 | ⏸️ 待定 |
 
-**总计可减少**: ~135 行重复代码
+**已完成减少**: ~16 行 (跨文件重复已消除)
+**剩余可减少**: ~115 行
 
 ---
 

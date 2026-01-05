@@ -199,6 +199,79 @@ struct BddManager::CuddManager {
     }
 };
 
+namespace {
+
+/**
+ * @brief Build a cube by OR-ing multiple variables together
+ *
+ * Creates a BDD representing: var0 | var1 | var2 | ...
+ *
+ * @param mgr CUDD manager
+ * @param var_ids List of variable indices to OR together
+ * @return Referenced BDD node (caller must deref)
+ */
+DdNode* build_or_cube(DdManager* mgr, const std::vector<int>& var_ids) {
+    // Start with LogicZero (identity for OR)
+    DdNode* cube = Cudd_ReadLogicZero(mgr);
+    Cudd_Ref(cube);
+
+    for (int var_id : var_ids) {
+        DdNode* var = Cudd_bddIthVar(mgr, var_id);
+        DdNode* new_cube = Cudd_bddOr(mgr, cube, var);
+        Cudd_Ref(new_cube);
+        Cudd_RecursiveDeref(mgr, cube);
+        cube = new_cube;
+    }
+
+    return cube;
+}
+
+/**
+ * @brief Build a cube by AND-ing multiple variables together
+ *
+ * Creates a BDD representing: var0 & var1 & var2 & ...
+ *
+ * @param mgr CUDD manager
+ * @param var_ids List of variable indices to AND together
+ * @return Referenced BDD node (caller must deref)
+ */
+DdNode* build_and_cube(DdManager* mgr, const std::vector<int>& var_ids) {
+    // Start with One (identity for AND)
+    DdNode* cube = Cudd_ReadOne(mgr);
+    Cudd_Ref(cube);
+
+    for (int var_id : var_ids) {
+        DdNode* var = Cudd_bddIthVar(mgr, var_id);
+        DdNode* new_cube = Cudd_bddAnd(mgr, cube, var);
+        Cudd_Ref(new_cube);
+        Cudd_RecursiveDeref(mgr, cube);
+        cube = new_cube;
+    }
+
+    return cube;
+}
+
+/**
+ * @brief Generic helper for binary BDD operations with automatic ref/deref
+ *
+ * @tparam BinOp Binary operation type (e.g., Cudd_bddAnd, Cudd_bddOr)
+ * @param mgr CUDD manager
+ * @param left Left operand BDD
+ * @param right Right operand BDD
+ * @param op The binary operation to apply
+ * @return Referenced result BDD node (caller must deref)
+ */
+template<typename BinOp>
+DdNode* apply_binary_bdd_op(DdManager* mgr, DdNode* left, DdNode* right, BinOp&& op) {
+    DdNode* result = op(mgr, left, right);
+    Cudd_Ref(result);
+    Cudd_RecursiveDeref(mgr, left);
+    Cudd_RecursiveDeref(mgr, right);
+    return result;
+}
+
+} // anonymous namespace
+
 #endif // FORMULA_USE_CUDD
 
 BddManager::BddManager(int num_variables, int num_outputs)
@@ -343,19 +416,13 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
         // safe(sys_output) = ∀ env_input. formula(sys_output, env_input)
         //
         // Build cube of input variables for universal abstraction
-        // env_cube = e1 ∧ e2 ∧ ... ∧ em (OR of all input variables)
-        // Note: CUDD's cube for abstraction is the conjunction of variables
-        DdNode* env_cube = Cudd_ReadLogicZero(cudd_->mgr);
-        Cudd_Ref(env_cube);
-
+        // env_cube = e1 ∨ e2 ∨ ... ∨ em (OR of all input variables)
+        // Note: CUDD's cube for abstraction uses OR
+        std::vector<int> input_var_ids;
         for (int i = num_outputs_; i < num_variables_; ++i) {
-            DdNode* var = Cudd_bddIthVar(cudd_->mgr, i);
-            // OR with var to build the cube
-            DdNode* new_cube = Cudd_bddOr(cudd_->mgr, env_cube, var);
-            Cudd_Ref(new_cube);
-            Cudd_RecursiveDeref(cudd_->mgr, env_cube);
-            env_cube = new_cube;
+            input_var_ids.push_back(i);
         }
+        DdNode* env_cube = build_or_cube(cudd_->mgr, input_var_ids);
 
         // Apply universal abstraction: ∀ env_vars. phi(sys, env)
         // Result is a BDD over sys variables only
@@ -581,43 +648,27 @@ DdNode* BddManager::build_bdd_from_formula(formula::Formula* f, formula::Formula
         case OpType::And: {
             DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
             DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
-            DdNode* result = Cudd_bddAnd(cudd_->mgr, left_bdd, right_bdd);
-            Cudd_Ref(result);
-            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
-            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
-            return result;
+            return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddAnd);
         }
 
         case OpType::Or: {
             DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
             DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
-            DdNode* result = Cudd_bddOr(cudd_->mgr, left_bdd, right_bdd);
-            Cudd_Ref(result);
-            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
-            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
-            return result;
+            return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddOr);
         }
 
         case OpType::Until: {
             // Boolean Until: φ U ψ ≡ ψ ∨ φ
             DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
             DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
-            DdNode* result = Cudd_bddOr(cudd_->mgr, left_bdd, right_bdd);
-            Cudd_Ref(result);
-            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
-            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
-            return result;
+            return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddOr);
         }
 
         case OpType::Release: {
             // Boolean Release: φ R ψ ≡ ψ ∧ φ
             DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
             DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
-            DdNode* result = Cudd_bddAnd(cudd_->mgr, left_bdd, right_bdd);
-            Cudd_Ref(result);
-            Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
-            Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
-            return result;
+            return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddAnd);
         }
 
         case OpType::Next:
@@ -647,19 +698,14 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
     // We want to enumerate only assignments for relevant variables
     // So we abstract away (existential) the irrelevant variables
 
-    // Build cube of irrelevant variables
-    DdNode* cube = Cudd_ReadOne(cudd_->mgr);
-    Cudd_Ref(cube);
-
+    // Build cube of irrelevant variables (using AND)
+    std::vector<int> irrelevant_var_ids;
     for (int i = 0; i < num_variables_; ++i) {
         if (relevant_var_ids.find(i) == relevant_var_ids.end()) {
-            DdNode* var = Cudd_bddIthVar(cudd_->mgr, i);
-            DdNode* new_cube = Cudd_bddAnd(cudd_->mgr, cube, var);
-            Cudd_Ref(new_cube);
-            Cudd_RecursiveDeref(cudd_->mgr, cube);
-            cube = new_cube;
+            irrelevant_var_ids.push_back(i);
         }
     }
+    DdNode* cube = build_and_cube(cudd_->mgr, irrelevant_var_ids);
 
     // Abstract away irrelevant variables
     DdNode* abstracted = Cudd_bddExistAbstract(cudd_->mgr, bdd, cube);
