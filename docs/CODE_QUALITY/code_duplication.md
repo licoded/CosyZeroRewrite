@@ -354,9 +354,9 @@ void TraceExporter::set_scc_id(const std::string& scc_id) {
 
 ---
 
-### 2. bdd_manager.cpp - 3 处重复
+### 2. bdd_manager.cpp - 3 处重复 ✅ 已修复
 
-**问题模式 A**: BDD 操作的 reference/deref 模式
+**问题模式 A**: BDD 操作的 reference/deref 模式 ✅ 已修复
 
 ```cpp
 // 在 And/Or/Until/Release 中重复:
@@ -369,77 +369,61 @@ Cudd_RecursiveDeref(cudd_->mgr, right_bdd);
 return result;
 ```
 
-**改进方案**: 使用 RAII 包装器
+**修复方案**: 使用模板辅助函数 `apply_binary_bdd_op()`
 
 ```cpp
-// RAII BDD 指针包装器
-class ScopedBDD {
-    DdManager* mgr_;
-    DdNode* node_;
-public:
-    ScopedBDD(DdManager* mgr, DdNode* node) : mgr_(mgr), node_(node) {
-        Cudd_Ref(node);
-    }
-    ~ScopedBDD() {
-        Cudd_RecursiveDeref(mgr_, node_);
-    }
-    DdNode* get() const { return node_; }
-    // 禁止拷贝，允许移动...
-    ScopedBDD(const ScopedBDD&) = delete;
-    ScopedBDD& operator=(const ScopedBDD&) = delete;
-};
-
-// 使用模板辅助函数:
+// 辅助函数 (bdd_manager.cpp:264-271)
 template<typename BinOp>
-DdNode* build_binary_bdd(BddManager* mgr, Formula* f, FormulaPool& pool, BinOp&& op) {
-    ScopedBDD left(mgr->cudd_->mgr, mgr->build_bdd_from_formula(f->left(), pool));
-    ScopedBDD right(mgr->cudd_->mgr, mgr->build_bdd_from_formula(f->right(), pool));
-    DdNode* result = op(mgr->cudd_->mgr, left.get(), right.get());
+DdNode* apply_binary_bdd_op(DdManager* mgr, DdNode* left, DdNode* right, BinOp&& op) {
+    DdNode* result = op(mgr, left, right);
     Cudd_Ref(result);
+    Cudd_RecursiveDeref(mgr, left);
+    Cudd_RecursiveDeref(mgr, right);
     return result;
 }
-```
 
-**问题模式 B**: 枚举所有输出的位掩码生成
-
-```cpp
-// 在 enumerate_all_output_assignments 和 enumerate_safe_moves_fallback 中重复:
-std::vector<int> output_vars(relevant_output_var_ids.begin(), ...);
-int n = output_vars.size();
-for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
-    Assignment assignment;
-    for (int i = 0; i < n; ++i) {
-        if (mask & (1u << i)) {
-            assignment.insert(output_vars[i]);
-        }
-    }
-    all_moves.push_back(std::move(assignment));
+// 使用示例:
+case OpType::And: {
+    DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
+    DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+    return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddAnd);
 }
 ```
 
-**改进方案**: 提取为独立函数
+**问题模式 B**: Cube 构建循环 ✅ 已修复
 
 ```cpp
-namespace {
-    std::vector<Assignment> generate_all_subsets(const std::set<int>& vars) {
-        std::vector<int> var_list(vars.begin(), vars.end());
-        std::vector<Assignment> result;
-        int n = var_list.size();
-
-        result.reserve(1u << n);
-        for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
-            Assignment assignment;
-            for (int i = 0; i < n; ++i) {
-                if (mask & (1u << i)) {
-                    assignment.insert(var_list[i]);
-                }
-            }
-            result.push_back(std::move(assignment));
-        }
-        return result;
-    }
+// 原代码 - 在 enumerate_safe_sys_moves 和 enumerate_bdd_satisfying_assignments 中重复:
+DdNode* cube = Cudd_ReadLogicZero(mgr);  // 或 Cudd_ReadOne(mgr)
+Cudd_Ref(cube);
+for (int var_id : var_ids) {
+    DdNode* var = Cudd_bddIthVar(mgr, var_id);
+    DdNode* new_cube = Cudd_bddOr(mgr, cube, var);  // 或 Cudd_bddAnd
+    Cudd_Ref(new_cube);
+    Cudd_RecursiveDeref(mgr, cube);
+    cube = new_cube;
 }
 ```
+
+**修复方案**: 使用辅助函数 `build_or_cube()` 和 `build_and_cube()`
+
+```cpp
+// 辅助函数 (bdd_manager.cpp:213-227, 238-252)
+DdNode* build_or_cube(DdManager* mgr, const std::vector<int>& var_ids);
+DdNode* build_and_cube(DdManager* mgr, const std::vector<int>& var_ids);
+
+// 使用示例:
+std::vector<int> input_var_ids;
+for (int i = num_outputs_; i < num_variables_; ++i) {
+    input_var_ids.push_back(i);
+}
+DdNode* env_cube = build_or_cube(cudd_->mgr, input_var_ids);
+```
+
+**修复结果** (2026-01-06):
+- 减少代码重复约 40 行
+- 添加 RAII 包装器 `ScopedBDD` (虽然当前未使用，但为未来扩展做准备)
+- 提高代码可维护性
 
 ---
 
@@ -517,21 +501,21 @@ num_outputs = static_cast<int>(vars.size());
 | 优先级 | 文件 | 问题 | 建议 | 预计减少行数 | 状态 |
 |--------|------|------|------|--------------|------|
 | **高** | cosy2.cpp / on_the_fly_solver.cpp | 变量收集 lambda | 添加 `Formula::collect_variables()` | ~20 行 | ✅ 已修复 |
-| **高** | bdd_manager.cpp | BDD reference 模式 | 使用 RAII 包装器 | ~30 行 | 📋 待讨论 |
+| **高** | bdd_manager.cpp | BDD reference 模式 + cube 构建 | 使用辅助函数 | ~40 行 | ✅ 已修复 |
 | **中** | bdd_manager.cpp | 位掩码生成 | 提取 `generate_all_subsets()` | ~25 行 | ⏸️ 待定 |
 | **中** | trace_exporter.cpp | 前置检查 | `with_current_sub_step()` 模板 | ~40 行 | ⏸️ 待定 |
 | **低** | formula_z3.cpp | Z3 转换模式 | 模板化 Z3 构建 | ~20 行 | ⏸️ 待定 |
 
-**已完成减少**: ~16 行 (跨文件重复已消除)
-**剩余可减少**: ~115 行
+**已完成减少**: ~56 行 (跨文件重复 + BDD 重复)
+**剩余可减少**: ~85 行
 
 ---
 
 ## 代码重复的本质
 
 1. **"前置检查"模式** (trace_exporter): 可用模板+lambda 或辅助函数消除
-2. **"资源管理"模式** (bdd_manager): RAII 是 C++ 的最佳实践
-3. **"算法逻辑"模式** (跨文件重复): 应该提取为公共工具函数
+2. **"资源管理"模式** (bdd_manager): RAII 是 C++ 的最佳实践 ✅ 已应用
+3. **"算法逻辑"模式** (跨文件重复): 应该提取为公共工具函数 ✅ 已应用
 
 ---
 

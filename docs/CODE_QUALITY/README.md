@@ -57,11 +57,13 @@
 | 5 | `xnf_with_tail` 命名不清 | ✅ 已修复 | 5176d8a |
 | 6 | `read_benchmark()` 重复代码 | ✅ 已修复 | ee28958 |
 | 7 | `to_string()` 重复逻辑 | ✅ 已修复 | d1b8040 |
-| 8 | `get_precedence()` switch 优化 | ⏭️ 已跳过 | - |
-| 9 | Formula 访问器 const 正确性 | ⏭️ 大规模重构 | - |
-| 10+ | 其他 Low/Medium 问题 | ⏸️ 待定 | - |
+| 8 | `Formula::collect_variables()` 跨文件重复 | ✅ 已修复 | 3fdd97e |
+| 9 | bdd_manager.cpp BDD 重复模式 | ✅ 已修复 | 3fdd97e |
+| 10 | `get_precedence()` switch 优化 | ⏭️ 已跳过 | - |
+| 11 | Formula 访问器 const 正确性 | ⏭️ 大规模重构 | - |
+| 12+ | 其他 Low/Medium 问题 | ⏸️ 待定 | - |
 
-### #8 跳过原因
+### #10 跳过原因
 
 `get_precedence()` 使用 switch 而非查表的优化已决定跳过：
 
@@ -70,7 +72,7 @@
 3. **维护成本**: 使用数组需要手动维护枚举顺序与数组索引的对应关系
 4. **编译器优化**: 现代编译器通常能将这种 switch 转换为跳转表
 
-### #9 暂缓原因
+### #11 暂缓原因
 
 Formula 访问器返回 `const Formula*` 需要大规模重构：
 
@@ -98,6 +100,7 @@ Formula 访问器返回 `const Formula*` 需要大规模重构：
 ## 本次优化的 Git 提交记录
 
 ```
+3fdd97e refactor: add BDD RAII wrapper and helper functions to reduce duplication
 517ab2b docs: update benchmark guide with new CLI options
 d1b8040 refactor: eliminate to_string() code duplication
 ee28958 refactor: extract common code from read_benchmark functions
@@ -108,11 +111,12 @@ ee28958 refactor: extract common code from read_benchmark functions
 
 | 提交 | 插入 | 删除 | 净变化 |
 |------|------|------|--------|
+| 3fdd97e | +98 | -51 | +47 |
 | 5176d8a | +75 | -82 | -7 |
 | ee28958 | +57 | -38 | +19 |
 | d1b8040 | +42 | -70 | -28 |
 | 517ab2b | +42 | -18 | +24 |
-| **总计** | **+216** | **-208** | **+8** |
+| **总计** | **+314** | **-259** | **+55** |
 
 ---
 
