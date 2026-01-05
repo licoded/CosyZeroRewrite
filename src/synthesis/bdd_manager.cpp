@@ -7,6 +7,7 @@
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"
 #include <algorithm>
+#include <cassert>
 #include <stdexcept>
 #include <set>
 
@@ -310,13 +311,11 @@ std::vector<Assignment> BddManager::enumerate_safe_moves_fallback(
     formula::Formula* rmnext_formula,
     const std::set<int>& relevant_output_var_ids) const {
 
-    std::vector<Assignment> safe_moves;
+    // This should never happen if get_or_build_bdd_for_state was called correctly
+    // apply_rm_next() always returns a valid Formula*, never nullptr
+    assert(rmnext_formula != nullptr && "rmnext_formula should never be nullptr");
 
-    if (!rmnext_formula) {
-        // No constraint, all moves are safe
-        safe_moves.push_back({});
-        return safe_moves;
-    }
+    std::vector<Assignment> safe_moves;
 
     if (rmnext_formula->is_true()) {
         // Enumerate all possible assignments for relevant variables
