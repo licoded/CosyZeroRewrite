@@ -52,3 +52,5 @@ benchmark_results_*.csv
 # Temporary files
 tmp/
 
+# Working issues (temporary collaboration space)
+docs/working_issues/
