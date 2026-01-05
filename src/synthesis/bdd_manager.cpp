@@ -327,10 +327,8 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
         } else {
             // Build BDD from rm_next formula
             formula::Formula* rmnext_formula = get_rmnext_formula(state);
-            if (!rmnext_formula) {
-                // No constraints, all moves are safe
-                return enumerate_all_output_assignments(relevant_output_var_ids);
-            }
+            // get_or_build_bdd_for_state just returned true, so this must be non-null
+            assert(rmnext_formula != nullptr && "rmnext_formula should be in cache after successful build");
 
             // Build BDD from formula
             bdd = build_bdd_from_formula(rmnext_formula, pool);
