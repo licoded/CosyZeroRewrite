@@ -14,6 +14,7 @@ option(BUILD_FUZZER "Build libFuzzer targets" OFF)
 option(BUILD_BENCHMARK "Build benchmark runner" ON)
 option(USE_Z3 "Enable Z3 SMT solver" ON)
 option(USE_SPDLOG "Enable spdlog logging" ON)
+option(FORCE_STATIC_DEPS "Force static Z3/CUDD for static builds" OFF)
 
 # ============================================================
 # Output directories (standardized)
@@ -39,6 +40,30 @@ include(cmake/CompilerOptions.cmake)
 # Dependencies (Z3, spdlog)
 # ============================================================
 include(cmake/Dependencies.cmake)
+
+# ============================================================
+# Optional: force static Z3/CUDD for fully static builds
+# ============================================================
+if(FORCE_STATIC_DEPS)
+    set(Z3_STATIC_DIR "/home/lic/dev/ltlfsyn-deps/z3-4.8.12-x64-glibc-2.31")
+    set(Z3_STATIC_LIB "${Z3_STATIC_DIR}/bin/libz3.a")
+    set(Z3_STATIC_INCLUDE "${Z3_STATIC_DIR}/include")
+
+    set(CUDD_STATIC_LIB "/usr/local/lib/libcudd.a")
+    set(CUDD_STATIC_INCLUDE "/usr/local/include")
+
+    if(EXISTS "${Z3_STATIC_LIB}" AND EXISTS "${CUDD_STATIC_LIB}")
+        set(Z3_FOUND TRUE)
+        set(Z3_LIBRARIES "${Z3_STATIC_LIB}")
+        set(Z3_INCLUDE_DIRS "${Z3_STATIC_INCLUDE}")
+        set(CUDD_FOUND TRUE)
+        set(CUDD_LIBRARIES "${CUDD_STATIC_LIB}")
+        set(CUDD_INCLUDE_DIRS "${CUDD_STATIC_INCLUDE}")
+        message(STATUS "Forcing static Z3/CUDD libraries for formula")
+    else()
+        message(WARNING "FORCE_STATIC_DEPS enabled, but static Z3/CUDD not found")
+    endif()
+endif()
 
 # ============================================================
 # Build library
@@ -110,6 +135,7 @@ if(EXISTS "${Z3_STATIC_LIB}" AND EXISTS "${CUDD_STATIC_LIB}")
         m
     )
     target_link_options(Cosy2-static PRIVATE
+        -static
         -static-libgcc
         -static-libstdc++
         LINKER:--as-needed
