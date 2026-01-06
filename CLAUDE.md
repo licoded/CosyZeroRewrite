@@ -134,8 +134,8 @@ make test
 ### 运行 Synthesis
 
 ```bash
-# 使用 Cosy2 工具
-./Cosy2 -f examples/response.ltlf -p examples/response.part
+# 使用 Cosy2 工具（从项目根目录运行）
+./build/output/Cosy2 -f examples/response.ltlf -p examples/response.part
 ```
 
 ### ⚠️ 重要：运行目录规范
