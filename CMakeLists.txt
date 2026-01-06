@@ -72,6 +72,60 @@ install(TARGETS Cosy2 DESTINATION bin)
 message(STATUS "Cosy2 synthesis tool enabled")
 
 # ============================================================
+# Cosy2-static - Statically linked version
+# ============================================================
+# Z3 static library path (for static linking)
+set(Z3_STATIC_DIR "/home/lic/dev/ltlfsyn-deps/z3-4.8.12-x64-glibc-2.31")
+set(Z3_STATIC_LIB "${Z3_STATIC_DIR}/bin/libz3.a")
+set(Z3_STATIC_INCLUDE "${Z3_STATIC_DIR}/include")
+
+# CUDD static library
+set(CUDD_STATIC_LIB "/usr/local/lib/libcudd.a")
+set(CUDD_STATIC_INCLUDE "/usr/local/include")
+
+if(EXISTS "${Z3_STATIC_LIB}" AND EXISTS "${CUDD_STATIC_LIB}")
+    # Create static libraries for linking
+    add_library(z3-static STATIC IMPORTED GLOBAL)
+    set_target_properties(z3-static PROPERTIES
+        IMPORTED_LOCATION "${Z3_STATIC_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${Z3_STATIC_INCLUDE}"
+    )
+
+    add_library(cudd-static STATIC IMPORTED GLOBAL)
+    set_target_properties(cudd-static PROPERTIES
+        IMPORTED_LOCATION "${CUDD_STATIC_LIB}"
+        INTERFACE_INCLUDE_DIRECTORIES "${CUDD_STATIC_INCLUDE}"
+    )
+
+    add_executable(Cosy2-static src/cosy2.cpp)
+    target_include_directories(Cosy2-static PRIVATE include deps/external)
+
+    # Link with static libraries using -Bstatic/-Bdynamic
+    target_link_libraries(Cosy2-static PRIVATE
+        formula
+        z3-static
+        cudd-static
+        pthread
+        dl
+        m
+    )
+    target_link_options(Cosy2-static PRIVATE
+        -static-libgcc
+        -static-libstdc++
+        LINKER:--as-needed
+    )
+    message(STATUS "Cosy2-static (with static Z3, CUDD, stdc++) enabled")
+else()
+    if(NOT EXISTS "${Z3_STATIC_LIB}")
+        message(WARNING "Z3 static library not found at ${Z3_STATIC_LIB}")
+    endif()
+    if(NOT EXISTS "${CUDD_STATIC_LIB}")
+        message(WARNING "CUDD static library not found at ${CUDD_STATIC_LIB}")
+    endif()
+    message(STATUS "  Cosy2-static will NOT be built")
+endif()
+
+# ============================================================
 # Summary
 # ============================================================
 message(STATUS "========================================")
