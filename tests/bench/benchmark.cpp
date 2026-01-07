@@ -528,44 +528,50 @@ int main(int argc, char* argv[]) {
     auto results = runner.run();
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    // Collect statistics
+    // ============================================================================
+    // Step 1: Collect statistics
+    // ============================================================================
     BenchmarkStats stats;
     stats.total_count = results.size();
     stats.wall_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
     for (const auto& r : results) {
         stats.total_time_ms += r.elapsed_ms;
-        if (r.success) {
-            stats.parsed++;
-        } else {
-            stats.failed++;
-        }
+        stats.parsed += r.success ? 1 : 0;
+        stats.failed += r.success ? 0 : 1;
 
         // Check expected result
         auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_num);
-        if (expected.has_value()) {
-            stats.found_results++;
-        } else {
-            stats.not_found_results++;
-        }
+        stats.found_results += expected.has_value() ? 1 : 0;
+        stats.not_found_results += expected.has_value() ? 0 : 1;
+    }
 
-        // Print failed cases (or all in verbose mode)
-        if (config.verbose || !r.success) {
-            if (!config.quiet) {
-                if (r.success) {
-                    fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
-                                         r.bench_dir, r.formula_num, r.elapsed_ms);
-                } else {
-                    fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
-                                         r.bench_dir, r.formula_num, r.error_msg);
-                }
-                fmt::print("  Formula: {}\n", r.formula_str);
-                fmt::print("  Partition: {}\n\n", r.partition_str);
+    // ============================================================================
+    // Step 2: Print individual results (if not quiet)
+    // ============================================================================
+    // Print logic: print if (NOT quiet) AND (verbose mode OR failed case)
+    const bool should_print = !config.quiet && (config.verbose || (stats.failed > 0));
+
+    if (should_print) {
+        for (const auto& r : results) {
+            // In verbose mode: print all; otherwise: only print failures
+            if (!config.verbose && r.success) continue;
+
+            if (r.success) {
+                fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
+                                     r.bench_dir, r.formula_num, r.elapsed_ms);
+            } else {
+                fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
+                                     r.bench_dir, r.formula_num, r.error_msg);
             }
+            fmt::print("  Formula: {}\n", r.formula_str);
+            fmt::print("  Partition: {}\n\n", r.partition_str);
         }
     }
 
-    // Print summary
+    // ============================================================================
+    // Step 3: Print summary
+    // ============================================================================
     print_summary(stats);
 
     // Cleanup
