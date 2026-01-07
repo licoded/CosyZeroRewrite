@@ -157,8 +157,8 @@ static Partition parse_partition_file(const std::string& filename) {
         }
     }
 
-    std::cout << "Parsed partition: " << result.outputs.size()
-              << " outputs, " << result.inputs.size() << " inputs" << std::endl;
+    LOG_OUTPUT("Parsed partition: {} outputs, {} inputs",
+               result.outputs.size(), result.inputs.size());
 
     return result;
 }
@@ -262,9 +262,9 @@ int main(int argc, char* argv[]) {
     // Banner
     //==========================================================================
     if (!quiet) {
-        std::cout << "========================================" << std::endl;
-        std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
-        std::cout << "========================================" << std::endl;
+        LOG_OUTPUT("========================================");
+        LOG_OUTPUT("   CosyZero LTLf Synthesis Tool v2.0");
+        LOG_OUTPUT("========================================");
     }
 
     //==========================================================================
@@ -277,7 +277,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         formula_str = clean_formula(raw);
-        if (!quiet) std::cout << "Formula from file: " << formula_file << std::endl;
+        if (!quiet) LOG_OUTPUT("Formula from file: {}", formula_file);
     }
 
     // Check if formula is provided
@@ -287,7 +287,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (!quiet) std::cout << "Formula: " << formula_str << std::endl;
+    if (!quiet) LOG_OUTPUT("Formula: {}", formula_str);
 
     //==========================================================================
     // Parse partition if provided
@@ -304,9 +304,8 @@ int main(int argc, char* argv[]) {
     if (!partition.outputs.empty() || !partition.inputs.empty()) {
         pool.declare_variables(partition.outputs, partition.inputs);
         if (!quiet) {
-            std::cout << "Variables declared: "
-                      << pool.num_outputs() << " outputs, "
-                      << pool.num_inputs() << " inputs" << std::endl;
+            LOG_OUTPUT("Variables declared: {} outputs, {} inputs",
+                       pool.num_outputs(), pool.num_inputs());
         }
     }
 
@@ -324,27 +323,22 @@ int main(int argc, char* argv[]) {
     }
 
     if (!quiet) {
-        std::cout << "Parsed: " << phi->to_string() << std::endl;
-        std::cout << "Parsed (with names): " << phi->to_string_with_names(pool) << std::endl;
+        LOG_OUTPUT("Parsed: {}", phi->to_string());
+        LOG_OUTPUT("Parsed (with names): {}", phi->to_string_with_names(pool));
 
         // Show variable mapping
-        std::cout << "Variable mapping:" << std::endl;
+        LOG_OUTPUT("Variable mapping:");
         for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
             std::string var_name = pool.get_variable_name(i);
-            std::cout << "  v" << i << " = " << var_name;
-            if (i < pool.num_outputs()) {
-                std::cout << " (output)";
-            } else {
-                std::cout << " (input)";
-            }
-            std::cout << std::endl;
+            std::string type = (i < pool.num_outputs()) ? "output" : "input";
+            LOG_OUTPUT("  v{} = {} ({})", i, var_name, type);
         }
     }
 
     //==========================================================================
     // Run synthesis
     //==========================================================================
-    if (!quiet) std::cout << "Running on-the-fly synthesis..." << std::endl;
+    if (!quiet) LOG_OUTPUT("Running on-the-fly synthesis...");
 
     // Create solver directly (not using convenience function)
     // so we can access the solver for game graph export
@@ -361,7 +355,7 @@ int main(int argc, char* argv[]) {
     // Enable trace if requested (trace_dir non-empty means trace enabled)
     if (!trace_dir.empty()) {
         solver.enable_trace(trace_dir);
-        if (!quiet) std::cout << "Trace recording enabled..." << std::endl;
+        if (!quiet) LOG_OUTPUT("Trace recording enabled...");
     }
 
     bool realizable = solver.is_realizable();
@@ -371,7 +365,7 @@ int main(int argc, char* argv[]) {
     //==========================================================================
     const char* debug_graph = std::getenv("COSY_DEBUG_GAME_GRAPH");
     if (debug_graph && std::string(debug_graph) == "1") {
-        if (!quiet) std::cout << "Exporting game graph..." << std::endl;
+        if (!quiet) LOG_OUTPUT("Exporting game graph...");
 
         // Generate timestamp for filename
         auto now = std::chrono::system_clock::now();
@@ -402,10 +396,10 @@ int main(int argc, char* argv[]) {
         std::string base_path = "output/results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
 
         if (solver.write_dot(base_path)) {
-            std::cout << "  Game graph exported:" << std::endl;
-            std::cout << "    DOT:  " << base_path << ".dot" << std::endl;
-            std::cout << "    JSON: " << base_path << ".json" << std::endl;
-            std::cout << "    HTML: " << base_path << ".html (interactive)" << std::endl;
+            LOG_OUTPUT("  Game graph exported:");
+            LOG_OUTPUT("    DOT:  {}", base_path + ".dot");
+            LOG_OUTPUT("    JSON: {}", base_path + ".json");
+            LOG_OUTPUT("    HTML: {} (interactive)", base_path + ".html");
         } else {
             std::cerr << "  Warning: Failed to export game graph" << std::endl;
         }
@@ -415,15 +409,15 @@ int main(int argc, char* argv[]) {
     // Output result
     //==========================================================================
     if (!quiet) {
-        std::cout << "========================================" << std::endl;
+        LOG_OUTPUT("========================================");
     }
     if (realizable) {
-        std::cout << "REALIZABLE" << std::endl;
+        LOG_OUTPUT("REALIZABLE");
     } else {
-        std::cout << "UNREALIZABLE" << std::endl;
+        LOG_OUTPUT("UNREALIZABLE");
     }
     if (!quiet) {
-        std::cout << "========================================" << std::endl;
+        LOG_OUTPUT("========================================");
     }
 
     return realizable ? 0 : 1;

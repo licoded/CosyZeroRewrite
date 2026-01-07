@@ -14,7 +14,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      输出类型分类                            │
 ├─────────────┬───────────────┬─────────────┬────────────────┤
-│ 程序输出     │ 用户界面/结果  │ std::cout   │ 面向最终用户    │
+│ 程序输出     │ 用户界面/结果  │ LOG_OUTPUT  │ 面向最终用户    │
 ├─────────────┼───────────────┼─────────────┼────────────────┤
 │ 错误输出     │ 错误信息      │ std::cerr   │ 必须保证可见性  │
 ├─────────────┼───────────────┼─────────────┼────────────────┤
@@ -22,38 +22,65 @@
 └─────────────┴───────────────┴─────────────┴────────────────┘
 ```
 
+**重要变更 (2026-01-07)**: 已统一使用 `LOG_OUTPUT` 替代 `std::cout` 进行用户输出。
+
 ---
 
-## 1. 程序输出 (Program Output) → `std::cout`
+## 1. 程序输出 (Program Output) → `LOG_OUTPUT`
 
-**用途**: 面向最终用户的输出，不应该有日志前缀或时间戳。
+**用途**: 面向最终用户的输出，控制台显示不带前缀，同时记录到日志文件（带时间戳）。
 
 **使用场景**:
 - 命令行工具的结果输出（如 `REALIZABLE` / `UNREALIZABLE`）
 - 用户交互信息（如 banner、进度提示）
-- 数据 dump（如 `DFA::print()` 用于调试查看状态）
+- 工具的主要输出信息
+
+**实现**: `LOG_OUTPUT` 使用单独的 spdlog logger，控制台 sink 无前缀，文件 sink 保留时间戳。
 
 **示例**:
 ```cpp
 // ✅ 正确：用户看到的结果
-std::cout << "REALIZABLE" << std::endl;
+LOG_OUTPUT("REALIZABLE");
 
 // ✅ 正确：工具 banner
-std::cout << "========================================" << std::endl;
-std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
+LOG_OUTPUT("========================================");
+LOG_OUTPUT("   CosyZero LTLf Synthesis Tool v2.0");
+LOG_OUTPUT("========================================");
 
-// ✅ 正确：数据 dump（调试用途，不需要日志前缀）
+// ✅ 正确：使用 fmt 风格的占位符
+LOG_OUTPUT("Formula: {}", formula_str);
+LOG_OUTPUT("Variables declared: {} outputs, {} inputs", num_out, num_in);
+```
+
+**控制台输出** (无前缀):
+```
+========================================
+   CosyZero LTLf Synthesis Tool v2.0
+========================================
+Formula: p0 && p1
+REALIZABLE
+```
+
+**日志文件输出** (带时间戳，方便调试):
+```
+[2026-01-07 12:34:56.789] [info] [12345] ========================================
+[2026-01-07 12:34:56.790] [info] [12345]    CosyZero LTLf Synthesis Tool v2.0
+[2026-01-07 12:34:56.791] [info] [12345] Formula: p0 && p1
+[2026-01-07 12:34:57.123] [info] [12345] REALIZABLE
+```
+
+### 1.1 数据 Dump 函数
+
+对于调试用的数据 dump（如 `DFA::print()`、`GameSolver::print()`），可以继续使用 `std::cout`：
+```cpp
+// ✅ 可接受：调试 dump 函数
 void DFA::print(const FormulaPool& pool) const {
     std::cout << "DFA with " << num_states() << " states\n";
     // ...
 }
 ```
 
-**❌ 不要用**:
-```cpp
-// ❌ 错误：用户输出不应该有日志前缀
-LOG_INFO("REALIZABLE");  // 输出: [12:34:56.789] [info] REALIZABLE
-```
+原因：这些函数通常用于交互式调试，不需要记录到日志文件。
 
 ---
 
@@ -163,9 +190,14 @@ logger::Logger::initialize();
          │               │               │
     面向最终用户？    是错误信息？   调试/追踪？
          │               │               │
-    std::cout        std::cerr        LOG_* 宏
+    LOG_OUTPUT       std::cerr        LOG_* 宏
     (不含前缀)       (保证可见)      (带时间戳)
 ```
+
+**说明**:
+- `LOG_OUTPUT` - 用户面向输出（如 "REALIZABLE"），控制台无前缀，文件有记录
+- `std::cerr` - 错误信息，保证可见性
+- `LOG_*` - 内部日志，带时间戳和级别
 
 ---
 
@@ -184,38 +216,37 @@ if (debug_classify) {
 **✅ 新方式**（推荐）:
 ```cpp
 // 使用 LOG_DEBUG，通过设置日志级别控制
-LOG_DEBUG("classify_scc: state=", s.to_string());
+LOG_DEBUG("classify_scc: state={}", s.to_string());
 // 运行时设置环境变量：SPDLOG_LEVEL=DEBUG
 ```
 
-### 6.2 同时输出到用户和日志
+### 6.2 LOG_OUTPUT 的优势
 
-```cpp
-// 输出给用户
-std::cout << "Formula: " << formula_str << std::endl;
-
-// 同时记录到日志
-LOG_INFO("Processing formula: ", formula_str);
-```
+使用 `LOG_OUTPUT` 而不是 `std::cout` 的好处：
+1. **统一基础设施** - 所有输出都通过 spdlog，便于管理
+2. **自动记录到文件** - 用户输出也会被记录，方便调试
+3. **线程安全** - spdlog 内部有锁保证
+4. **可配置** - 可以轻松重定向输出
 
 ---
 
 ## 7. 当前问题清单
 
-| 文件 | 行号 | 问题 | 修复方案 |
-|------|------|------|----------|
-| `src/synthesis/on_the_fly_solver.cpp` | 673 | 条件调试用 `std::cerr` | 改为 `LOG_DEBUG` |
+| 文件 | 行号 | 问题 | 状态 |
+|------|------|------|------|
+| `src/synthesis/on_the_fly_solver.cpp` | 670 | 已修复：条件调试用 `std::cerr` | ✅ 已改为 `LOG_DEBUG` |
+| `src/cosy2.cpp` | - | 已修复：使用 `std::cout` | ✅ 已改为 `LOG_OUTPUT` |
 
 ---
 
 ## 8. 代码审查检查清单
 
-- [ ] 用户面向输出用 `std::cout`，不带日志前缀
+- [ ] 用户面向输出用 `LOG_OUTPUT`（不含前缀，但记录到日志文件）
 - [ ] 错误信息用 `std::cerr`
 - [ ] 信号处理器只用 `std::cerr` 和 `_exit()`
 - [ ] 调试/追踪信息用 `LOG_*` 宏
 - [ ] 不在信号处理器中使用 spdlog
-- [ ] 不在用户输出中使用 `LOG_*` 宏
+- [ ] 不在用户输出中使用 `LOG_INFO` 等带前缀的宏
 
 ---
 
