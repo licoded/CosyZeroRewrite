@@ -31,6 +31,10 @@
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
 
+// fmt + termcolor for clean, colored output
+#include <fmt/core.h>
+#include "indicators/termcolor.hpp"
+
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -174,6 +178,17 @@ private:
 // ============================================================================
 // Helper functions
 // ============================================================================
+
+// fmt_print_with_color: fmt formatting + termcolor in one call
+// Usage: fmt_print_with_color(termcolor::red, "FAIL: {}\n", error_msg);
+template<typename... Args>
+static void fmt_print_with_color(std::ostream& (*color)(std::ostream&),
+                                 fmt::format_string<Args...> fmt_str,
+                                 Args&&... args) {
+    std::cout << color;
+    fmt::print(fmt_str, std::forward<Args>(args)...);
+    std::cout << termcolor::reset;
+}
 
 static std::string join(const std::vector<std::string>& vec, const std::string& delim) {
     if (vec.empty()) return "";
@@ -419,14 +434,13 @@ int main(int argc, char* argv[]) {
 
     // Print header
     if (!quiet) {
-        std::cout << "========================================" << std::endl;
-        std::cout << "  SMv2 Benchmark Runner (Parallel)" << std::endl;
-        std::cout << "========================================" << std::endl;
-        std::cout << "Base directory: " << base_dir << std::endl;
-        std::cout << "Bench directories: " << bench_spec << std::endl;
-        std::cout << "Formula range: f" << start_num << " to f" << end_num << std::endl;
-        std::cout << "Parallel jobs: " << num_jobs << std::endl;
-        std::cout << std::endl;
+        fmt::print("========================================\n");
+        fmt::print("  SMv2 Benchmark Runner (Parallel)\n");
+        fmt::print("========================================\n");
+        fmt::print("Base directory: {}\n", base_dir);
+        fmt::print("Bench directories: {}\n", bench_spec);
+        fmt::print("Formula range: f{} to f{}\n", start_num, end_num);
+        fmt::print("Parallel jobs: {}\n\n", num_jobs);
     }
 
     // Run benchmarks
@@ -466,15 +480,14 @@ int main(int argc, char* argv[]) {
         if (verbose || !r.success) {
             if (!quiet) {
                 if (r.success) {
-                    std::cout << "OK: bench" << r.bench_dir << "/f" << r.formula_num
-                              << " (" << r.elapsed_ms << "ms)" << std::endl;
+                    fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
+                                         r.bench_dir, r.formula_num, r.elapsed_ms);
                 } else {
-                    std::cout << "\033[31m" << "FAIL: bench" << r.bench_dir << "/f" << r.formula_num
-                              << " (" << r.error_msg << ")" << "\033[0m" << std::endl;
+                    fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
+                                         r.bench_dir, r.formula_num, r.error_msg);
                 }
-                std::cout << "  Formula: " << r.formula_str << std::endl;
-                std::cout << "  Partition: " << r.partition_str << std::endl;
-                std::cout << std::endl;
+                fmt::print("  Formula: {}\n", r.formula_str);
+                fmt::print("  Partition: {}\n\n", r.partition_str);
             }
         }
     }
@@ -482,25 +495,24 @@ int main(int argc, char* argv[]) {
     double elapsed_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
     // Print summary
-    std::cout << "\n========== Summary ==========" << std::endl;
-    std::cout << "Parsed: " << parsed << std::endl;
-    std::cout << "Failed parse: " << failed << std::endl;
-    std::cout << "Results found: " << found_results << std::endl;
-    std::cout << "Results not found: " << not_found_results << std::endl;
-    std::cout << "Total formulas: " << results.size() << std::endl;
-    std::cout << "Wall time: " << std::fixed << std::setprecision(2) << elapsed_ms << "ms" << std::endl;
-    std::cout << "CPU time: " << std::fixed << std::setprecision(2) << total_time_ms << "ms" << std::endl;
+    fmt::print("\n========== Summary ==========\n");
+    fmt::print("Parsed: {}\n", parsed);
+    fmt::print("Failed parse: {}\n", failed);
+    fmt::print("Results found: {}\n", found_results);
+    fmt::print("Results not found: {}\n", not_found_results);
+    fmt::print("Total formulas: {}\n", results.size());
+    fmt::print("Wall time: {:.2f}ms\n", elapsed_ms);
+    fmt::print("CPU time: {:.2f}ms\n", total_time_ms);
     if (results.size() > 0) {
-        std::cout << "Speedup: " << std::fixed << std::setprecision(2)
-                  << (total_time_ms / elapsed_ms) << "x" << std::endl;
+        fmt::print("Speedup: {:.2f}x\n", total_time_ms / elapsed_ms);
     }
-    std::cout << "Avg time per formula: " << std::fixed << std::setprecision(3)
-              << (results.size() > 0 ? total_time_ms / results.size() : 0) << "ms" << std::endl;
+    fmt::print("Avg time per formula: {:.3f}ms\n",
+              results.size() > 0 ? total_time_ms / results.size() : 0);
 
     if (failed == 0) {
-        std::cout << "Status: " << "\033[32m" << "ALL TESTS PASSED" << "\033[0m" << std::endl;
+        fmt_print_with_color(termcolor::green, "Status: ALL TESTS PASSED\n");
     } else {
-        std::cout << "Status: " << "\033[31m" << "SOME TESTS FAILED" << "\033[0m" << std::endl;
+        fmt_print_with_color(termcolor::red, "Status: SOME TESTS FAILED\n");
     }
 
     // Cleanup

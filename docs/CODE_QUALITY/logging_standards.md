@@ -19,10 +19,14 @@
 │ 错误输出     │ 错误信息      │ std::cerr   │ 必须保证可见性  │
 ├─────────────┼───────────────┼─────────────┼────────────────┤
 │ 日志输出     │ 调试/追踪     │ LOG_* 宏    │ 带时间戳和级别  │
+├─────────────┼───────────────┼─────────────┼────────────────┤
+│ 测试/工具    │ 格式化+颜色   │ fmt+termcol │ 测试/benchmark  │
 └─────────────┴───────────────┴─────────────┴────────────────┘
 ```
 
-**重要变更 (2026-01-07)**: 已统一使用 `LOG_OUTPUT` 替代 `std::cout` 进行用户输出。
+**重要变更 (2026-01-07)**:
+- src/ 目录已统一使用 `LOG_OUTPUT` 替代 `std::cout`
+- tests/bench/ 使用 `fmt + termcolor` 提高可读性
 
 ---
 
@@ -186,18 +190,19 @@ logger::Logger::initialize();
 ```
                     需要输出信息？
                          │
-         ┌───────────────┼───────────────┐
-         │               │               │
-    面向最终用户？    是错误信息？   调试/追踪？
-         │               │               │
-    LOG_OUTPUT       std::cerr        LOG_* 宏
-    (不含前缀)       (保证可见)      (带时间戳)
+         ┌───────────────┼───────────────┬─────────────┐
+         │               │               │             │
+    面向最终用户？    是错误信息？   调试/追踪？   测试/benchmark？
+         │               │               │             │
+    LOG_OUTPUT       std::cerr        LOG_* 宏    fmt + termcolor
+    (不含前缀)       (保证可见)      (带时间戳)   (格式化+颜色)
 ```
 
 **说明**:
 - `LOG_OUTPUT` - 用户面向输出（如 "REALIZABLE"），控制台无前缀，文件有记录
 - `std::cerr` - 错误信息，保证可见性
 - `LOG_*` - 内部日志，带时间戳和级别
+- `fmt + termcolor` - 测试工具需要格式化和颜色高亮时使用
 
 ---
 
@@ -243,7 +248,58 @@ LOG_DEBUG("classify_scc: state={}", s.to_string());
 
 ---
 
-## 8. 代码审查检查清单
+## 8. 测试/工具输出 → `fmt + termcolor` (2026-01-07)
+
+**用途**: 测试程序和 benchmark 工具中需要格式化输出和颜色高亮的场景。
+
+**使用场景**:
+- Benchmark 结果输出（OK 绿色，FAIL 红色）
+- 进度条和统计信息
+- 需要格式化浮点数（如 `{:.2f}`）的输出
+
+**为什么用 fmt 而不是 std::cout**:
+1. **类型安全的格式化**: `fmt::print("{:.2f}", value)` vs `std::cout << std::fixed << std::setprecision(2)`
+2. **简洁的占位符语法**: `fmt::print("Parsed: {}\n", count)` vs `std::cout << "Parsed: " << count << std::endl`
+3. **可读性更高**: 格式字符串一目了然，不需要追踪 `<<` 链
+
+**辅助函数** (tests/bench/benchmark.cpp):
+```cpp
+// fmt_print_with_color: fmt formatting + termcolor in one call
+template<typename... Args>
+static void fmt_print_with_color(std::ostream& (*color)(std::ostream&),
+                                 fmt::format_string<Args...> fmt_str,
+                                 Args&&... args) {
+    std::cout << color;
+    fmt::print(fmt_str, std::forward<Args>(args)...);
+    std::cout << termcolor::reset;
+}
+```
+
+**示例用法**:
+```cpp
+// ✅ 推荐：使用辅助函数，一行搞定
+fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
+                     bench_dir, formula_num, elapsed_ms);
+fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
+                     bench_dir, formula_num, error_msg);
+
+// ✅ 正确：无颜色格式化输出
+fmt::print("Wall time: {:.2f}ms\n", elapsed_ms);
+fmt::print("Speedup: {:.2f}x\n", total_time_ms / elapsed_ms);
+```
+
+**可用颜色**:
+```cpp
+termcolor::green     // 成功/OK
+termcolor::red       // 失败/ERROR
+termcolor::yellow    // 警告
+termcolor::blue      // 信息
+termcolor::reset     // 重置为默认颜色
+```
+
+---
+
+## 9. 代码审查检查清单
 
 - [ ] 用户面向输出用 `LOG_OUTPUT`（不含前缀，但记录到日志文件）
 - [ ] 错误信息用 `std::cerr`
@@ -251,6 +307,7 @@ LOG_DEBUG("classify_scc: state={}", s.to_string());
 - [ ] 调试/追踪信息用 `LOG_*` 宏
 - [ ] 不在信号处理器中使用 spdlog
 - [ ] 不在用户输出中使用 `LOG_INFO` 等带前缀的宏
+- [ ] 测试/benchmark 中需要颜色时，用 `std::cout << termcolor::X` + `fmt::print(...)`
 
 ---
 
