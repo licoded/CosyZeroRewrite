@@ -167,6 +167,20 @@ void FormulaParser::tokenize(const std::string& input) {
                 }
                 continue;
 
+            case 'W':
+                // Check for WX (weak next alternative syntax)
+                if (i + 1 < input.size() && input[i + 1] == 'X') {
+                    // Weak next: WX
+                    token.type = TokenType::Next;
+                    token.value = "WX";
+                    tokens_.push_back(token);
+                    i += 2;  // Skip WX
+                    continue;
+                }
+                // Otherwise W could be start of identifier or Release op
+                // Fall through to identifier handling
+                continue;
+
             case 'U':
                 // Only uppercase U is Until operator
                 token.type = TokenType::Until;
