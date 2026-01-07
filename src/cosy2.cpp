@@ -42,6 +42,7 @@ void signal_handler(int signal) {
     std::cerr << "\n[TIMEOUT] Received signal " << signal_name
               << " - synthesis interrupted (TIMEOUT)" << std::endl;
     std::cerr << "[TIMEOUT] States expanded before timeout: unknown" << std::endl;
+    std::cerr << std::flush;  // Ensure output is flushed
     interrupted = true;
 }
 
