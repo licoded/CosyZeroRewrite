@@ -1,4 +1,5 @@
 #include "synthesis/game_solver.hpp"
+#include "log/logger.hpp"
 #include <algorithm>
 #include <stack>
 #include <queue>
@@ -48,25 +49,28 @@ bool GameGraph::is_realizable() const {
 }
 
 void GameGraph::print() const {
-    std::cout << "Game Graph with " << nodes_.size() << " nodes\n";
-    std::cout << "Initial: " << initial_node_ << "\n";
+    LOG_OUTPUT("Game Graph with {} nodes", nodes_.size());
+    LOG_OUTPUT("Initial: {}", initial_node_);
 
     for (size_t i = 0; i < nodes_.size(); ++i) {
         const auto& node = nodes_[i];
-        std::cout << "Node " << i << " (DFA state " << node.dfa_state_id << "): ";
 
+        // Convert status to string
+        const char* status_str = "Unknown";
         switch (node.status) {
-            case StateStatus::Unknown: std::cout << "Unknown"; break;
-            case StateStatus::Winning: std::cout << "Winning"; break;
-            case StateStatus::Losing: std::cout << "Losing"; break;
+            case StateStatus::Unknown: status_str = "Unknown"; break;
+            case StateStatus::Winning: status_str = "Winning"; break;
+            case StateStatus::Losing:  status_str = "Losing"; break;
         }
-        std::cout << "\n";
+        LOG_OUTPUT("Node {} (DFA state {}): {}", i, node.dfa_state_id, status_str);
 
-        std::cout << "  Successors: ";
+        // Build successors string
+        std::ostringstream succ_ss;
+        succ_ss << "  Successors:";
         for (auto succ : node.successors) {
-            std::cout << succ << " ";
+            succ_ss << " " << succ;
         }
-        std::cout << "\n";
+        LOG_OUTPUT("{}", succ_ss.str());
     }
 }
 

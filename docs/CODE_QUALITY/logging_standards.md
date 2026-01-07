@@ -236,6 +236,10 @@ LOG_DEBUG("classify_scc: state={}", s.to_string());
 |------|------|------|------|
 | `src/synthesis/on_the_fly_solver.cpp` | 670 | 已修复：条件调试用 `std::cerr` | ✅ 已改为 `LOG_DEBUG` |
 | `src/cosy2.cpp` | - | 已修复：使用 `std::cout` | ✅ 已改为 `LOG_OUTPUT` |
+| `src/automata/dfa.cpp` | - | 已修复：`DFA::print()` 使用 `std::cout` | ✅ 已改为 `LOG_OUTPUT` |
+| `src/synthesis/game_solver.cpp` | - | 已修复：`GameGraph::print()` 使用 `std::cout` | ✅ 已改为 `LOG_OUTPUT` |
+
+**src/ 目录状态**: ✅ 已完全移除 `std::cout`，全部使用 `LOG_OUTPUT`
 
 ---
 

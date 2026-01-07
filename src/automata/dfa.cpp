@@ -1,4 +1,5 @@
 #include "automata/dfa.hpp"
+#include "log/logger.hpp"
 #include <algorithm>
 #include <stdexcept>
 #include <sstream>
@@ -119,18 +120,19 @@ std::unique_ptr<DFA> DFA::clone() const {
 }
 
 void DFA::print(const formula::FormulaPool& pool) const {
-    std::cout << "DFA with " << num_states() << " states\n";
-    std::cout << "Initial: " << initial_state_ << "\n";
+    LOG_OUTPUT("DFA with {} states", num_states());
+    LOG_OUTPUT("Initial: {}", initial_state_);
 
     for (size_t i = 0; i < states_.size(); ++i) {
         const auto& state = states_[i];
-        std::cout << "State " << i;
-        if (state.accepting) std::cout << " (accepting)";
-        std::cout << ": " << state.formulas.to_string(pool) << "\n";
+        if (state.accepting) {
+            LOG_OUTPUT("State {} (accepting): {}", i, state.formulas.to_string(pool));
+        } else {
+            LOG_OUTPUT("State {}: {}", i, state.formulas.to_string(pool));
+        }
 
         for (const auto& trans : state.transitions) {
-            std::cout << "  -> " << trans.to
-                      << " " << trans.label.to_string() << "\n";
+            LOG_OUTPUT("  -> {} {}", trans.to, trans.label.to_string());
         }
     }
 }
