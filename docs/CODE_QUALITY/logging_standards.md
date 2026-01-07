@@ -2,6 +2,8 @@
 
 > 何时使用 `std::cout`/`std::cerr` vs `LOG_*` 宏
 
+**相关文档**: [日志使用情况分析报告](logging_usage_report.md)
+
 ---
 
 ## 核心原则
