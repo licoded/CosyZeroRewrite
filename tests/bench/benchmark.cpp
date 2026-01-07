@@ -370,43 +370,62 @@ private:
 };
 
 // ============================================================================
-// Main
+// Configuration
 // ============================================================================
 
-int main(int argc, char* argv[]) {
-    CLI::App app{"SMv2 LTLf Benchmark Runner (Parallel)"};
-
-    // Default values
+struct BenchmarkConfig {
+    // Paths and spec
     std::string base_dir = "benchmarks/sm1000";
     std::string bench_spec = "all";
+
+    // Formula range
     int start_num = 1;
     int end_num = 500;
+
+    // Execution
     size_t num_jobs = std::thread::hardware_concurrency();
+    int sleep_per_task = 0;  // For testing progress bar (0 = disabled)
+
+    // Output options
     bool verbose = false;
     bool quiet = false;
-    bool no_progress = false;
-    bool no_active = false;
-    int sleep_per_task = 0;  // Average random sleep per task in seconds (for testing progress bar)
+    bool show_progress = true;
+    bool show_active_tasks = true;
+};
 
-    // Define options
-    app.add_option("-d,--dir", base_dir, "Benchmark directory")
+// ============================================================================
+// Argument Parsing
+// ============================================================================
+
+static std::vector<int> parse_bench_spec(const std::string& spec) {
+    if (spec == "all") return {1, 2};
+    if (spec == "1") return {1};
+    if (spec == "2") return {2};
+    return {};  // Invalid
+}
+
+static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
+    CLI::App app{"SMv2 LTLf Benchmark Runner (Parallel)"};
+
+    // Define options (CLI11 can reference struct members directly)
+    app.add_option("-d,--dir", config.base_dir, "Benchmark directory")
         ->capture_default_str();
-    app.add_option("-b,--bench", bench_spec, "Benchmark spec (all, 1, or 2)")
+    app.add_option("-b,--bench", config.bench_spec, "Benchmark spec (all, 1, or 2)")
         ->capture_default_str();
-    app.add_option("-s,--start", start_num, "Starting formula number")
+    app.add_option("-s,--start", config.start_num, "Starting formula number")
         ->check(CLI::Range(1, 500));
-    app.add_option("-e,--end", end_num, "Ending formula number")
+    app.add_option("-e,--end", config.end_num, "Ending formula number")
         ->check(CLI::Range(1, 500));
-    app.add_option("-j,--jobs", num_jobs, "Number of parallel jobs")
+    app.add_option("-j,--jobs", config.num_jobs, "Number of parallel jobs")
         ->check(CLI::PositiveNumber);
-    app.add_flag("-v,--verbose", verbose, "Print all cases");
-    app.add_flag("-q,--quiet", quiet, "Only print summary");
-    app.add_flag("--no-progress", no_progress, "Disable progress bar");
-    app.add_flag("--no-active", no_active, "Don't show active tasks");
-    app.add_option("--sleep", sleep_per_task, "Average random sleep per task (seconds, for testing)")
+    app.add_flag("-v,--verbose", config.verbose, "Print all cases");
+    app.add_flag("-q,--quiet", config.quiet, "Only print summary");
+    app.add_flag("--no-progress", config.show_progress, "Disable progress bar")->capture_default_str();
+    app.add_flag("--no-active", config.show_active_tasks, "Don't show active tasks")->capture_default_str();
+    app.add_option("--sleep", config.sleep_per_task, "Average random sleep per task (seconds, for testing)")
         ->check(CLI::Range(0, 60));
 
-    // Parse arguments
+    // Parse
     try {
         app.parse(argc, argv);
     } catch (const CLI::ParseError& e) {
@@ -414,71 +433,125 @@ int main(int argc, char* argv[]) {
     }
 
     // Validate range
-    if (start_num > end_num) {
+    if (config.start_num > config.end_num) {
         std::cerr << "Error: start number cannot be greater than end number" << std::endl;
-        return 1;
+        return false;
+    }
+
+    // Invert flags for --no-* options
+    config.show_progress = !config.show_progress;
+    config.show_active_tasks = !config.show_active_tasks;
+
+    return true;
+}
+
+// ============================================================================
+// Banner / Header
+// ============================================================================
+
+static void print_banner(const BenchmarkConfig& config) {
+    if (config.quiet) return;
+
+    fmt::print("========================================\n");
+    fmt::print("  SMv2 Benchmark Runner (Parallel)\n");
+    fmt::print("========================================\n");
+    fmt::print("Base directory: {}\n", config.base_dir);
+    fmt::print("Bench directories: {}\n", config.bench_spec);
+    fmt::print("Formula range: f{} to f{}\n", config.start_num, config.end_num);
+    fmt::print("Parallel jobs: {}\n\n", config.num_jobs);
+}
+
+// ============================================================================
+// Summary Output
+// ============================================================================
+
+struct BenchmarkStats {
+    int parsed = 0;
+    int failed = 0;
+    int found_results = 0;
+    int not_found_results = 0;
+    double total_time_ms = 0;
+    double wall_time_ms = 0;
+    size_t total_count = 0;
+};
+
+static void print_summary(const BenchmarkStats& stats) {
+    fmt::print("\n========== Summary ==========\n");
+    fmt::print("Parsed: {}\n", stats.parsed);
+    fmt::print("Failed parse: {}\n", stats.failed);
+    fmt::print("Results found: {}\n", stats.found_results);
+    fmt::print("Results not found: {}\n", stats.not_found_results);
+    fmt::print("Total formulas: {}\n", stats.total_count);
+    fmt::print("Wall time: {:.2f}ms\n", stats.wall_time_ms);
+    fmt::print("CPU time: {:.2f}ms\n", stats.total_time_ms);
+    if (stats.total_count > 0) {
+        fmt::print("Speedup: {:.2f}x\n", stats.total_time_ms / stats.wall_time_ms);
+    }
+    fmt::print("Avg time per formula: {:.3f}ms\n",
+              stats.total_count > 0 ? stats.total_time_ms / stats.total_count : 0);
+
+    if (stats.failed == 0) {
+        fmt_print_with_color(termcolor::green, "Status: ALL TESTS PASSED\n");
+    } else {
+        fmt_print_with_color(termcolor::red, "Status: SOME TESTS FAILED\n");
+    }
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+int main(int argc, char* argv[]) {
+    // Parse command line arguments into config
+    BenchmarkConfig config;
+    if (!parse_arguments(argc, argv, config)) {
+        return 1;  // Error already printed by parse_arguments
     }
 
     // Determine which bench directories to run
-    std::vector<int> bench_dirs;
-    if (bench_spec == "all") {
-        bench_dirs = {1, 2};
-    } else if (bench_spec == "1") {
-        bench_dirs = {1};
-    } else if (bench_spec == "2") {
-        bench_dirs = {2};
-    } else {
+    std::vector<int> bench_dirs = parse_bench_spec(config.bench_spec);
+    if (bench_dirs.empty()) {
         std::cerr << "Error: bench_spec must be 'all', '1', or '2'" << std::endl;
         return 1;
     }
 
-    // Print header
-    if (!quiet) {
-        fmt::print("========================================\n");
-        fmt::print("  SMv2 Benchmark Runner (Parallel)\n");
-        fmt::print("========================================\n");
-        fmt::print("Base directory: {}\n", base_dir);
-        fmt::print("Bench directories: {}\n", bench_spec);
-        fmt::print("Formula range: f{} to f{}\n", start_num, end_num);
-        fmt::print("Parallel jobs: {}\n\n", num_jobs);
-    }
+    // Print banner
+    print_banner(config);
 
     // Run benchmarks
     BenchmarkRunner runner(
-        base_dir, bench_dirs, start_num, end_num, num_jobs,
-        !no_progress && !quiet, !no_active, sleep_per_task
+        config.base_dir, bench_dirs, config.start_num, config.end_num,
+        config.num_jobs, config.show_progress, config.show_active_tasks, config.sleep_per_task
     );
 
     auto start_time = std::chrono::high_resolution_clock::now();
     auto results = runner.run();
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    // Calculate statistics
-    int parsed = 0;
-    int failed = 0;
-    int found_results = 0;
-    int not_found_results = 0;
-    double total_time_ms = 0;
+    // Collect statistics
+    BenchmarkStats stats;
+    stats.total_count = results.size();
+    stats.wall_time_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
 
     for (const auto& r : results) {
-        total_time_ms += r.elapsed_ms;
+        stats.total_time_ms += r.elapsed_ms;
         if (r.success) {
-            parsed++;
+            stats.parsed++;
         } else {
-            failed++;
+            stats.failed++;
         }
 
         // Check expected result
-        auto expected = Synthesis::read_expected_result(base_dir, r.formula_num);
+        auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_num);
         if (expected.has_value()) {
-            found_results++;
+            stats.found_results++;
         } else {
-            not_found_results++;
+            stats.not_found_results++;
         }
 
         // Print failed cases (or all in verbose mode)
-        if (verbose || !r.success) {
-            if (!quiet) {
+        if (config.verbose || !r.success) {
+            if (!config.quiet) {
                 if (r.success) {
                     fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
                                          r.bench_dir, r.formula_num, r.elapsed_ms);
@@ -492,33 +565,13 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    double elapsed_ms = std::chrono::duration<double, std::milli>(end_time - start_time).count();
-
     // Print summary
-    fmt::print("\n========== Summary ==========\n");
-    fmt::print("Parsed: {}\n", parsed);
-    fmt::print("Failed parse: {}\n", failed);
-    fmt::print("Results found: {}\n", found_results);
-    fmt::print("Results not found: {}\n", not_found_results);
-    fmt::print("Total formulas: {}\n", results.size());
-    fmt::print("Wall time: {:.2f}ms\n", elapsed_ms);
-    fmt::print("CPU time: {:.2f}ms\n", total_time_ms);
-    if (results.size() > 0) {
-        fmt::print("Speedup: {:.2f}x\n", total_time_ms / elapsed_ms);
-    }
-    fmt::print("Avg time per formula: {:.3f}ms\n",
-              results.size() > 0 ? total_time_ms / results.size() : 0);
-
-    if (failed == 0) {
-        fmt_print_with_color(termcolor::green, "Status: ALL TESTS PASSED\n");
-    } else {
-        fmt_print_with_color(termcolor::red, "Status: SOME TESTS FAILED\n");
-    }
+    print_summary(stats);
 
     // Cleanup
     LOG_FLUSH();
     logger::Logger::instance().get()->flush();
     spdlog::shutdown();
 
-    return (failed > 0) ? 1 : 0;
+    return (stats.failed > 0) ? 1 : 0;
 }
