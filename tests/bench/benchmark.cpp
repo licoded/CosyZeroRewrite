@@ -387,10 +387,9 @@ struct BenchmarkConfig {
     int sleep_per_task = 0;  // For testing progress bar (0 = disabled)
 
     // Output options
-    bool verbose = false;
-    bool quiet = false;
-    bool show_progress = true;
-    bool show_active_tasks = true;
+    bool verbose = false;           // Print all cases (not just failures)
+    bool show_progress = true;      // Show progress bar
+    bool show_active_tasks = true;  // Show active tasks in progress bar
 };
 
 // ============================================================================
@@ -418,8 +417,7 @@ static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
         ->check(CLI::Range(1, 500));
     app.add_option("-j,--jobs", config.num_jobs, "Number of parallel jobs")
         ->check(CLI::PositiveNumber);
-    app.add_flag("-v,--verbose", config.verbose, "Print all cases");
-    app.add_flag("-q,--quiet", config.quiet, "Only print summary");
+    app.add_flag("-v,--verbose", config.verbose, "Print all cases (not just failures)");
     app.add_flag("--no-progress", config.show_progress, "Disable progress bar")->capture_default_str();
     app.add_flag("--no-active", config.show_active_tasks, "Don't show active tasks")->capture_default_str();
     app.add_option("--sleep", config.sleep_per_task, "Average random sleep per task (seconds, for testing)")
@@ -450,8 +448,6 @@ static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
 // ============================================================================
 
 static void print_banner(const BenchmarkConfig& config) {
-    if (config.quiet) return;
-
     fmt::print("========================================\n");
     fmt::print("  SMv2 Benchmark Runner (Parallel)\n");
     fmt::print("========================================\n");
@@ -466,21 +462,22 @@ static void print_banner(const BenchmarkConfig& config) {
 // ============================================================================
 
 struct BenchmarkStats {
-    int parsed = 0;
-    int failed = 0;
-    int found_results = 0;
-    int not_found_results = 0;
+    int parsed = 0;             // failed = total_count - parsed
+    int found_results = 0;      // not_found = total_count - found_results
     double total_time_ms = 0;
     double wall_time_ms = 0;
     size_t total_count = 0;
 };
 
 static void print_summary(const BenchmarkStats& stats) {
+    const int failed = stats.total_count - stats.parsed;
+    const int not_found = stats.total_count - stats.found_results;
+
     fmt::print("\n========== Summary ==========\n");
     fmt::print("Parsed: {}\n", stats.parsed);
-    fmt::print("Failed parse: {}\n", stats.failed);
+    fmt::print("Failed parse: {}\n", failed);
     fmt::print("Results found: {}\n", stats.found_results);
-    fmt::print("Results not found: {}\n", stats.not_found_results);
+    fmt::print("Results not found: {}\n", not_found);
     fmt::print("Total formulas: {}\n", stats.total_count);
     fmt::print("Wall time: {:.2f}ms\n", stats.wall_time_ms);
     fmt::print("CPU time: {:.2f}ms\n", stats.total_time_ms);
@@ -490,7 +487,7 @@ static void print_summary(const BenchmarkStats& stats) {
     fmt::print("Avg time per formula: {:.3f}ms\n",
               stats.total_count > 0 ? stats.total_time_ms / stats.total_count : 0);
 
-    if (stats.failed == 0) {
+    if (failed == 0) {
         fmt_print_with_color(termcolor::green, "Status: ALL TESTS PASSED\n");
     } else {
         fmt_print_with_color(termcolor::red, "Status: SOME TESTS FAILED\n");
@@ -538,35 +535,29 @@ int main(int argc, char* argv[]) {
     for (const auto& r : results) {
         stats.total_time_ms += r.elapsed_ms;
         stats.parsed += r.success ? 1 : 0;
-        stats.failed += r.success ? 0 : 1;
 
         // Check expected result
         auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_num);
         stats.found_results += expected.has_value() ? 1 : 0;
-        stats.not_found_results += expected.has_value() ? 0 : 1;
     }
 
     // ============================================================================
-    // Step 2: Print individual results (if not quiet)
+    // Step 2: Print individual results
     // ============================================================================
-    // Print logic: print if (NOT quiet) AND (verbose mode OR failed case)
-    const bool should_print = !config.quiet && (config.verbose || (stats.failed > 0));
+    // Print logic: verbose mode = print all; otherwise = print only failures
+    for (const auto& r : results) {
+        // Skip successes in non-verbose mode
+        if (!config.verbose && r.success) continue;
 
-    if (should_print) {
-        for (const auto& r : results) {
-            // In verbose mode: print all; otherwise: only print failures
-            if (!config.verbose && r.success) continue;
-
-            if (r.success) {
-                fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
-                                     r.bench_dir, r.formula_num, r.elapsed_ms);
-            } else {
-                fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
-                                     r.bench_dir, r.formula_num, r.error_msg);
-            }
-            fmt::print("  Formula: {}\n", r.formula_str);
-            fmt::print("  Partition: {}\n\n", r.partition_str);
+        if (r.success) {
+            fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
+                                 r.bench_dir, r.formula_num, r.elapsed_ms);
+        } else {
+            fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
+                                 r.bench_dir, r.formula_num, r.error_msg);
         }
+        fmt::print("  Formula: {}\n", r.formula_str);
+        fmt::print("  Partition: {}\n\n", r.partition_str);
     }
 
     // ============================================================================
@@ -579,5 +570,5 @@ int main(int argc, char* argv[]) {
     logger::Logger::instance().get()->flush();
     spdlog::shutdown();
 
-    return (stats.failed > 0) ? 1 : 0;
+    return (stats.total_count > stats.parsed) ? 1 : 0;
 }
