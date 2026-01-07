@@ -174,6 +174,9 @@ static std::string clean_formula(const std::string& raw) {
 //==============================================================================
 
 int main(int argc, char* argv[]) {
+    // Initialize logger first (creates log directory if needed)
+    logger::Logger::initialize();
+
     std::cout << "========================================" << std::endl;
     std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
     std::cout << "========================================" << std::endl;

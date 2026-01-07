@@ -35,12 +35,25 @@ public:
 
     // Set log level
     void set_level(spdlog::level::level_enum level) {
-        logger_->set_level(level);
+        if (logger_) logger_->set_level(level);
     }
 
     // Flush log
     void flush() {
-        logger_->flush();
+        if (logger_) logger_->flush();
+    }
+
+    /**
+     * @brief Explicitly initialize logger with log directory creation
+     * @return true if initialization succeeded (with or without file logging)
+     *
+     * Call this at the start of main() to ensure log directory exists.
+     * If file logging fails, falls back to console-only logging.
+     */
+    static bool initialize() {
+        // Just trigger the singleton initialization
+        instance();
+        return instance().logger_ != nullptr;
     }
 
 private:
@@ -97,8 +110,31 @@ private:
             spdlog::register_logger(logger_);
             spdlog::set_default_logger(logger_);
 
-        } catch (const spdlog::spdlog_ex& ex) {
+        } catch (const std::exception& ex) {
+            // Catch all exceptions including filesystem_error
             std::cerr << "Log initialization failed: " << ex.what() << std::endl;
+            std::cerr << "Continuing without file logging..." << std::endl;
+            // Fallback to console-only logger
+            if (!logger_) {
+                try {
+                    std::vector<spdlog::sink_ptr> sinks;
+                    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+                    console_sink->set_level(spdlog::level::info);
+                    console_sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+                    sinks.push_back(console_sink);
+                    logger_ = std::make_shared<spdlog::logger>("formula", sinks.begin(), sinks.end());
+                    logger_->set_level(spdlog::level::debug);
+                    logger_->flush_on(spdlog::level::warn);
+                    spdlog::register_logger(logger_);
+                    spdlog::set_default_logger(logger_);
+                } catch (...) {
+                    // Last resort: use stderr
+                    logger_ = nullptr;
+                }
+            }
+        } catch (...) {
+            std::cerr << "Unknown error during log initialization, continuing without logging..." << std::endl;
+            logger_ = nullptr;
         }
     }
 
@@ -111,16 +147,16 @@ private:
     std::shared_ptr<spdlog::logger> logger_;
 };
 
-// Convenience macros
-#define LOG_TRACE(...) logger::Logger::instance().get()->trace(__VA_ARGS__)
-#define LOG_DEBUG(...) logger::Logger::instance().get()->debug(__VA_ARGS__)
-#define LOG_INFO(...)  logger::Logger::instance().get()->info(__VA_ARGS__)
-#define LOG_WARN(...)  logger::Logger::instance().get()->warn(__VA_ARGS__)
-#define LOG_ERROR(...) logger::Logger::instance().get()->error(__VA_ARGS__)
-#define LOG_CRITICAL(...) logger::Logger::instance().get()->critical(__VA_ARGS__)
+// Convenience macros (with null check for safety)
+#define LOG_TRACE(...) do { if (auto lg = logger::Logger::instance().get()) lg->trace(__VA_ARGS__); } while(0)
+#define LOG_DEBUG(...) do { if (auto lg = logger::Logger::instance().get()) lg->debug(__VA_ARGS__); } while(0)
+#define LOG_INFO(...)  do { if (auto lg = logger::Logger::instance().get()) lg->info(__VA_ARGS__); } while(0)
+#define LOG_WARN(...)  do { if (auto lg = logger::Logger::instance().get()) lg->warn(__VA_ARGS__); } while(0)
+#define LOG_ERROR(...) do { if (auto lg = logger::Logger::instance().get()) lg->error(__VA_ARGS__); } while(0)
+#define LOG_CRITICAL(...) do { if (auto lg = logger::Logger::instance().get()) lg->critical(__VA_ARGS__); } while(0)
 
 // Flush log
-#define LOG_FLUSH() logger::Logger::instance().flush()
+#define LOG_FLUSH() do { if (auto lg = logger::Logger::instance().get()) lg->flush(); } while(0)
 
 } // namespace logger
 
