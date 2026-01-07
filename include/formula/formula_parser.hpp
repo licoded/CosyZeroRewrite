@@ -15,8 +15,8 @@ namespace formula {
  *   - Literals: a, b, var_name
  *   - Constants: true, false
  *   - Negation: !expr
- *   - And: expr & expr
- *   - Or: expr | expr
+ *   - And: expr & expr or expr && expr
+ *   - Or: expr | expr or expr || expr
  *   - Implies: expr -> expr (parsed as !expr | expr)
  *   - Weak Next: X(expr) (converted to X[!](expr) | end)
  *   - Strong Next: X[!](expr)
@@ -26,16 +26,16 @@ namespace formula {
  *
  * Precedence (highest to lowest):
  *   1. X, X[!], !, literals
- *   2. &
- *   3. |
+ *   2. &, &&
+ *   3. |, ||
  *   4. ->
  *   5. U, R
  *
  * Grammar:
  *   formula       ::= implies_expr
  *   implies_expr  ::= or_expr ('->' or_expr)*
- *   or_expr       ::= and_expr ('|' and_expr)*
- *   and_expr      ::= binary_op ('&' binary_op)*
+ *   or_expr       ::= and_expr ('|' | '||' and_expr)*
+ *   and_expr      ::= binary_op ('&' | '&&' binary_op)*
  *   binary_op     ::= unary_op ('U' | 'R' unary_op)*
  *   unary_op      ::= 'X'? postfix
  *   postfix       ::= '!' postfix | primary

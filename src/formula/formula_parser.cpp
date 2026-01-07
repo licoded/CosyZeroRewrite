@@ -90,6 +90,15 @@ void FormulaParser::tokenize(const std::string& input) {
                 continue;
 
             case '&':
+                // Check for && (alternative And syntax)
+                if (i + 1 < input.size() && input[i + 1] == '&') {
+                    token.type = TokenType::And;
+                    token.value = "&&";
+                    tokens_.push_back(token);
+                    i += 2;
+                    continue;
+                }
+                // Single & also means And
                 token.type = TokenType::And;
                 token.value = "&";
                 tokens_.push_back(token);
@@ -97,6 +106,15 @@ void FormulaParser::tokenize(const std::string& input) {
                 continue;
 
             case '|':
+                // Check for || (alternative Or syntax)
+                if (i + 1 < input.size() && input[i + 1] == '|') {
+                    token.type = TokenType::Or;
+                    token.value = "||";
+                    tokens_.push_back(token);
+                    i += 2;
+                    continue;
+                }
+                // Single | also means Or
                 token.type = TokenType::Or;
                 token.value = "|";
                 tokens_.push_back(token);
