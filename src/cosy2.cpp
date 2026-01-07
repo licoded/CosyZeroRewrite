@@ -20,6 +20,7 @@
 #include <ctime>
 #include <csignal>
 #include <atomic>
+#include <unistd.h>  // for _exit()
 
 using namespace formula;
 using namespace synthesis;
@@ -41,9 +42,11 @@ void signal_handler(int signal) {
 
     std::cerr << "\n[TIMEOUT] Received signal " << signal_name
               << " - synthesis interrupted (TIMEOUT)" << std::endl;
-    std::cerr << "[TIMEOUT] States expanded before timeout: unknown" << std::endl;
-    std::cerr << std::flush;  // Ensure output is flushed
-    interrupted = true;
+    std::cerr << "[TIMEOUT] Result: TIMEOUT" << std::endl;
+    std::cerr << std::flush;
+
+    // Exit immediately - we cannot gracefully exit from a signal handler
+    _exit(124);  // 124 is timeout's exit code convention
 }
 
 //==============================================================================
