@@ -667,13 +667,9 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         }
 
         bool esa = is_empty_string_accepting(s.dfa_state);
-        // Debug output (controlled by COSY_DEBUG_CLASSIFY environment variable)
-        static const bool debug_classify = (std::getenv("COSY_DEBUG_CLASSIFY") != nullptr);
-        if (debug_classify) {
-            std::cerr << "DEBUG classify_scc: state=" << s.to_string()
-                      << ", phi=" << (s.dfa_state ? s.dfa_state->phi()->to_string() : "null")
-                      << ", esa=" << esa << std::endl;
-        }
+        LOG_DEBUG("classify_scc: state=", s.to_string(),
+                  ", phi=", (s.dfa_state ? s.dfa_state->phi()->to_string() : "null"),
+                  ", esa=", esa);
         if (esa) {
             // Only System states in swin_states
             if (s.player == Player::System) {

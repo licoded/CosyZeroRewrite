@@ -44,7 +44,7 @@ target_link_libraries(formula PRIVATE Z3::Z3)
 
 **用途**: 结构化日志输出
 
-**当前状态**: 已内嵌 header-only 版本到 `include/spdlog/`
+**当前状态**: 已内嵌 header-only 版本到 `deps/external/spdlog/`
 
 **配置**:
 | 输出 | 级别 | 格式 | 说明 |
@@ -53,17 +53,26 @@ target_link_libraries(formula PRIVATE Z3::Z3)
 | 文件 | TRACE | 纯文本 | 详细追踪 |
 
 **文件日志**:
-- **目录**: `logs/formula_YYYYMMDD_HHMMSS.log`
+- **目录**: `logs/formula/YYYY-MM-DD/period/formula_YYYYMMDD_HHMMSS.log`
 - **轮转**: 单文件最大 5MB，最多保留 3 个文件
 - **级别**: TRACE (最详细，包含所有 DEBUG/INFO)
 
 **使用**:
 ```cpp
-#include "spdlog/spdlog.h"
+#include "log/logger.hpp"
 LOG_INFO("Formula parsed: {}", formula_str);
 LOG_ERROR("Parse error: {}", error_msg);
 LOG_TRACE("Internal state: {}", debug_info);
 ```
+
+**⚠️ 重要**: 日志使用规范见 [日志规范 (Logging Standards)](../CODE_QUALITY/logging_standards.md)
+
+**何时使用 `LOG_*` vs `std::cout/cerr`**:
+| 输出类型 | 使用 | 说明 |
+|---------|------|------|
+| 用户面向输出 | `std::cout` | 不带日志前缀，如 "REALIZABLE" |
+| 错误信息 | `std::cerr` | 保证可见性，signal handler 必须用 |
+| 调试/追踪日志 | `LOG_*` 宏 | 带时间戳和级别，可记录到文件 |
 
 ### Catch2 (Testing)
 
