@@ -18,9 +18,32 @@
 #include <chrono>
 #include <iomanip>
 #include <ctime>
+#include <csignal>
+#include <atomic>
 
 using namespace formula;
 using namespace synthesis;
+
+//==============================================================================
+// Signal Handling for Timeout
+//==============================================================================
+
+static std::atomic<bool> interrupted{false};
+
+void signal_handler(int signal) {
+    const char* signal_name = nullptr;
+    switch (signal) {
+        case SIGTERM: signal_name = "SIGTERM"; break;  // timeout command
+        case SIGINT:  signal_name = "SIGINT"; break;  // Ctrl+C
+        case SIGHUP:  signal_name = "SIGHUP"; break;  // hangup
+        default:       signal_name = "UNKNOWN"; break;
+    }
+
+    std::cerr << "\n[TIMEOUT] Received signal " << signal_name
+              << " - synthesis interrupted (TIMEOUT)" << std::endl;
+    std::cerr << "[TIMEOUT] States expanded before timeout: unknown" << std::endl;
+    interrupted = true;
+}
 
 //==============================================================================
 // File Reading Helpers
@@ -176,6 +199,11 @@ static std::string clean_formula(const std::string& raw) {
 int main(int argc, char* argv[]) {
     // Initialize logger first (creates log directory if needed)
     logger::Logger::initialize();
+
+    // Register signal handlers for timeout/interrupt detection
+    std::signal(SIGTERM, signal_handler);  // timeout command
+    std::signal(SIGINT, signal_handler);   // Ctrl+C
+    std::signal(SIGHUP, signal_handler);   // hangup
 
     std::cout << "========================================" << std::endl;
     std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
