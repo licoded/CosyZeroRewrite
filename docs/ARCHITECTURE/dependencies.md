@@ -13,6 +13,7 @@
 | **Z3** | 4.x | BMC 等价性检查 | ✅ 必需 | MIT |
 | **spdlog** | 1.12+ | 日志输出 | ⚪ 可选 | MIT |
 | **Catch2** | 2.x | 测试框架 | ✅ 必需 | BSL-1.0 |
+| **CLI11** | 2.x | 命令行解析 | ✅ 必需 | BSD-3-Clause |
 
 ---
 
@@ -81,6 +82,46 @@ TEST_CASE("Formula creation", "[formula]") {
     REQUIRE(f->is_literal());
 }
 ```
+
+### CLI11 (Command Line Parsing)
+
+**用途**: 命令行参数解析
+
+**当前状态**: Header-only 版本内嵌到 `deps/external/CLI/`
+
+**特点**:
+- Header-only，无需额外链接
+- 自动生成格式化的帮助信息
+- 支持短选项 (-f)、长选项 (--file)、位置参数
+- 内置验证器（如文件存在性检查）
+- 支持子命令、选项组等高级功能
+
+**使用示例**:
+```cpp
+#include "CLI/CLI.hpp"
+
+CLI::App app{"My Tool Description"};
+
+std::string filename;
+bool verbose = false;
+
+app.add_option("-f,--file", filename, "Input file")
+    ->check(CLI::ExistingFile);
+app.add_flag("-v,--verbose", verbose, "Verbose output");
+
+CLI11_PARSE(app, argc, argv);
+```
+
+**Cosy2 命令行选项**:
+| 选项 | 说明 |
+|------|------|
+| `-f,--file <file>` | 从文件读取公式 |
+| `-p,--partition <file>` | 读取变量分区文件 |
+| `--trace [dir]` | 启用 trace 记录 |
+| `-q,--quiet` | 静默模式（仅输出结果） |
+| `--version` | 显示版本信息 |
+| `-h,--help` | 显示帮助信息 |
+| `formula` | 位置参数：公式字符串 |
 
 ---
 

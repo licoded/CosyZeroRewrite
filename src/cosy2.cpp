@@ -11,6 +11,7 @@
 #include "formula/formula_parser.hpp"
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"
+#include "CLI/CLI.hpp"  // CLI11 command line parsing
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -209,54 +210,66 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, signal_handler);   // Ctrl+C
     std::signal(SIGHUP, signal_handler);   // hangup
 
-    std::cout << "========================================" << std::endl;
-    std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
-    std::cout << "========================================" << std::endl;
+    //==========================================================================
+    // Command Line Parsing (using CLI11)
+    //==========================================================================
+    CLI::App app{"CosyZero LTLf Synthesis Tool - LTLf to Automata Synthesis"};
 
-    // Parse command line arguments
-    std::string formula_str;
+    // Version flag
+    app.set_version_flag("--version", "CosyZero v2.0");
+
+    // Options
     std::string formula_file;
     std::string partition_file;
-    std::string trace_dir;  // Empty means use default
-    bool enable_trace = false;
+    std::string trace_dir;
+    bool quiet = false;
 
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "-f" && i + 1 < argc) {
-            formula_file = argv[++i];
-        } else if (arg == "-p" && i + 1 < argc) {
-            partition_file = argv[++i];
-        } else if (arg == "--trace") {
-            enable_trace = true;
-            // Optional: custom trace directory
-            if (i + 1 < argc && argv[i + 1][0] != '-') {
-                trace_dir = argv[++i];
-            }
-        } else if (arg == "-h" || arg == "--help") {
-            std::cout << "Usage: Cosy2 [options]" << std::endl;
-            std::cout << std::endl;
-            std::cout << "Options:" << std::endl;
-            std::cout << "  -f <file>    Read formula from file" << std::endl;
-            std::cout << "  -p <file>    Read variable partition from file" << std::endl;
-            std::cout << "  --trace [dir] Enable trace recording for visualization" << std::endl;
-            std::cout << "                (default dir: results/trace_*/)" << std::endl;
-            std::cout << "  -h, --help   Show this help message" << std::endl;
-            std::cout << std::endl;
-            std::cout << "If no -f is specified, the first non-option argument" << std::endl;
-            std::cout << "is treated as a formula string." << std::endl;
-            std::cout << std::endl;
-            std::cout << "Examples:" << std::endl;
-            std::cout << "  Cosy2 -f response.ltlf -p response.part" << std::endl;
-            std::cout << "  Cosy2 \"G (req -> F ack)\"" << std::endl;
-            std::cout << "  Cosy2 -f formula.ltlf --trace" << std::endl;
-            return 0;
-        } else if (arg[0] != '-') {
-            // Non-option argument: treat as formula string
-            formula_str = arg;
-        }
+    // Formula input (either -f file or positional argument)
+    app.add_option("-f,--file", formula_file, "Read formula from file")
+        ->check(CLI::ExistingFile);
+
+    // Partition file
+    app.add_option("-p,--partition", partition_file, "Read variable partition from file")
+        ->check(CLI::ExistingFile);
+
+    // Trace recording
+    app.add_option("--trace", trace_dir, "Enable trace recording for visualization (optional: custom directory)")
+        ->default_str("")
+        ->expected(0, 1)
+        ->capture_default_str();
+
+    // Quiet mode
+    app.add_flag("-q,--quiet", quiet, "Suppress non-essential output");
+
+    // Positional argument: formula string (if no -f specified)
+    std::string formula_str;
+    app.add_option("formula", formula_str, "LTLf formula string (if -f not specified)");
+
+    // Footer with examples
+    app.footer(
+        "\nExamples:\n"
+        "  Cosy2 -f response.ltlf -p response.part\n"
+        "  Cosy2 \"G (req -> F ack)\"\n"
+        "  Cosy2 -f formula.ltlf --trace\n"
+        "  Cosy2 -f formula.ltlf -p partition.part --trace custom_dir\n"
+        "\nFor more information, see: https://github.com/your-repo/CosyZero"
+    );
+
+    // Parse command line arguments
+    CLI11_PARSE(app, argc, argv);
+
+    //==========================================================================
+    // Banner
+    //==========================================================================
+    if (!quiet) {
+        std::cout << "========================================" << std::endl;
+        std::cout << "   CosyZero LTLf Synthesis Tool v2.0" << std::endl;
+        std::cout << "========================================" << std::endl;
     }
 
+    //==========================================================================
     // Read formula from file if specified
+    //==========================================================================
     if (!formula_file.empty()) {
         std::string raw = read_file(formula_file);
         if (raw.empty()) {
@@ -264,34 +277,42 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         formula_str = clean_formula(raw);
-        std::cout << "Formula from file: " << formula_file << std::endl;
+        if (!quiet) std::cout << "Formula from file: " << formula_file << std::endl;
     }
 
     // Check if formula is provided
     if (formula_str.empty()) {
         std::cerr << "Error: No formula provided" << std::endl;
-        std::cerr << "Usage: Cosy2 -f <file> | Cosy2 \"<formula>\"" << std::endl;
+        std::cerr << "Run 'Cosy2 --help' for usage information." << std::endl;
         return 1;
     }
 
-    std::cout << "Formula: " << formula_str << std::endl;
+    if (!quiet) std::cout << "Formula: " << formula_str << std::endl;
 
+    //==========================================================================
     // Parse partition if provided
+    //==========================================================================
     Partition partition;
     if (!partition_file.empty()) {
         partition = parse_partition_file(partition_file);
     }
 
+    //==========================================================================
     // Create formula pool and declare variables
+    //==========================================================================
     FormulaPool pool;
     if (!partition.outputs.empty() || !partition.inputs.empty()) {
         pool.declare_variables(partition.outputs, partition.inputs);
-        std::cout << "Variables declared: "
-                  << pool.num_outputs() << " outputs, "
-                  << pool.num_inputs() << " inputs" << std::endl;
+        if (!quiet) {
+            std::cout << "Variables declared: "
+                      << pool.num_outputs() << " outputs, "
+                      << pool.num_inputs() << " inputs" << std::endl;
+        }
     }
 
+    //==========================================================================
     // Parse formula
+    //==========================================================================
     FormulaParser parser(pool);
     // Parser now auto-loads variables from pool, no need for set_variables()
 
@@ -302,24 +323,28 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    std::cout << "Parsed: " << phi->to_string() << std::endl;
-    std::cout << "Parsed (with names): " << phi->to_string_with_names(pool) << std::endl;
+    if (!quiet) {
+        std::cout << "Parsed: " << phi->to_string() << std::endl;
+        std::cout << "Parsed (with names): " << phi->to_string_with_names(pool) << std::endl;
 
-    // Show variable mapping
-    std::cout << "Variable mapping:" << std::endl;
-    for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
-        std::string var_name = pool.get_variable_name(i);
-        std::cout << "  v" << i << " = " << var_name;
-        if (i < pool.num_outputs()) {
-            std::cout << " (output)";
-        } else {
-            std::cout << " (input)";
+        // Show variable mapping
+        std::cout << "Variable mapping:" << std::endl;
+        for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
+            std::string var_name = pool.get_variable_name(i);
+            std::cout << "  v" << i << " = " << var_name;
+            if (i < pool.num_outputs()) {
+                std::cout << " (output)";
+            } else {
+                std::cout << " (input)";
+            }
+            std::cout << std::endl;
         }
-        std::cout << std::endl;
     }
 
+    //==========================================================================
     // Run synthesis
-    std::cout << "Running on-the-fly synthesis..." << std::endl;
+    //==========================================================================
+    if (!quiet) std::cout << "Running on-the-fly synthesis..." << std::endl;
 
     // Create solver directly (not using convenience function)
     // so we can access the solver for game graph export
@@ -333,18 +358,20 @@ int main(int argc, char* argv[]) {
 
     OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
 
-    // Enable trace if requested
-    if (enable_trace) {
+    // Enable trace if requested (trace_dir non-empty means trace enabled)
+    if (!trace_dir.empty()) {
         solver.enable_trace(trace_dir);
-        std::cout << "Trace recording enabled..." << std::endl;
+        if (!quiet) std::cout << "Trace recording enabled..." << std::endl;
     }
 
     bool realizable = solver.is_realizable();
 
+    //==========================================================================
     // Export game graph if environment variable is set
+    //==========================================================================
     const char* debug_graph = std::getenv("COSY_DEBUG_GAME_GRAPH");
     if (debug_graph && std::string(debug_graph) == "1") {
-        std::cout << "Exporting game graph..." << std::endl;
+        if (!quiet) std::cout << "Exporting game graph..." << std::endl;
 
         // Generate timestamp for filename
         auto now = std::chrono::system_clock::now();
@@ -384,14 +411,20 @@ int main(int argc, char* argv[]) {
         }
     }
 
+    //==========================================================================
     // Output result
-    std::cout << "========================================" << std::endl;
-    if (realizable) {
-        std::cout << "   REALIZABLE" << std::endl;
-    } else {
-        std::cout << "   UNREALIZABLE" << std::endl;
+    //==========================================================================
+    if (!quiet) {
+        std::cout << "========================================" << std::endl;
     }
-    std::cout << "========================================" << std::endl;
+    if (realizable) {
+        std::cout << "REALIZABLE" << std::endl;
+    } else {
+        std::cout << "UNREALIZABLE" << std::endl;
+    }
+    if (!quiet) {
+        std::cout << "========================================" << std::endl;
+    }
 
     return realizable ? 0 : 1;
 }
