@@ -54,3 +54,6 @@ tmp/
 
 # Working issues (temporary collaboration space)
 docs/working_issues/
+
+# Claude Code trace files
+.claude-trace/
