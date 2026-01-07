@@ -56,14 +56,14 @@ using namespace synthesis;
 
 struct TaskResult {
     int bench_dir;
-    int formula_num;
+    int formula_index;      // Formula file number (f1, f2, f3, ...)
     bool success;
     double elapsed_ms;
     std::string formula_str;
     std::string partition_str;
     std::string error_msg;
 
-    TaskResult() : bench_dir(0), formula_num(0), success(false), elapsed_ms(0.0) {}
+    TaskResult() : bench_dir(0), formula_index(0), success(false), elapsed_ms(0.0) {}
 };
 
 // ============================================================================
@@ -256,21 +256,21 @@ public:
         // Mutex for protecting shared access
         std::mutex results_mutex;
         std::mutex active_mutex;
-        std::set<int> active_formula_nums;
+        std::set<int> active_formula_indexs;
         std::atomic<int> completed{0};
         std::atomic<int> failed{0};
         std::atomic<int> next_task_index{0};
 
         // Lambda to process a single formula
-        auto process_formula = [&](int bench_dir, int formula_num) -> TaskResult {
+        auto process_formula = [&](int bench_dir, int formula_index) -> TaskResult {
             TaskResult result;
             result.bench_dir = bench_dir;
-            result.formula_num = formula_num;
+            result.formula_index = formula_index;
 
             // Add to active set
             {
                 std::lock_guard<std::mutex> lock(active_mutex);
-                active_formula_nums.insert(formula_num);
+                active_formula_indexs.insert(formula_index);
             }
 
             auto start = std::chrono::high_resolution_clock::now();
@@ -279,7 +279,7 @@ public:
             std::string formula_str;
             std::vector<std::string> outputs, inputs;
             if (!Synthesis::read_benchmark_from_dir(
-                base_dir_, bench_dir, formula_num, formula_str, outputs, inputs))
+                base_dir_, bench_dir, formula_index, formula_str, outputs, inputs))
             {
                 result.success = false;
                 result.error_msg = "file not found";
@@ -313,7 +313,7 @@ public:
             // Remove from active set
             {
                 std::lock_guard<std::mutex> lock(active_mutex);
-                active_formula_nums.erase(formula_num);
+                active_formula_indexs.erase(formula_index);
             }
 
             // Update progress
@@ -326,7 +326,7 @@ public:
                 std::set<int> active_copy;
                 if (show_active_) {
                     std::lock_guard<std::mutex> lock(active_mutex);
-                    active_copy = active_formula_nums;
+                    active_copy = active_formula_indexs;
                 }
                 progress_->update(c, failed.load(), active_copy);
             }
@@ -537,7 +537,7 @@ int main(int argc, char* argv[]) {
         stats.parsed += r.success ? 1 : 0;
 
         // Check expected result
-        auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_num);
+        auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_index);
         stats.found_results += expected.has_value() ? 1 : 0;
     }
 
@@ -551,10 +551,10 @@ int main(int argc, char* argv[]) {
 
         if (r.success) {
             fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
-                                 r.bench_dir, r.formula_num, r.elapsed_ms);
+                                 r.bench_dir, r.formula_index, r.elapsed_ms);
         } else {
             fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
-                                 r.bench_dir, r.formula_num, r.error_msg);
+                                 r.bench_dir, r.formula_index, r.error_msg);
         }
         fmt::print("  Formula: {}\n", r.formula_str);
         fmt::print("  Partition: {}\n\n", r.partition_str);
