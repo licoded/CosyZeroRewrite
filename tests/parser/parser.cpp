@@ -60,14 +60,26 @@ TEST_CASE("Parser: Or", "[parser]") {
     REQUIRE(f->is_or());
 }
 
-TEST_CASE("Parser: Next", "[parser]") {
+TEST_CASE("Parser: Strong Next (X[!])", "[parser]") {
     FormulaPool pool;
     FormulaParser parser(pool);
 
-    Formula* f = parser.parse("X(a)");
+    Formula* f = parser.parse("X[!](a)");
     REQUIRE_FALSE(parser.has_error());
     REQUIRE(f->is_next());
     REQUIRE(f->left()->is_literal());
+}
+
+TEST_CASE("Parser: Weak Next (X)", "[parser]") {
+    FormulaPool pool;
+    FormulaParser parser(pool);
+
+    // Weak next is converted to X[!](...) | end
+    Formula* f = parser.parse("X(a)");
+    REQUIRE_FALSE(parser.has_error());
+    REQUIRE(f->is_or());  // X(a) | end
+    REQUIRE(f->left()->is_next());  // X(a)
+    REQUIRE(f->right()->is_end());  // end
 }
 
 TEST_CASE("Parser: Until", "[parser]") {
@@ -413,8 +425,13 @@ TEST_CASE("Checker: formula_depth", "[checker][analysis]") {
     Formula* f2 = parser.parse("a & b");
     REQUIRE(FormulaChecker::formula_depth(f2) == 2);
 
+    // Weak next: X(a & b) becomes X(a & b) | end, depth = 4
     Formula* f3 = parser.parse("X(a & b)");
-    REQUIRE(FormulaChecker::formula_depth(f3) == 3);
+    REQUIRE(FormulaChecker::formula_depth(f3) == 4);
+
+    // Strong next: X[!](a & b) stays as X(a & b), depth = 3
+    Formula* f4 = parser.parse("X[!](a & b)");
+    REQUIRE(FormulaChecker::formula_depth(f4) == 3);
 }
 
 TEST_CASE("Checker: get_variables", "[checker][analysis]") {

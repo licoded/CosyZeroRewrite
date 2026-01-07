@@ -423,16 +423,17 @@ TEST_CASE("PA: parser case sensitivity - lowercase variables", "[pa][parser]") {
 }
 
 TEST_CASE("PA: parser case sensitivity - uppercase operators", "[pa][parser]") {
-    INFO("Formula: X(p U q)");
+    INFO("Formula: X[!](p U q)");
     FormulaPool pool;
     FormulaParser parser(pool);
     // Uppercase X, U should be operators
-    Formula* f = parser.parse("X(p U q)");
+    // Use X[!] for strong next (X alone is weak next)
+    Formula* f = parser.parse("X[!](p U q)");
 
     REQUIRE(f != nullptr);
     REQUIRE_FALSE(parser.has_error());
 
-    // Should parse as: X(p U q)
+    // Should parse as: X(p U q) (strong next)
     REQUIRE(f->is_next());
     REQUIRE(f->left()->is_until());
 }

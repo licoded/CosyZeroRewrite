@@ -18,13 +18,14 @@ namespace formula {
  *   - And: expr & expr
  *   - Or: expr | expr
  *   - Implies: expr -> expr (parsed as !expr | expr)
- *   - Next: X(expr)
+ *   - Weak Next: X(expr) (converted to X[!](expr) | end)
+ *   - Strong Next: X[!](expr)
  *   - Until: expr U expr
  *   - Release: expr R expr
  *   - Parentheses: (expr)
  *
  * Precedence (highest to lowest):
- *   1. X, !, literals
+ *   1. X, X[!], !, literals
  *   2. &
  *   3. |
  *   4. ->
@@ -86,7 +87,8 @@ private:
         And,         // &
         Or,          // |
         Implies,     // ->
-        Next,        // X
+        Next,        // X - weak next
+        StrongNext,  // X[!] - strong next
         Until,       // U
         Release,     // R
         Finally,     // F (eventually, syntactic sugar for true U ...)

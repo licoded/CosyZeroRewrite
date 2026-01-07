@@ -130,11 +130,23 @@ void FormulaParser::tokenize(const std::string& input) {
                 continue;
 
             case 'X':
-                // Only uppercase X is Next operator
-                token.type = TokenType::Next;
-                token.value = "X";
-                tokens_.push_back(token);
-                ++i;
+                // Check for X[!] (strong next) vs X (weak next)
+                if (i + 3 < input.size() &&
+                    input[i + 1] == '[' &&
+                    input[i + 2] == '!' &&
+                    input[i + 3] == ']') {
+                    // Strong next: X[!]
+                    token.type = TokenType::StrongNext;
+                    token.value = "X[!]";
+                    tokens_.push_back(token);
+                    i += 4;  // Skip X[!]
+                } else {
+                    // Weak next: X (will be converted to X[!](...) | end)
+                    token.type = TokenType::Next;
+                    token.value = "X";
+                    tokens_.push_back(token);
+                    ++i;
+                }
                 continue;
 
             case 'U':
@@ -333,20 +345,29 @@ Formula* FormulaParser::parse_binary_op() {
     return left;
 }
 
-// unary_op ::= ('!' | 'X')* primary
+// unary_op ::= ('!' | 'X' | 'X[!]')* primary
 // Changed to handle both ! and X at the same level
 // This allows parsing formulas like !X(a) correctly
+// X is weak next (converted to X[!](...) | end)
+// X[!] is strong next (direct)
 Formula* FormulaParser::parse_unary_op() {
-    // Count prefix operators (they are right-associative)
-    int not_count = 0;
-    int next_count = 0;
+    // Collect prefix operators (they are right-associative)
+    // We need to track weak (X) vs strong (X[!]) next separately
+    // because they have different semantics
+    struct PrefixOp {
+        enum Type { Not, WeakNext, StrongNext };
+        Type type;
+    };
+    std::vector<PrefixOp> ops;
 
-    // Consume all ! and X tokens
+    // Consume all !, X, and X[!] tokens
     while (true) {
         if (match(TokenType::Not)) {
-            ++not_count;
+            ops.push_back({PrefixOp::Not});
         } else if (match(TokenType::Next)) {
-            ++next_count;
+            ops.push_back({PrefixOp::WeakNext});
+        } else if (match(TokenType::StrongNext)) {
+            ops.push_back({PrefixOp::StrongNext});
         } else {
             break;
         }
@@ -357,12 +378,21 @@ Formula* FormulaParser::parse_unary_op() {
     if (has_error()) return nullptr;
 
     // Apply operators from right to left (right-associative)
-    // X has higher precedence than !, so apply X first
-    for (int i = 0; i < next_count; ++i) {
-        expr = pool_.create_next(expr);
-    }
-    for (int i = 0; i < not_count; ++i) {
-        expr = pool_.create_not(expr);
+    // Process in reverse order (last operator applied first)
+    for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
+        if (it->type == PrefixOp::StrongNext) {
+            // Strong next: X[!](expr)
+            expr = pool_.create_next(expr);
+        } else if (it->type == PrefixOp::WeakNext) {
+            // Weak next: X(expr) = X[!](expr) | end
+            // This means: either next state exists and satisfies expr,
+            // or this is the last state
+            Formula* strong_next = pool_.create_next(expr);
+            Formula* end_marker = pool_.create_end_marker();
+            expr = pool_.create_or(strong_next, end_marker);
+        } else { // Not
+            expr = pool_.create_not(expr);
+        }
     }
 
     return expr;

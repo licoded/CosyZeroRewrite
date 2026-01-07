@@ -145,6 +145,23 @@ std::string Formula::to_string_impl(const VarNameResolver& resolver,
         case OpType::Or:
         case OpType::Until:
         case OpType::Release: {
+            // Special handling for weak next pattern: X(...) | end
+            // This should be output as X(...) for roundtrip correctness
+            if (op_ == OpType::Or && right_ && right_->is_end() &&
+                left_ && left_->is_next()) {
+                // This is X(expr) | end, output as X(expr) (weak next)
+                oss << "X";
+                if (left_->left()) {
+                    std::string child_str = left_->left()->to_string_impl(resolver, end_marker);
+                    if (is_wrapped_in_parens(child_str)) {
+                        oss << child_str;
+                    } else {
+                        oss << "(" << child_str << ")";
+                    }
+                }
+                return oss.str();
+            }
+
             // Left child
             if (left_) {
                 bool left_needs_paren = needs_parentheses(left_, op_, true);
