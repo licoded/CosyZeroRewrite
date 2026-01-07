@@ -214,3 +214,46 @@ LOG_INFO("Processing formula: ", formula_str);
 - [ ] 调试/追踪信息用 `LOG_*` 宏
 - [ ] 不在信号处理器中使用 spdlog
 - [ ] 不在用户输出中使用 `LOG_*` 宏
+
+---
+
+## 附录 A: 为什么宏用 `do { ... } while(0)` 包裹？
+
+`LOG_*` 宏使用 `do { ... } while(0)` 包裹，这是 C/C++ 宏定义的标准最佳实践：
+
+```cpp
+#define LOG_DEBUG(...) do { \
+    if (auto lg = logger::Logger::instance().get()) lg->debug(__VA_ARGS__); \
+} while(0)
+```
+
+### 原因
+
+1. **使宏像函数一样安全使用** - 可以在 `if-else` 语句中使用，不会破坏配对
+2. **必须加分号** - 调用后 `;` 成为 `while(0);` 的一部分，符合函数调用习惯
+3. **只执行一次** - `while(0)` 保证循环体只执行一次
+
+### 对比
+
+```cpp
+// ❌ 错误写法：破坏 if-else 配对
+#define BAD_LOG(msg) if (auto lg = get()) lg->debug(msg)
+
+if (error)
+    BAD_LOG("error");   // 展开后有个 if，会吃掉下面的 else！
+else
+    BAD_LOG("fatal");
+
+// ✅ 正确写法：do-while(0)
+#define GOOD_LOG(msg) do { \
+    if (auto lg = get()) lg->debug(msg); \
+} while(0)
+
+if (error)
+    GOOD_LOG("error");   // 展开：do { ... } while(0);
+else
+    GOOD_LOG("fatal");   // ✅ else 正确匹配
+```
+
+这是 Linux 内核和许多大型项目中的标准写法。
+

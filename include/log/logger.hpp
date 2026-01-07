@@ -148,6 +148,8 @@ private:
 };
 
 // Convenience macros (with null check for safety)
+// Note: do-while(0) wrapper is a standard C++ macro pattern that makes the macro
+// safe to use in if-else statements without breaking control flow.
 #define LOG_TRACE(...) do { if (auto lg = logger::Logger::instance().get()) lg->trace(__VA_ARGS__); } while(0)
 #define LOG_DEBUG(...) do { if (auto lg = logger::Logger::instance().get()) lg->debug(__VA_ARGS__); } while(0)
 #define LOG_INFO(...)  do { if (auto lg = logger::Logger::instance().get()) lg->info(__VA_ARGS__); } while(0)
