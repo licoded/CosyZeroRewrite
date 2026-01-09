@@ -359,81 +359,98 @@ TEST_CASE("XNF: Next distribution", "[xnf][transformation]") {
 }
 
 // =============================================================================
-// rmnext Progression Tests
+// replaceNext2True Tests
 // =============================================================================
 
-TEST_CASE("rmnext: Literal in edge", "[rmnext][progression]") {
-    FormulaPool pool;
-    pool.declare_variables({"a"}, {});
-
-    Formula* a = pool.create_variable("a");
-    std::unordered_set<int> edge = {0};
-    Formula* result = a->rmnext(pool, nullptr, edge);
-
-    REQUIRE(result->is_true());
-}
-
-TEST_CASE("rmnext: Literal not in edge", "[rmnext][progression]") {
-    FormulaPool pool;
-    pool.declare_variables({"a"}, {});
-
-    Formula* a = pool.create_variable("a");
-    std::unordered_set<int> edge = {};
-    Formula* result = a->rmnext(pool, nullptr, edge);
-
-    REQUIRE(result->is_false());
-}
-
-TEST_CASE("rmnext: Next progression", "[rmnext][progression]") {
+TEST_CASE("replaceNext2True: Simple Next", "[replaceNext2True][simplify]") {
     FormulaPool pool;
     pool.declare_variables({"a"}, {});
 
     Formula* a = pool.create_variable("a");
     Formula* next_a = pool.create_next(a);
-    std::unordered_set<int> edge = {};
-    Formula* result = next_a->rmnext(pool, nullptr, edge);
+    Formula* result = next_a->replaceNext2True(pool);
 
-    // X(a) rmnext → a & !End
-    REQUIRE(result->is_and());
+    // X[!](a) → True
+    REQUIRE(result->is_true());
 }
 
-TEST_CASE("rmnext: And progression", "[rmnext][progression]") {
+TEST_CASE("replaceNext2True: Next in And", "[replaceNext2True][simplify]") {
     FormulaPool pool;
     pool.declare_variables({"a", "b"}, {});
 
     Formula* a = pool.create_variable("a");
     Formula* b = pool.create_variable("b");
-    Formula* and_ab = pool.create_and(a, b);
+    Formula* next_a = pool.create_next(a);
+    Formula* and_next_a_b = pool.create_and(next_a, b);
+    Formula* result = and_next_a_b->replaceNext2True(pool);
 
-    std::unordered_set<int> edge = {0, 1};  // Both a and b are true
-    Formula* result = and_ab->rmnext(pool, nullptr, edge);
-
-    REQUIRE(result->is_true());
+    // (X[!](a) & b) → (True & b) → b
+    REQUIRE(result->is_literal());
+    REQUIRE(result->var_id() == b->var_id());
 }
 
-TEST_CASE("rmnext: Or progression", "[rmnext][progression]") {
+TEST_CASE("replaceNext2True: Next in Or", "[replaceNext2True][simplify]") {
     FormulaPool pool;
     pool.declare_variables({"a", "b"}, {});
 
     Formula* a = pool.create_variable("a");
     Formula* b = pool.create_variable("b");
-    Formula* or_ab = pool.create_or(a, b);
+    Formula* next_a = pool.create_next(a);
+    Formula* or_next_a_b = pool.create_or(next_a, b);
+    Formula* result = or_next_a_b->replaceNext2True(pool);
 
-    std::unordered_set<int> edge = {0};  // Only a is true
-    Formula* result = or_ab->rmnext(pool, nullptr, edge);
-
+    // (X[!](a) | b) → (True | b) → True
     REQUIRE(result->is_true());
 }
 
-TEST_CASE("rmnext: End marker", "[rmnext][progression]") {
+TEST_CASE("replaceNext2True: Multiple Next", "[replaceNext2True][simplify]") {
+    FormulaPool pool;
+    pool.declare_variables({"a", "b", "c"}, {});
+
+    Formula* a = pool.create_variable("a");
+    Formula* b = pool.create_variable("b");
+    Formula* c = pool.create_variable("c");
+    Formula* next_a = pool.create_next(a);
+    Formula* next_b = pool.create_next(b);
+    Formula* and_formula = pool.create_and(next_a, next_b);
+    Formula* or_with_c = pool.create_or(and_formula, c);
+    Formula* result = or_with_c->replaceNext2True(pool);
+
+    // ((X[!](a) & X[!](b)) | c) → ((True & True) | c) → (True | c) → True
+    REQUIRE(result->is_true());
+}
+
+TEST_CASE("replaceNext2True: Next in Not", "[replaceNext2True][simplify]") {
+    FormulaPool pool;
+    pool.declare_variables({"a"}, {});
+
+    Formula* a = pool.create_variable("a");
+    Formula* next_a = pool.create_next(a);
+    Formula* not_next_a = pool.create_not(next_a);
+    Formula* result = not_next_a->replaceNext2True(pool);
+
+    // !X[!](a) → !True → False
+    REQUIRE(result->is_false());
+}
+
+TEST_CASE("replaceNext2True: Literal unchanged", "[replaceNext2True][simplify]") {
+    FormulaPool pool;
+    pool.declare_variables({"a"}, {});
+
+    Formula* a = pool.create_variable("a");
+    Formula* result = a->replaceNext2True(pool);
+
+    // a → a (unchanged)
+    REQUIRE(result == a);
+}
+
+TEST_CASE("replaceNext2True: End unchanged", "[replaceNext2True][simplify]") {
     FormulaPool pool;
     Formula* end = pool.create_end_marker();
+    Formula* result = end->replaceNext2True(pool);
 
-    std::unordered_set<int> edge = {};
-    Formula* result = end->rmnext(pool, nullptr, edge);
-
-    // End rmnext → False
-    REQUIRE(result->is_false());
+    // End → End (unchanged)
+    REQUIRE(result->is_end());
 }
 
 // =============================================================================

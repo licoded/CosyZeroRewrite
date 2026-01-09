@@ -11,7 +11,7 @@ set(FORMULA_SOURCES
     src/formula/nnf.cpp
     src/formula/xnf.cpp
     src/formula/simplify.cpp
-    src/formula/rmnext.cpp
+    src/formula/replace_next.cpp
     src/automata/dfa.cpp
     src/automata/tableau.cpp
     src/synthesis/synthesis.cpp

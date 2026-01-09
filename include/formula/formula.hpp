@@ -30,8 +30,8 @@ public:
     /**
      * @brief Operator types for LTLf formulas
      *
-     * Note: WeakNext (WX) is converted to Next during parsing.
-     * The End marker handles finite trace semantics instead.
+     * Note: Next represents Strong Next (X[!]), which requires a next state.
+     * The End marker handles finite trace semantics.
      */
     enum class OpType {
         True,       // True constant
@@ -39,7 +39,7 @@ public:
         Not,        // Negation
         And,        // Conjunction
         Or,         // Disjunction
-        Next,       // Strong Next (X)
+        Next,       // Strong Next (X[!])
         Until,      // Until (U)
         Release,    // Release (R)
         End,        // End marker for finite traces
@@ -146,19 +146,20 @@ public:
     Formula* xnf_with_end_marker(FormulaPool& pool) const;
 
     /**
-     * @brief Apply formula progression (rmnext)
+     * @brief Replace all Strong Next (X[!]) subformulas with True
      * @param pool The FormulaPool to create new formulas
-     * @param edge The transition edge (assignment to variables)
-     * @param all_vars Set of all variable IDs in the system
-     * @return New formula for the next state
+     * @return New formula with X[!] replaced by True
      *
-     * Progression computes the next state formula after applying a transition.
-     * Input MUST be in XNF format.
+     * This is a simplification operation for XNF formulas.
+     * Input MUST be in XNF format (no Until/Release in primitives).
+     *
+     * Rules:
+     * - X[!] φ → True
+     * - Other operators are recursively processed
      *
      * Time complexity: O(n) where n is formula size.
      */
-    Formula* rmnext(FormulaPool& pool, Formula* edge,
-                    const std::unordered_set<int>& all_vars) const;
+    Formula* replaceNext2True(FormulaPool& pool) const;
 
     // ========== Utilities ==========
 

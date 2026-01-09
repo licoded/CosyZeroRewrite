@@ -232,6 +232,6 @@ std::unordered_set<int> Formula::collect_variables(Formula* f) {
 // nnf() - implemented in nnf.cpp
 // simplify() - implemented in simplify.cpp
 // xnf_with_end_marker() - implemented in xnf.cpp
-// rmnext() - implemented in rmnext.cpp
+// replaceNext2True() - implemented in replace_next.cpp
 
 } // namespace formula
