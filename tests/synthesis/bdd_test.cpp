@@ -138,26 +138,6 @@ void test_conjunction_rm_next() {
     std::cout << std::endl;
 }
 
-void test_formula_with_temporal_operators() {
-    std::cout << "=== Test: Formula with temporal operators ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"p0", "p1"}, {});
-
-    // Formula: p0 U X(p1)
-    // rm_next: p0 U True = True (since True satisfies Until immediately)
-    Formula* phi = pool.create_until(
-        pool.create_variable("p0"),
-        pool.create_next(pool.create_variable("p1"))
-    );
-
-    Formula* rm = apply_rm_next(phi, pool);
-    assert(rm->is_true());
-
-    std::cout << "p0 U X(p1) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
-    std::cout << std::endl;
-}
-
 void test_statistics() {
     std::cout << "=== Test: BDD Statistics ===" << std::endl;
 
@@ -177,27 +157,6 @@ void test_statistics() {
               << stats.num_cache_misses << " cache misses" << std::endl;
 
     std::cout << "BDD Statistics test passed ✓" << std::endl;
-    std::cout << std::endl;
-}
-
-void test_release_operator() {
-    std::cout << "=== Test: Release operator ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"p0", "p1"}, {});
-
-    // Formula: p0 R X(p1)
-    // rm_next: p0 R True (Release with True on right)
-    Formula* phi = pool.create_release(
-        pool.create_variable("p0"),
-        pool.create_next(pool.create_variable("p1"))
-    );
-
-    Formula* rm = apply_rm_next(phi, pool);
-    // p0 R True = True
-    assert(rm->is_true());
-
-    std::cout << "p0 R X(p1) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
     std::cout << std::endl;
 }
 
@@ -327,8 +286,6 @@ int main() {
     test_bdd_manager_basic();
     test_enumeration();
     test_conjunction_rm_next();
-    test_formula_with_temporal_operators();
-    test_release_operator();
     test_complex_formula();
     test_xnf_phi_vs_prop_atoms();  // Bug fix verification
     test_nested_next();

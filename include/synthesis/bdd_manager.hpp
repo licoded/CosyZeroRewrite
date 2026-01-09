@@ -232,18 +232,19 @@ private:
 /**
  * @brief Apply rm_next transformation to a formula
  *
- * Removes all Next operators by replacing X(φ) with True.
+ * Wrapper around Formula::replaceNext2True() that also applies simplify().
+ * Removes all Strong Next (X[!]) operators by replacing X[!](φ) with True.
  * This extracts the boolean constraints from a temporal formula.
  *
  * Examples:
- *   X(p) → True
- *   p & X(q) → p & True → p
- *   X(p) | q → True | q → True
- *   !(X(p)) → !True → False
+ *   X[!](p) → True
+ *   p & X[!](q) → p & True → p
+ *   X[!](p) | q → True | q → True
+ *   !(X[!](p)) → !True → False
  *
- * @param f The input formula
+ * @param f The input formula (should be in XNF format)
  * @param pool Formula pool for creating new formulas
- * @return New formula with all X() replaced by True
+ * @return New formula with all X[!] replaced by True
  */
 formula::Formula* apply_rm_next(formula::Formula* f, formula::FormulaPool& pool);
 

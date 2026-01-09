@@ -15,150 +15,30 @@
 namespace synthesis {
 
 //==============================================================================
-// rm_next Operation
+// apply_rm_next Operation
 //==============================================================================
 
-namespace {
-
 /**
- * @brief Helper: Recursively apply rm_next transformation
+ * @brief Apply rm_next transformation using Formula::replaceNext2True
  *
- * Replaces X(φ) with True to extract boolean constraints.
+ * This is a wrapper around Formula::replaceNext2True() that also
+ * applies simplify() for additional optimization.
+ *
+ * Rules:
+ * - X[!] φ → True
+ * - Other operators are recursively processed
+ *
+ * @param f The input formula (should be in XNF format)
+ * @param pool Formula pool for creating new formulas
+ * @return New formula with all X[!] replaced by True
  */
-formula::Formula* apply_rm_next_impl(formula::Formula* f, formula::FormulaPool& pool) {
-    if (!f) {
-        return pool.create_false();
-    }
-
-    using OpType = formula::Formula::OpType;
-
-    switch (f->op()) {
-        case OpType::True:
-        case OpType::False:
-        case OpType::Literal:
-            // Base cases: keep as is
-            return f;
-
-        case OpType::Not: {
-            // !(X(φ)) → !True → False
-            if (f->left()->is_next()) {
-                return pool.create_false();
-            }
-            // !(φ) → !(rm_next(φ))
-            formula::Formula* left_rm = apply_rm_next_impl(f->left(), pool);
-            if (left_rm == f->left()) {
-                return f;  // No change
-            }
-            return pool.create_not(left_rm);
-        }
-
-        case OpType::And: {
-            // φ ∧ X(ψ) → φ ∧ True → φ
-            // X(φ) ∧ ψ → True ∧ ψ → ψ
-            formula::Formula* left_rm = apply_rm_next_impl(f->left(), pool);
-            formula::Formula* right_rm = apply_rm_next_impl(f->right(), pool);
-
-            // Simplify: True ∧ φ → φ, φ ∧ True → φ
-            if (left_rm->is_true()) return right_rm;
-            if (right_rm->is_true()) return left_rm;
-            if (left_rm->is_false() || right_rm->is_false()) {
-                return pool.create_false();
-            }
-
-            return pool.create_and(left_rm, right_rm);
-        }
-
-        case OpType::Or: {
-            // φ ∨ X(ψ) → φ ∨ True → True
-            // X(φ) ∨ ψ → True ∨ ψ → True
-            formula::Formula* left_rm = apply_rm_next_impl(f->left(), pool);
-            formula::Formula* right_rm = apply_rm_next_impl(f->right(), pool);
-
-            // Simplify: True ∨ φ → True, φ ∨ True → True
-            if (left_rm->is_true() || right_rm->is_true()) {
-                return pool.create_true();
-            }
-            if (left_rm->is_false()) return right_rm;
-            if (right_rm->is_false()) return left_rm;
-
-            return pool.create_or(left_rm, right_rm);
-        }
-
-        case OpType::Next: {
-            // X(φ) → True
-            return pool.create_true();
-        }
-
-        case OpType::Until: {
-            // φ U ψ → rm_next(φ) U rm_next(ψ) if no X in the way
-            // But typically U is expanded to XNF before this
-            // For safety, apply rm_next to both sides and keep U
-            formula::Formula* left_rm = apply_rm_next_impl(f->left(), pool);
-            formula::Formula* right_rm = apply_rm_next_impl(f->right(), pool);
-
-            // If either side is True after rm_next, simplify
-            // True U ψ ≡ ψ (since True U ψ is satisfied immediately)
-            // φ U True ≡ True
-            if (left_rm->is_true()) {
-                return right_rm;
-            }
-            if (right_rm->is_true()) {
-                return pool.create_true();
-            }
-            if (left_rm->is_false()) {
-                return right_rm;  // False U ψ ≡ ψ
-            }
-            if (right_rm->is_false()) {
-                return pool.create_false();  // φ U False ≡ False
-            }
-
-            // Keep Until (it becomes a boolean constraint)
-            return pool.create_until(left_rm, right_rm);
-        }
-
-        case OpType::Release: {
-            // φ R ψ → rm_next(φ) R rm_next(ψ)
-            formula::Formula* left_rm = apply_rm_next_impl(f->left(), pool);
-            formula::Formula* right_rm = apply_rm_next_impl(f->right(), pool);
-
-            // Simplify:
-            // φ R True ≡ True
-            // True R ψ ≡ ψ
-            // φ R False ≡ False (unless φ is True)
-            // False R ψ ≡ ψ
-            if (right_rm->is_true()) {
-                return pool.create_true();
-            }
-            if (left_rm->is_true()) {
-                return right_rm;
-            }
-            if (right_rm->is_false()) {
-                return left_rm->is_true() ? pool.create_true() : pool.create_false();
-            }
-            if (left_rm->is_false()) {
-                return right_rm;
-            }
-
-            return pool.create_release(left_rm, right_rm);
-        }
-
-        case OpType::End:
-            // End marker - treat as False in boolean context
-            return pool.create_false();
-
-        default:
-            return f;
-    }
-}
-
-} // anonymous namespace
-
 formula::Formula* apply_rm_next(formula::Formula* f, formula::FormulaPool& pool) {
     if (!f) {
         return pool.create_false();
     }
 
-    formula::Formula* result = apply_rm_next_impl(f, pool);
+    // Use the unified Formula::replaceNext2True() implementation
+    formula::Formula* result = f->replaceNext2True(pool);
 
     // Apply simplify to handle cases like s1 | !s1 → True
     result = result->simplify(pool);
