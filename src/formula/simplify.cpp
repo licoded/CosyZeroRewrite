@@ -146,8 +146,12 @@ Formula* rebuild_or_chain(FormulaPool& pool,
  * 4. a U (a | ...) → a | ... (right absorption)
  * 5. a U (a U b) → a U b (left Until absorption)
  * 6. a U (b U a) → b U a (right Until absorption)
- * 7. X a U a → X a | a (Next distribution)
- * 8. X a U X b → X(a U b) (Next extraction)
+ * 7. (X[!] a) U a → a | X[!] a (Next distribution)
+ *    - (X[!] a) U a 等价于 a | X[!] a
+ *    - 语义: "a 从下一时刻一直为真，直到 a 为真" → "现在 a 为真，或者下一时刻开始 a 一直为真"
+ * 8. (X[!] a) U (X[!] b) → X[!](a U b) (Next extraction)
+ *    - (X[!] a) U (X[!] b) 等价于 X[!](a U b)
+ *    - 语义: 两边都有 strong next，可以提取出来
  *
  * @param pool FormulaPool for creating formulas
  * @param left Left operand
@@ -187,12 +191,12 @@ Formula* simplify_until(FormulaPool& pool, Formula* left, Formula* right) {
         return right;  // b U a
     }
 
-    // Rule 7: X a U a → X a | a
+    // Rule 7: (X[!] a) U a → a | X[!] a
     if (left->is_next() && left->left() == right) {
         return pool.create_or(left, right);
     }
 
-    // Rule 8: X a U X b → X(a U b)
+    // Rule 8: (X[!] a) U (X[!] b) → X[!](a U b)
     if (left->is_next() && right->is_next()) {
         return pool.create_next(
             pool.create_until(left->left(), right->left())
