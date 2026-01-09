@@ -586,8 +586,10 @@ simplify_and_weak assumes:
 ### 9.1 simplify_until() - Rule-Based Simplification
 
 ```cpp
-aalta_formula* simplify_until(aalta_formula *l, aalta_formula *r)
+Formula* simplify_until(FormulaPool& pool, Formula* left, Formula* right)
 ```
+
+**符号说明**: `X[!]` 表示 strong next (强下一步操作符)，要求状态必须转移。
 
 **Rules in order**:
 
@@ -599,13 +601,13 @@ aalta_formula* simplify_until(aalta_formula *l, aalta_formula *r)
 | 4 | `a U (a \| ...)` | `a \| ...` | Right absorption |
 | 5 | `a U (a U b)` | `a U b` | Left Until absorption |
 | 6 | `a U (b U a)` | `b U a` | Right Until absorption |
-| 7 | `X a U a` | `X a \| a` | Next distribution |
-| 8 | `X a U X b` | `X(a U b)` | Next extraction |
+| 7 | `(X[!] a) U a` | `a \| X[!] a` | Next distribution |
+| 8 | `(X[!] a) U (X[!] b)` | `X[!](a U b)` | Next extraction |
 
 ### 9.2 simplify_release() - Rule-Based Simplification
 
 ```cpp
-aalta_formula* simplify_release(aalta_formula *l, aalta_formula *r)
+Formula* simplify_release(FormulaPool& pool, Formula* left, Formula* right)
 ```
 
 **Rules in order**:
@@ -617,34 +619,31 @@ aalta_formula* simplify_release(aalta_formula *l, aalta_formula *r)
 | 3 | `a R True` | `True` | a release True is True |
 | 4 | `a R (a & ...)` | `a & ...` | Right absorption |
 | 5 | `(a \| ...) R a` | `a` | Left absorption |
-| 6 | `!a R a` | `False R a` | Not absorption |
+| 6 | `(!a) R a` | `False R a` | Not absorption |
 
 ---
 
-## Part 10: Simplify_next() - Trivial Case
+## Part 10: simplify_next() - Trivial Case
 
 ```cpp
-aalta_formula* simplify_next(aalta_formula *af) {
-  aalta_formula *s = af->simplify();
-
-  switch (s->_op) {
-    case False:
-      return FALSE;  // X False = False
-    // case True:
-    //   return TRUE;  // X True = True (commented out!)
-    default:
-      return Next(af).unique();
-  }
-}
+Formula* simplify_next(FormulaPool& pool, Formula* operand)
 ```
 
-**Note**: `X True = True` optimization is **disabled** in original code!
+**符号说明**: `X[!]` 表示 strong next (强下一步操作符)。
+
+**Rules**:
+| Rule | Formula | Result | Explanation |
+|------|---------|--------|-------------|
+| 1 | `X[!] False` | `False` | Next of false is false |
+| 2 | `X[!] True` | `True` | Next of true is true (原实现中被禁用，新实现保持禁用) |
+
+**Note**: `X[!] True = True` 优化在原 aalta 实现中被禁用，新实现保持该行为。
 
 ---
 
 ## Part 11: Summary and Recommendations
 
-### 11.1 Key Findings
+### 11.1 Key Findings - Original (aalta) Implementation
 
 1. **Actual complexity is O(n log n)** - Dominated by sorting, not O(n²) as originally thought
 2. **Chain structure** - Right-leaning linked list (not balanced tree)
@@ -654,16 +653,23 @@ aalta_formula* simplify_next(aalta_formula *af) {
 
 **Important Note**: `is_conflict()` is **disabled** in the original implementation. This means conflicts like `a & !a` are NOT detected during simplification. The function exists but always returns false.
 
-### 11.2 Recommendations for New Design
+### 11.2 New Implementation Status (2026-01)
 
-| Aspect | Original | New Design Recommendation |
-|--------|----------|---------------------------|
-| **Flattening** | split() iterative | Keep same approach |
-| **Deduplication** | Sort + compare | Use HashSet (O(n)) |
-| **Chain structure** | Right-leaning | Keep same structure |
-| **_simp cache** | Pointer cache | Keep caching |
+**已实现的改进**:
 
-**Note on Conflict Detection**: Original implementation has `is_conflict()` disabled. Consider whether to implement conflict detection (e.g., `a & !a → False`) in the new design.
+| Aspect | Original | New Implementation | Status |
+|--------|----------|-------------------|--------|
+| **Flattening** | split() iterative | `collect_binary_terms()` 递归展开 | ✅ |
+| **Deduplication** | Sort + compare (O(n log n)) | HashSet + hash consing (O(n)) | ✅ |
+| **Conflict detection** | Disabled | `has_complementary_literals()` 已启用 | ✅ |
+| **Chain structure** | Right-leaning | Right-leaning | ✅ |
+| **Simp cache** | Per-object `_simp` pointer | N/A (immutable design) | ✅ |
+
+**冲突检测**:
+- ✅ 新实现已启用 `has_complementary_literals()` 函数
+- ✅ 检测 `a & !a → False` (AND 中的互补字面量)
+- ✅ 检测 `a | !a → True` (OR 中的互补字面量)
+- ⚠️ 仅检测 NNF 形式的字面量，不检测复杂子公式
 
 ### 11.3 Proposed O(n) Algorithm
 
@@ -711,114 +717,77 @@ void collect_and_terms(Formula* f, unordered_set<Formula*>& terms) {
 }
 ```
 
-### 11.4 Open Questions
+### 11.4 Open Questions (已解决)
 
-1. **Should we enable conflict detection?**
-   - Original: Disabled (always returns false)
-   - Pros: Can detect `a & !a` → False
-   - Cons: Adds complexity
-
-2. **Should we enable `X True = True` optimization?**
-   - Original: Disabled
-   - Simple optimization, no reason to disable
-
-3. **Should we keep simplify_and_weak?**
-   - Original: Optimization for already-simplified formulas
-   - New: Could unify into single function with flag
+| 问题 | 原实现状态 | 新实现状态 |
+|------|-----------|-----------|
+| **启用冲突检测?** | Disabled (always returns false) | ✅ **已启用** `has_complementary_literals()` |
+| **启用 `X[!] True = True`?** | Disabled | ❌ 保持禁用 (与原实现一致) |
+| **保留 simplify_and_weak?** | Optimization | ❌ 不需要 (HashSet 自动去重) |
 
 ---
 
 ## Part 12: Known Issues / Bug Tracking
 
-### 12.1 Disabled `is_conflict()` - Potential Bug Source
+### 12.1 Original (aalta) Implementation - Disabled `is_conflict()`
 
-**Status**: ⚠️ **KNOWN ISSUE** - Documented for root cause analysis
+**Status**: ✅ **FIXED in new implementation** - 此问题仅存在于原 aalta 实现
 
-#### 12.1.1 Problem Description
+#### 12.1.1 Problem Description (Original)
 
 The `is_conflict()` function in `aalta_formula.cpp:134` is **completely disabled**:
 
 ```cpp
 bool aalta_formula::is_conflict(aalta_formula *af1, aalta_formula *af2) {
   return false;  // 直接返回 false！
-  //@ TODO: 好想重构化简代码啊啊啊啊啊，可是好难重构啊啊啊啊啊啊   %>_<%
-  // ... 后面所有代码都是死代码
+  // ...
 }
 ```
 
 #### 12.1.2 Impact
 
-| Conflict Type | Detection | Result |
-|--------------|-----------|--------|
-| `a \| !a → True` | ✅ Works | `simplify_or` uses `mutex()` function |
-| `a & !a → False` | ❌ **Broken** | `simplify_and` calls disabled `is_conflict()` |
+| Conflict Type | Original Detection | New Implementation |
+|--------------|-------------------|-------------------|
+| `a \| !a → True` | ✅ Works (`mutex()`) | ✅ Works (`has_complementary_literals()`) |
+| `a & !a → False` | ❌ **Broken** | ✅ **Fixed** |
 
-**Consequence**: Formulas containing `a & !a` are **NOT simplified to `False`** during simplification.
+#### 12.1.3 Resolution in New Implementation
 
-#### 12.1.3 Why This Might Not Break Everything
-
-The original implementation still works because:
-
-1. **DFA construction may catch conflicts later**: The progression algorithm (`FormulaProgression` in `af_utils.cpp`) evaluates formulas on specific edges, and unsatisfiable formulas will naturally result in no valid transitions.
-
-2. **BDD-based operations may implicitly handle contradictions**: When building BDDs for edge constraints, `a & !a` evaluates to `False` at the BDD level.
-
-3. **SAT/SMT solvers may detect unsatisfiability**: If the formula is passed to Z3 or other solvers, they will detect contradictions.
-
-#### 12.1.4 Bug Symptoms to Watch For
-
-If you encounter any of these issues, the disabled `is_conflict()` may be the root cause:
-
-1. **Unexpectedly large DFAs**: Formulas that should simplify to `False` remain complex, leading to larger automata.
-
-2. **Performance issues**: Unnecessary state space exploration due to undetected contradictions.
-
-3. **Incorrect synthesis results**: In rare cases, the algorithm might find strategies for unsatisfiable formulas (though this is unlikely if later stages handle it correctly).
-
-4. **Test failures**: Formulas like `a & !a` not evaluating to `False` as expected.
-
-#### 12.1.5 Code Locations
-
-| File | Line | Function | Status |
-|------|------|----------|--------|
-| `aalta_formula.cpp` | 134 | `is_conflict()` | **Disabled** |
-| `aalta_formula.cpp` | 444 | `simplify_and` → `is_conflict()` | Call is no-op |
-| `aalta_formula.cpp` | 104 | `mutex()` | **Active** (for OR) |
-| `aalta_formula.cpp` | 333, 340 | `simplify_or` → `mutex()` | Works correctly |
-| `af_utils.cpp` | 249 | `check_conflict()` | **Active** (edge sets) |
-
-#### 12.1.6 Resolution Options
-
-| Option | Description | Effort | Impact |
-|--------|-------------|--------|--------|
-| **A. Leave as-is** | Document and rely on downstream handling | None | Low (system works) |
-| **B. Enable `is_conflict()`** | Implement working conflict detection | Medium | Medium (may improve performance) |
-| **C. Add simple check** | Just detect `a & !a` in simplify_and | Low | Medium (handles common case) |
-
-#### 12.1.7 Recommendation for New Design
-
-**Implement basic conflict detection** for the new Formula module:
+**Location**: `src/formula/simplify.cpp:49-74`
 
 ```cpp
-// Simple conflict detection for AND
-bool has_conflict(Formula* f1, Formula* f2) {
-  // Check for literal contradictions: a & !a
-  if (f1->op() == Not && f1->right()->is_literal() &&
-      f2->is_literal() && f1->right()->var_id() == f2->var_id())
-    return true;
-  if (f2->op() == Not && f2->right()->is_literal() &&
-      f1->is_literal() && f2->right()->var_id() == f1->var_id())
-    return true;
-  return false;
+bool has_complementary_literals(const std::unordered_set<Formula*>& terms,
+                                 FormulaPool& pool) {
+    std::unordered_set<Formula*> positives;  // v0, v1, ...
+    std::unordered_set<Formula*> negatives;  // !v0, !v1, ...
+
+    for (Formula* f : terms) {
+        if (f->is_not()) {
+            if (positives.find(f->left()) != positives.end()) {
+                return true;  // a and !a both present
+            }
+            negatives.insert(f);
+        } else if (f->is_literal()) {
+            Formula* negated = pool.create_not(f);
+            if (negatives.find(negated) != negatives.end()) {
+                return true;  // !a and a both present
+            }
+            positives.insert(f);
+        }
+    }
+    return false;
 }
 ```
 
-This handles the most common case (`a & !a`) with minimal complexity.
+**✅ 已实现**:
+- AND 冲突检测: `a & !a → False` (simplify_and:379-382)
+- OR 重言式检测: `a | !a → True` (simplify_or:440-443)
 
 ---
 
 ## References
 
+### Original (aalta) Implementation
 - **simplify_and**: `aalta_formula.cpp:401-467`
 - **simplify_and_weak**: `aalta_formula.cpp:476-548`
 - **simplify_or**: `aalta_formula.cpp:306-392`
@@ -827,8 +796,16 @@ This handles the most common case (`a & !a`) with minimal complexity.
 - **simplify_release**: `aalta_formula.cpp:661-692`
 - **is_conflict** (disabled): `aalta_formula.cpp:134-275`
 - **split**: `aalta_formula.cpp:1254-1276`
-- **af_now**: `aalta_formula.cpp:1409-1414`
-- **af_next**: `aalta_formula.cpp:1422-1427`
+
+### New Implementation
+- **simplify.cpp**: `src/formula/simplify.cpp`
+- **collect_binary_terms()**: `simplify.cpp:22-34`
+- **has_complementary_literals()**: `simplify.cpp:49-74`
+- **simplify_and()**: `simplify.cpp:345-386`
+- **simplify_or()**: `simplify.cpp:406-447`
+- **simplify_until()**: `simplify.cpp:161-208`
+- **simplify_release()**: `simplify.cpp:226-263`
+- **simplify_next()**: `simplify.cpp:276-289`
 
 ---
 

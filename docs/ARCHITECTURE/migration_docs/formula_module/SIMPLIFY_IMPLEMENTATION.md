@@ -716,3 +716,74 @@ The current simplify implementation has several significant issues:
 4. Phase 4: Add comprehensive tests
 
 The code works but is showing its age - it predates modern C++ practices and would benefit significantly from a redesign using RAII, smart pointers, and cleaner separation of concerns.
+
+---
+
+## New Implementation Status (2026-01)
+
+### 已实现的改进
+
+| Issue | Original | New Implementation |
+|-------|----------|-------------------|
+| Memory management | Raw pointers + manual delete | Hash consing (FormulaPool) |
+| Global mutable state | Static variables | FormulaPool per context |
+| Code duplication | simplify_and_weak + merge_and | Unified HashSet approach |
+| Performance | O(n log n) sort + O(n²) conflict | O(n) HashSet |
+| Conflict detection | Disabled | ✅ Enabled |
+
+### 未实现的原规则 (TODO)
+
+以下规则在原 aalta 实现中存在，但新实现**尚未实现**：
+
+#### simplify_until() 缺失规则
+
+| 规则 | 公式 | 结果 | 状态 |
+|------|------|------|------|
+| 7 | `φ U (ψ R φ)` | `ψ R φ` (Release conversion) | ❌ 未实现 |
+| 8 | `(ψ R φ) U φ` | `φ` (Release absorption) | ❌ 未实现 |
+| 9 | `(φ U ψ) U φ` | `ψ U φ` (Associativity variant) | ❌ 未实现 |
+| 10 | `(ψ U φ) U φ` | `ψ U φ` (Duplicate right) | ❌ 未实现 |
+| 13 | `φ U FG(ψ)` | `FG(ψ)` (FG detection) | ❌ 未实现 |
+
+#### simplify_release() 缺失规则
+
+| 规则 | 公式 | 结果 | 状态 |
+|------|------|------|------|
+| 6 | `φ R (φ R ψ)` | `φ R ψ` (Idempotent) | ❌ 未实现 |
+| 7 | `φ R (ψ R φ)` | `ψ R φ` (Commutativity) | ❌ 未实现 |
+| 8 | `φ R (ψ U φ)` | `ψ U φ` (Until conversion) | ❌ 未实现 |
+| 9 | `(ψ U φ ∨ ...) R φ` | `φ` (Until absorption) | ❌ 未实现 |
+| 10 | `(φ R ψ) R φ` | `ψ R φ` (Associativity) | ❌ 未实现 |
+| 11 | `(ψ R φ) R φ` | `ψ R φ` (Duplicate right) | ❌ 未实现 |
+
+### 新实现已实现规则
+
+**simplify_until()** (`src/formula/simplify.cpp:161-208`):
+1. `False U a → a`
+2. `a U False → False`
+3. `a U True → True`
+4. `a U (a | ...) → a | ...`
+5. `a U (a U b) → a U b`
+6. `a U (b U a) → b U a`
+7. `(X[!] a) U a → a | X[!] a`
+8. `(X[!] a) U (X[!] b) → X[!](a U b)`
+
+**simplify_release()** (`src/formula/simplify.cpp:226-263`):
+1. `True R a → a`
+2. `a R False → False`
+3. `a R True → True`
+4. `a R (a & ...) → a & ...`
+5. `(a | ...) R a → a`
+6. `(!a) R a → False R a`
+
+### 参考代码位置
+
+| 功能 | 文件 | 行号 |
+|------|------|------|
+| simplify_until() | `src/formula/simplify.cpp` | 161-208 |
+| simplify_release() | `src/formula/simplify.cpp` | 226-263 |
+| simplify_and() | `src/formula/simplify.cpp` | 345-386 |
+| simplify_or() | `src/formula/simplify.cpp` | 406-447 |
+| simplify_next() | `src/formula/simplify.cpp` | 276-289 |
+| has_complementary_literals() | `src/formula/simplify.cpp` | 49-74 |
+
