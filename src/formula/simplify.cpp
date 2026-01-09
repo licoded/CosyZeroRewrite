@@ -333,6 +333,112 @@ Formula* simplify_next(FormulaPool& pool, Formula* operand) {
     return pool.create_next(operand);
 }
 
+/**
+ * @brief Simplify NOT formula with double negation and constant folding
+ *
+ * Rules:
+ * - !!a → a (double negation)
+ * - !True → False
+ * - !False → True
+ *
+ * @param pool FormulaPool for creating formulas
+ * @param operand Operand of Not (already simplified)
+ * @param original Pointer to original formula for identity check
+ * @return Simplified formula
+ */
+Formula* simplify_not(FormulaPool& pool, Formula* operand, Formula* original) {
+    // Double negation: !!a → a
+    if (operand->is_not()) {
+        return operand->left();
+    }
+
+    // Not(True) → False
+    if (operand->is_true()) {
+        return pool.create_false();
+    }
+
+    // Not(False) → True
+    if (operand->is_false()) {
+        return pool.create_true();
+    }
+
+    // Default: keep Not
+    if (operand != original->left()) {
+        return pool.create_not(operand);
+    }
+    return original;
+}
+
+/**
+ * @brief Simplify AND formula with deduplication and conflict detection
+ *
+ * Process: collect terms from both sides → check for False → check conflicts → rebuild
+ *
+ * @param pool FormulaPool for creating formulas
+ * @param left Left operand (already simplified)
+ * @param right Right operand (already simplified)
+ * @return Simplified formula
+ */
+Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
+    std::unordered_set<Formula*> terms;
+    bool has_false = false;
+
+    // Collect terms from left
+    collect_and_terms(left, terms, has_false);
+    if (has_false) {
+        return pool.create_false();
+    }
+
+    // Collect terms from right
+    collect_and_terms(right, terms, has_false);
+    if (has_false) {
+        return pool.create_false();
+    }
+
+    // Check for conflicts (a & !a)
+    if (has_complementary_literals(terms, pool)) {
+        return pool.create_false();
+    }
+
+    // Rebuild chain from deduplicated terms
+    return rebuild_and_chain(pool, terms);
+}
+
+/**
+ * @brief Simplify OR formula with deduplication and tautology detection
+ *
+ * Process: collect terms from both sides → check for True → check tautologies → rebuild
+ *
+ * @param pool FormulaPool for creating formulas
+ * @param left Left operand (already simplified)
+ * @param right Right operand (already simplified)
+ * @return Simplified formula
+ */
+Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
+    std::unordered_set<Formula*> terms;
+    bool has_true = false;
+
+    // Collect terms from left
+    collect_or_terms(left, terms, has_true);
+    if (has_true) {
+        return pool.create_true();
+    }
+
+    // Collect terms from right
+    collect_or_terms(right, terms, has_true);
+    if (has_true) {
+        return pool.create_true();
+    }
+
+    // Check for tautologies (a | !a)
+    if (has_complementary_literals(terms, pool)) {
+        return pool.create_true();
+    }
+
+    // Rebuild chain from deduplicated terms
+    return rebuild_or_chain(pool, terms);
+}
+
 } // anonymous namespace
 
 // ========== Main Simplify Function ==========
@@ -345,89 +451,20 @@ Formula* Formula::simplify(FormulaPool& pool) const {
 
     switch (op_) {
         case Formula::OpType::Not: {
-            // Simplify operand first
             Formula* simp_left = left_->simplify(pool);
-
-            // Double negation: !!a → a
-            if (simp_left->is_not()) {
-                return simp_left->left();
-            }
-
-            // Not(True) → False
-            if (simp_left->is_true()) {
-                return pool.create_false();
-            }
-
-            // Not(False) → True
-            if (simp_left->is_false()) {
-                return pool.create_true();
-            }
-
-            // Default: keep Not
-            if (simp_left != left_) {
-                return pool.create_not(simp_left);
-            }
-            return const_cast<Formula*>(this);
+            return simplify_not(pool, simp_left, const_cast<Formula*>(this));
         }
 
         case Formula::OpType::And: {
-            // Collect and deduplicate using HashSet (O(n))
-            std::unordered_set<Formula*> terms;
-            bool has_false = false;
-
-            // Collect terms from left
             Formula* simp_left = left_->simplify(pool);
-            collect_and_terms(simp_left, terms, has_false);
-
-            if (has_false) {
-                return pool.create_false();
-            }
-
-            // Collect terms from right
             Formula* simp_right = right_->simplify(pool);
-            collect_and_terms(simp_right, terms, has_false);
-
-            if (has_false) {
-                return pool.create_false();
-            }
-
-            // Check for conflicts (a & !a)
-            if (has_complementary_literals(terms, pool)) {
-                return pool.create_false();
-            }
-
-            // Rebuild chain from deduplicated terms
-            return rebuild_and_chain(pool, terms);
+            return simplify_and(pool, simp_left, simp_right);
         }
 
         case Formula::OpType::Or: {
-            // Collect and deduplicate using HashSet (O(n))
-            std::unordered_set<Formula*> terms;
-            bool has_true = false;
-
-            // Collect terms from left
             Formula* simp_left = left_->simplify(pool);
-            collect_or_terms(simp_left, terms, has_true);
-
-            if (has_true) {
-                return pool.create_true();
-            }
-
-            // Collect terms from right
             Formula* simp_right = right_->simplify(pool);
-            collect_or_terms(simp_right, terms, has_true);
-
-            if (has_true) {
-                return pool.create_true();
-            }
-
-            // Check for tautologies (a | !a)
-            if (has_complementary_literals(terms, pool)) {
-                return pool.create_true();
-            }
-
-            // Rebuild chain from deduplicated terms
-            return rebuild_or_chain(pool, terms);
+            return simplify_or(pool, simp_left, simp_right);
         }
 
         case Formula::OpType::Next: {
