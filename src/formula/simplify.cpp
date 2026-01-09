@@ -13,33 +13,23 @@ namespace {
  *
  * Implementation details:
  * - Flattens nested AND structures recursively: `(a & (b & c))` → `{a, b, c}`
- * - Skips True (identity element), stops if False encountered (dominance)
  * - Uses hash consing: Formula* pointer equality = structural equality
- * - Does NOT detect conflicts (a & !a); handled separately by has_complementary_literals()
+ * - Collects all terms including False (caller checks for False afterward)
  *
  * @param f Formula to collect from
  * @param terms Output set of terms
- * @param has_false Output flag set to true if False encountered
  */
-void collect_and_terms(Formula* f, std::unordered_set<Formula*>& terms,
-                       bool& has_false) {
+void collect_and_terms(Formula* f, std::unordered_set<Formula*>& terms) {
     if (!f) return;
 
     switch (f->op()) {
         case Formula::OpType::And:
             // Flatten AND chain: collect both sides
-            collect_and_terms(f->left(), terms, has_false);
-            collect_and_terms(f->right(), terms, has_false);
-            break;
-        case Formula::OpType::True:
-            // Skip True (identity for AND)
-            break;
-        case Formula::OpType::False:
-            // False in AND → entire AND is False
-            has_false = true;
+            collect_and_terms(f->left(), terms);
+            collect_and_terms(f->right(), terms);
             break;
         default:
-            // Collect term: literal or negated literal (NNF)
+            // Collect all terms (including True, False)
             terms.insert(f);
             break;
     }
@@ -50,33 +40,24 @@ void collect_and_terms(Formula* f, std::unordered_set<Formula*>& terms,
  *
  * Implementation details:
  * - Flattens nested OR structures recursively: `(a | (b | c))` → `{a, b, c}`
- * - Skips False (identity element), stops if True encountered (dominance)
  * - Uses hash consing: Formula* pointer equality = structural equality
+ * - Collects all terms including False, True (caller checks for them afterward)
  * - Does NOT detect tautologies (a | !a); handled separately by has_complementary_literals()
  *
  * @param f Formula to collect from
  * @param terms Output set of terms
- * @param has_true Output flag set to true if True encountered
  */
-void collect_or_terms(Formula* f, std::unordered_set<Formula*>& terms,
-                      bool& has_true) {
+void collect_or_terms(Formula* f, std::unordered_set<Formula*>& terms) {
     if (!f) return;
 
     switch (f->op()) {
         case Formula::OpType::Or:
             // Flatten OR chain: collect both sides
-            collect_or_terms(f->left(), terms, has_true);
-            collect_or_terms(f->right(), terms, has_true);
-            break;
-        case Formula::OpType::False:
-            // Skip False (identity for OR)
-            break;
-        case Formula::OpType::True:
-            // True in OR → entire OR is True
-            has_true = true;
+            collect_or_terms(f->left(), terms);
+            collect_or_terms(f->right(), terms);
             break;
         default:
-            // Collect term: literal or negated literal (NNF)
+            // Collect all terms (including True, False)
             terms.insert(f);
             break;
     }
@@ -372,71 +353,129 @@ Formula* simplify_not(FormulaPool& pool, Formula* operand, Formula* original) {
 /**
  * @brief Simplify AND formula with deduplication and conflict detection
  *
- * Process: collect terms from both sides → check for False → check conflicts → rebuild
+ * Process:
+ * 1. Collect terms from both sides (flatten nested AND)
+ * 2. Simplify each term
+ * 3. If simplification produces new AND, expand and re-collect
+ * 4. Check for conflicts (a & !a)
+ * 5. Rebuild flattened chain
+ *
+ * Note: Single pass is sufficient because simplified terms are already
+ * in normal form (no new AND can be generated from them).
  *
  * @param pool FormulaPool for creating formulas
- * @param left Left operand (already simplified)
- * @param right Right operand (already simplified)
+ * @param left Left operand (not yet simplified)
+ * @param right Right operand (not yet simplified)
  * @return Simplified formula
  */
 Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
     std::unordered_set<Formula*> terms;
-    bool has_false = false;
 
-    // Collect terms from left
-    collect_and_terms(left, terms, has_false);
-    if (has_false) {
-        return pool.create_false();
+    // Phase 1: Initial collection (flatten nested AND from original tree)
+    collect_and_terms(left, terms);
+    collect_and_terms(right, terms);
+
+    // Check for False (dominance: False & anything → False)
+    for (Formula* f : terms) {
+        if (f->is_false()) {
+            return pool.create_false();
+        }
     }
 
-    // Collect terms from right
-    collect_and_terms(right, terms, has_false);
-    if (has_false) {
-        return pool.create_false();
+    // Phase 2: Simplify each term and expand any new AND formulas
+    // Single pass: simplified terms cannot generate new AND
+    std::unordered_set<Formula*> new_terms;
+    for (Formula* f : terms) {
+        Formula* simplified = f->simplify(pool);
+
+        // If simplification produced an AND, expand it
+        if (simplified->is_and()) {
+            collect_and_terms(simplified->left(), new_terms);
+            collect_and_terms(simplified->right(), new_terms);
+        } else if (!simplified->is_true()) {
+            // Skip True (identity for AND)
+            new_terms.insert(simplified);
+        }
     }
 
-    // Check for conflicts (a & !a)
-    if (has_complementary_literals(terms, pool)) {
+    // Check for False again after simplification
+    for (Formula* f : new_terms) {
+        if (f->is_false()) {
+            return pool.create_false();
+        }
+    }
+
+    // Phase 3: Check for conflicts (a & !a)
+    if (has_complementary_literals(new_terms, pool)) {
         return pool.create_false();
     }
 
     // Rebuild chain from deduplicated terms
-    return rebuild_and_chain(pool, terms);
+    return rebuild_and_chain(pool, new_terms);
 }
 
 /**
  * @brief Simplify OR formula with deduplication and tautology detection
  *
- * Process: collect terms from both sides → check for True → check tautologies → rebuild
+ * Process:
+ * 1. Collect terms from both sides (flatten nested OR)
+ * 2. Simplify each term
+ * 3. If simplification produces new OR, expand and re-collect
+ * 4. Check for tautologies (a | !a)
+ * 5. Rebuild flattened chain
+ *
+ * Note: Single pass is sufficient because simplified terms are already
+ * in normal form (no new OR can be generated from them).
  *
  * @param pool FormulaPool for creating formulas
- * @param left Left operand (already simplified)
- * @param right Right operand (already simplified)
+ * @param left Left operand (not yet simplified)
+ * @param right Right operand (not yet simplified)
  * @return Simplified formula
  */
 Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
     std::unordered_set<Formula*> terms;
-    bool has_true = false;
 
-    // Collect terms from left
-    collect_or_terms(left, terms, has_true);
-    if (has_true) {
-        return pool.create_true();
+    // Phase 1: Initial collection (flatten nested OR from original tree)
+    collect_or_terms(left, terms);
+    collect_or_terms(right, terms);
+
+    // Check for True (dominance: True | anything → True)
+    for (Formula* f : terms) {
+        if (f->is_true()) {
+            return pool.create_true();
+        }
     }
 
-    // Collect terms from right
-    collect_or_terms(right, terms, has_true);
-    if (has_true) {
-        return pool.create_true();
+    // Phase 2: Simplify each term and expand any new OR formulas
+    // Single pass: simplified terms cannot generate new OR
+    std::unordered_set<Formula*> new_terms;
+    for (Formula* f : terms) {
+        Formula* simplified = f->simplify(pool);
+
+        // If simplification produced an OR, expand it
+        if (simplified->is_or()) {
+            collect_or_terms(simplified->left(), new_terms);
+            collect_or_terms(simplified->right(), new_terms);
+        } else if (!simplified->is_false()) {
+            // Skip False (identity for OR)
+            new_terms.insert(simplified);
+        }
     }
 
-    // Check for tautologies (a | !a)
-    if (has_complementary_literals(terms, pool)) {
+    // Check for True again after simplification
+    for (Formula* f : new_terms) {
+        if (f->is_true()) {
+            return pool.create_true();
+        }
+    }
+
+    // Phase 3: Check for tautologies (a | !a)
+    if (has_complementary_literals(new_terms, pool)) {
         return pool.create_true();
     }
 
     // Rebuild chain from deduplicated terms
-    return rebuild_or_chain(pool, terms);
+    return rebuild_or_chain(pool, new_terms);
 }
 
 } // anonymous namespace
@@ -456,15 +495,11 @@ Formula* Formula::simplify(FormulaPool& pool) const {
         }
 
         case Formula::OpType::And: {
-            Formula* simp_left = left_->simplify(pool);
-            Formula* simp_right = right_->simplify(pool);
-            return simplify_and(pool, simp_left, simp_right);
+            return simplify_and(pool, left_, right_);
         }
 
         case Formula::OpType::Or: {
-            Formula* simp_left = left_->simplify(pool);
-            Formula* simp_right = right_->simplify(pool);
-            return simplify_or(pool, simp_left, simp_right);
+            return simplify_or(pool, left_, right_);
         }
 
         case Formula::OpType::Next: {
