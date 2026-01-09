@@ -11,79 +11,115 @@ namespace {
 /**
  * @brief Collect AND terms into a set (flatten AND chains)
  *
- * Traverses the formula tree and collects all operands of AND operators
- * into a set for O(n) deduplication.
+ * Implementation details:
+ * - Flattens nested AND structures recursively: `(a & (b & c))` → `{a, b, c}`
+ * - Skips True (identity element), stops if False encountered (dominance)
+ * - Uses hash consing: Formula* pointer equality = structural equality
+ * - Does NOT detect conflicts (a & !a); handled separately by has_complementary_literals()
  *
  * @param f Formula to collect from
  * @param terms Output set of terms
- * @param has_false Output flag set to true if False is encountered
+ * @param has_false Output flag set to true if False encountered
  */
 void collect_and_terms(Formula* f, std::unordered_set<Formula*>& terms,
                        bool& has_false) {
     if (!f) return;
 
-    if (f->is_and()) {
-        // Flatten AND chain: collect both sides
-        collect_and_terms(f->left(), terms, has_false);
-        collect_and_terms(f->right(), terms, has_false);
-    } else if (f->is_true()) {
-        // Skip True (identity for AND)
-        return;
-    } else if (f->is_false()) {
-        // False in AND → entire AND is False
-        has_false = true;
-    } else {
-        // Check for conflict: a & !a
-        // Note: is_conflict() was disabled in original implementation
-        // We implement basic conflict detection for literals
-        if (f->is_not() && f->left()->is_literal()) {
-            // Check if the positive literal exists
-            if (terms.find(f->left()) != terms.end()) {
-                has_false = true;  // a & !a → False
-                return;
-            }
-        } else if (f->is_literal()) {
-            // Check if negated version exists
-            // We need to check the hash consing table for Not(f)
-            // This is handled by checking terms after collection
-        }
-        terms.insert(f);
+    switch (f->op()) {
+        case Formula::OpType::And:
+            // Flatten AND chain: collect both sides
+            collect_and_terms(f->left(), terms, has_false);
+            collect_and_terms(f->right(), terms, has_false);
+            break;
+        case Formula::OpType::True:
+            // Skip True (identity for AND)
+            break;
+        case Formula::OpType::False:
+            // False in AND → entire AND is False
+            has_false = true;
+            break;
+        default:
+            // Collect term: literal or negated literal (NNF)
+            terms.insert(f);
+            break;
     }
 }
 
 /**
  * @brief Collect OR terms into a set (flatten OR chains)
  *
- * Similar to collect_and_terms but for OR operator.
+ * Implementation details:
+ * - Flattens nested OR structures recursively: `(a | (b | c))` → `{a, b, c}`
+ * - Skips False (identity element), stops if True encountered (dominance)
+ * - Uses hash consing: Formula* pointer equality = structural equality
+ * - Does NOT detect tautologies (a | !a); handled separately by has_complementary_literals()
  *
  * @param f Formula to collect from
  * @param terms Output set of terms
- * @param has_true Output flag set to true if True is encountered
+ * @param has_true Output flag set to true if True encountered
  */
 void collect_or_terms(Formula* f, std::unordered_set<Formula*>& terms,
                       bool& has_true) {
     if (!f) return;
 
-    if (f->is_or()) {
-        // Flatten OR chain: collect both sides
-        collect_or_terms(f->left(), terms, has_true);
-        collect_or_terms(f->right(), terms, has_true);
-    } else if (f->is_false()) {
-        // Skip False (identity for OR)
-        return;
-    } else if (f->is_true()) {
-        // True in OR → entire OR is True
-        has_true = true;
-    } else {
-        // Check for mutex: a | !a
-        if (f->is_not() && f->left()->is_literal()) {
-            if (terms.find(f->left()) != terms.end()) {
-                has_true = true;  // a | !a → True
-                return;
-            }
-        }
-        terms.insert(f);
+    switch (f->op()) {
+        case Formula::OpType::Or:
+            // Flatten OR chain: collect both sides
+            collect_or_terms(f->left(), terms, has_true);
+            collect_or_terms(f->right(), terms, has_true);
+            break;
+        case Formula::OpType::False:
+            // Skip False (identity for OR)
+            break;
+        case Formula::OpType::True:
+            // True in OR → entire OR is True
+            has_true = true;
+            break;
+        default:
+            // Collect term: literal or negated literal (NNF)
+            terms.insert(f);
+            break;
     }
+}
+
+/**
+ * @brief Check if terms contain complementary literals (a and !a)
+ *
+ * For AND: detects conflicts (a & !a → False)
+ * For OR: detects tautologies (a | !a → True)
+ *
+ * Algorithm: separate positive/negative literals, check for pairs.
+ * Due to hash consing, Not(a) has a unique pointer for identical negations.
+ *
+ * @param terms Set of terms to check (assumed NNF)
+ * @param pool FormulaPool for creating Not formulas
+ * @return true if complementary pair found
+ */
+bool has_complementary_literals(const std::unordered_set<Formula*>& terms,
+                                 FormulaPool& pool) {
+    std::unordered_set<Formula*> positives;  // v0, v1, ...
+    std::unordered_set<Formula*> negatives;  // !v0, !v1, ...
+
+    for (Formula* f : terms) {
+        if (f->is_not()) {
+            // Negative literal: !a
+            if (positives.find(f->left()) != positives.end()) {
+                return true;  // a and !a both present
+            }
+            negatives.insert(f);
+        } else if (f->is_literal()) {
+            // Positive literal: a
+            // Check if !a exists by creating Not(a) and looking it up
+            Formula* negated = pool.create_not(f);
+            if (negatives.find(negated) != negatives.end()) {
+                return true;  // !a and a both present
+            }
+            positives.insert(f);
+        }
+        // Non-literal terms in NNF are ignored
+        // (e.g., X(a), (a & b) - these don't have simple complements)
+    }
+    return false;
 }
 
 /**
@@ -355,6 +391,11 @@ Formula* Formula::simplify(FormulaPool& pool) const {
                 return pool.create_false();
             }
 
+            // Check for conflicts (a & !a)
+            if (has_complementary_literals(terms, pool)) {
+                return pool.create_false();
+            }
+
             // Rebuild chain from deduplicated terms
             return rebuild_and_chain(pool, terms);
         }
@@ -377,6 +418,11 @@ Formula* Formula::simplify(FormulaPool& pool) const {
             collect_or_terms(simp_right, terms, has_true);
 
             if (has_true) {
+                return pool.create_true();
+            }
+
+            // Check for tautologies (a | !a)
+            if (has_complementary_literals(terms, pool)) {
                 return pool.create_true();
             }
 
