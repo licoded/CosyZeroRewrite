@@ -123,19 +123,19 @@ std::unique_ptr<DFA> DFA::clone() const {
 }
 
 void DFA::print(const formula::FormulaPool& pool) const {
-    LOG_OUTPUT("DFA with {} states", num_states());
-    LOG_OUTPUT("Initial: {}", initial_state_);
+    NOP_LOG_INFO("DFA with {} states", num_states());
+    NOP_LOG_INFO("Initial: {}", initial_state_);
 
     for (size_t i = 0; i < states_.size(); ++i) {
         const auto& state = states_[i];
         if (state.accepting) {
-            LOG_OUTPUT("State {} (accepting): {}", i, state.formulas.to_string(pool));
+            NOP_LOG_INFO("State {} (accepting): {}", i, state.formulas.to_string(pool));
         } else {
-            LOG_OUTPUT("State {}: {}", i, state.formulas.to_string(pool));
+            NOP_LOG_INFO("State {}: {}", i, state.formulas.to_string(pool));
         }
 
         for (const auto& trans : state.transitions) {
-            LOG_OUTPUT("  -> {} {}", trans.to, trans.label.to_string());
+            NOP_LOG_INFO("  -> {} {}", trans.to, trans.label.to_string());
         }
     }
 }

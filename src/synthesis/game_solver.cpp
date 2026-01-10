@@ -49,8 +49,8 @@ bool GameGraph::is_realizable() const {
 }
 
 void GameGraph::print() const {
-    LOG_OUTPUT("Game Graph with {} nodes", nodes_.size());
-    LOG_OUTPUT("Initial: {}", initial_node_);
+    NOP_LOG_INFO("Game Graph with {} nodes", nodes_.size());
+    NOP_LOG_INFO("Initial: {}", initial_node_);
 
     for (size_t i = 0; i < nodes_.size(); ++i) {
         const auto& node = nodes_[i];
@@ -62,7 +62,7 @@ void GameGraph::print() const {
             case StateStatus::Winning: status_str = "Winning"; break;
             case StateStatus::Losing:  status_str = "Losing"; break;
         }
-        LOG_OUTPUT("Node {} (DFA state {}): {}", i, node.dfa_state_id, status_str);
+        NOP_LOG_INFO("Node {} (DFA state {}): {}", i, node.dfa_state_id, status_str);
 
         // Build successors string
         std::ostringstream succ_ss;
@@ -70,7 +70,7 @@ void GameGraph::print() const {
         for (auto succ : node.successors) {
             succ_ss << " " << succ;
         }
-        LOG_OUTPUT("{}", succ_ss.str());
+        NOP_LOG_INFO("{}", succ_ss.str());
     }
 }
 

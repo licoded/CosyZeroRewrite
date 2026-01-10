@@ -206,11 +206,8 @@ private:
 
 // User-facing output macro (no prefix, just the message)
 // This logs to both console (clean) and file (with timestamp for debugging)
-#define LOG_OUTPUT(...) do { \
-    if (auto lg = logger::Logger::instance().output()) { \
-        lg->info(__VA_ARGS__); \
-    } \
-} while(0)
+#define NOP_LOG_INFO(...) do { if (auto lg = logger::Logger::instance().output()) { lg->info(__VA_ARGS__); } } while(0)
+#define NOP_LOG_ERROR(...) do { if (auto lg = logger::Logger::instance().output()) { lg->info(__VA_ARGS__); } } while(0)
 
 // Flush log
 #define LOG_FLUSH() do { \

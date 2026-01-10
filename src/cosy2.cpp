@@ -157,7 +157,7 @@ static Partition parse_partition_file(const std::string& filename) {
         }
     }
 
-    LOG_OUTPUT("Parsed partition: {} outputs, {} inputs",
+    NOP_LOG_INFO("Parsed partition: {} outputs, {} inputs",
                result.outputs.size(), result.inputs.size());
 
     return result;
@@ -262,9 +262,9 @@ int main(int argc, char* argv[]) {
     // Banner
     //==========================================================================
     if (!quiet) {
-        LOG_OUTPUT("========================================");
-        LOG_OUTPUT("   CosyZero LTLf Synthesis Tool v2.0");
-        LOG_OUTPUT("========================================");
+        NOP_LOG_INFO("========================================");
+        NOP_LOG_INFO("   CosyZero LTLf Synthesis Tool v2.0");
+        NOP_LOG_INFO("========================================");
     }
 
     //==========================================================================
@@ -277,7 +277,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         formula_str = clean_formula(raw);
-        if (!quiet) LOG_OUTPUT("Formula from file: {}", formula_file);
+        if (!quiet) NOP_LOG_INFO("Formula from file: {}", formula_file);
     }
 
     // Check if formula is provided
@@ -287,7 +287,7 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    if (!quiet) LOG_OUTPUT("Formula: {}", formula_str);
+    if (!quiet) NOP_LOG_INFO("Formula: {}", formula_str);
 
     //==========================================================================
     // Parse partition if provided
@@ -304,7 +304,7 @@ int main(int argc, char* argv[]) {
     if (!partition.outputs.empty() || !partition.inputs.empty()) {
         pool.declare_variables(partition.outputs, partition.inputs);
         if (!quiet) {
-            LOG_OUTPUT("Variables declared: {} outputs, {} inputs",
+            NOP_LOG_INFO("Variables declared: {} outputs, {} inputs",
                        pool.num_outputs(), pool.num_inputs());
         }
     }
@@ -323,22 +323,22 @@ int main(int argc, char* argv[]) {
     }
 
     if (!quiet) {
-        LOG_OUTPUT("Parsed: {}", phi->to_string());
-        LOG_OUTPUT("Parsed (with names): {}", phi->to_string_with_names(pool));
+        NOP_LOG_INFO("Parsed: {}", phi->to_string());
+        NOP_LOG_INFO("Parsed (with names): {}", phi->to_string_with_names(pool));
 
         // Show variable mapping
-        LOG_OUTPUT("Variable mapping:");
+        NOP_LOG_INFO("Variable mapping:");
         for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
             std::string var_name = pool.get_variable_name(i);
             std::string type = (i < pool.num_outputs()) ? "output" : "input";
-            LOG_OUTPUT("  v{} = {} ({})", i, var_name, type);
+            NOP_LOG_INFO("  v{} = {} ({})", i, var_name, type);
         }
     }
 
     //==========================================================================
     // Run synthesis
     //==========================================================================
-    if (!quiet) LOG_OUTPUT("Running on-the-fly synthesis...");
+    if (!quiet) NOP_LOG_INFO("Running on-the-fly synthesis...");
 
     // Create solver directly (not using convenience function)
     // so we can access the solver for game graph export
@@ -355,7 +355,7 @@ int main(int argc, char* argv[]) {
     // Enable trace if requested (trace_dir non-empty means trace enabled)
     if (!trace_dir.empty()) {
         solver.enable_trace(trace_dir);
-        if (!quiet) LOG_OUTPUT("Trace recording enabled...");
+        if (!quiet) NOP_LOG_INFO("Trace recording enabled...");
     }
 
     bool realizable = solver.is_realizable();
@@ -364,15 +364,11 @@ int main(int argc, char* argv[]) {
     // Output result
     //==========================================================================
     if (!quiet) {
-        LOG_OUTPUT("========================================");
+        NOP_LOG_INFO("========================================");
     }
-    if (realizable) {
-        LOG_OUTPUT("REALIZABLE");
-    } else {
-        LOG_OUTPUT("UNREALIZABLE");
-    }
+    NOP_LOG_INFO(realizable ? "REALIZABLE" : "UNREALIZABLE");
     if (!quiet) {
-        LOG_OUTPUT("========================================");
+        NOP_LOG_INFO("========================================");
     }
 
     return realizable ? 0 : 1;
