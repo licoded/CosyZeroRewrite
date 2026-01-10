@@ -437,46 +437,63 @@ Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
 // ========== Main Simplify Function ==========
 
 Formula* Formula::simplify(FormulaPool& pool) const {
+    // Check cache first (like aalta's _simp optimization)
+    if (simp_ != nullptr) {
+        return simp_;
+    }
+
     // Base cases: already simplified
     if (is_true() || is_false() || is_literal() || is_end()) {
         return const_cast<Formula*>(this);
     }
 
+    Formula* result = nullptr;
+
     switch (op_) {
         case Formula::OpType::Not: {
             Formula* simp_left = left_->simplify(pool);
-            return simplify_not(pool, simp_left, const_cast<Formula*>(this));
+            result = simplify_not(pool, simp_left, const_cast<Formula*>(this));
+            break;
         }
 
         case Formula::OpType::And: {
-            return simplify_and(pool, left_, right_);
+            result = simplify_and(pool, left_, right_);
+            break;
         }
 
         case Formula::OpType::Or: {
-            return simplify_or(pool, left_, right_);
+            result = simplify_or(pool, left_, right_);
+            break;
         }
 
         case Formula::OpType::Next: {
             Formula* simp_left = left_->simplify(pool);
-            return simplify_next(pool, simp_left, const_cast<Formula*>(this));
+            result = simplify_next(pool, simp_left, const_cast<Formula*>(this));
+            break;
         }
 
         case Formula::OpType::Until: {
             Formula* simp_left = left_->simplify(pool);
             Formula* simp_right = right_->simplify(pool);
-            return simplify_until(pool, simp_left, simp_right);
+            result = simplify_until(pool, simp_left, simp_right);
+            break;
         }
 
         case Formula::OpType::Release: {
             Formula* simp_left = left_->simplify(pool);
             Formula* simp_right = right_->simplify(pool);
-            return simplify_release(pool, simp_left, simp_right);
+            result = simplify_release(pool, simp_left, simp_right);
+            break;
         }
 
         default:
             // Should not reach here
             return const_cast<Formula*>(this);
     }
+
+    // Cache the result
+    simp_ = result;
+    return result;
 }
 
 } // namespace formula

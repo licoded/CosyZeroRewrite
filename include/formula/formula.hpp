@@ -209,6 +209,14 @@ public:
         return pool_index_ < other.pool_index_;
     }
 
+    /**
+     * @brief Clear the simplify cache
+     *
+     * Resets the cached simplified formula. This is useful when
+     * the pool is being reused or when formulas need to be re-simplified.
+     */
+    void clear_simplify_cache() const { simp_ = nullptr; }
+
 private:
     /**
      * @brief Type for resolving variable names to strings
@@ -250,6 +258,20 @@ private:
     int var_id_;          // Variable ID (only for Literal)
     size_t hash_;         // Cached hash value
     size_t pool_index_;   // Index in FormulaPool (for sorting)
+
+    // ========== Simplify Cache ==========
+    /**
+     * @brief Cached simplified formula
+     *
+     * Mutable to allow modification in const member functions.
+     * This matches the design of the original aalta implementation.
+     *
+     * The cache is per-formula, not per-pool, which means:
+     * - Fast access (no map lookup overhead)
+     * - Works correctly even if formula is used with multiple pools
+     * - Automatically invalidated when formula is destroyed
+     */
+    mutable Formula* simp_ = nullptr;  // Simplify cache (like aalta's _simp)
 
     // FormulaPool needs access to private constructor and members
     friend class FormulaPool;
