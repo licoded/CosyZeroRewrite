@@ -8,6 +8,8 @@
 
 #include "synthesis/on_the_fly_solver.hpp"
 #include "log/logger.hpp"
+#include "DSViz/dsv.hpp"  // External library for DOT generation
+#include <spdlog/fmt/fmt.h>  // For fmt::format
 #include <sstream>
 #include <fstream>
 #include <iostream>
@@ -16,12 +18,10 @@
 namespace synthesis {
 
 //==============================================================================
-// DOT Format Export
+// DOT Format Export (using DSViz library)
 //==============================================================================
 
 std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
-    std::ostringstream oss;
-
     // Use external StateIdMap if provided, otherwise create a local one
     StateIdMap local_id_map;
     StateIdMap& id_map = (external_id_map ? *external_id_map : local_id_map);
@@ -41,18 +41,20 @@ std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
         }
     }
 
-    // DOT header
-    oss << "digraph GameGraph {\n";
-    oss << "  rankdir=LR;\n";
-    oss << "  node [style=filled];\n";
-    oss << "  // Visual legend:\n";
-    oss << "  // System states: circles (blue border)\n";
-    oss << "  // Environment states: boxes (orange border)\n";
-    oss << "  // Swin: light green fill | Ewin: light red fill\n";
-    oss << "  // Sys moves: blue solid lines | Env moves: red dashed lines\n\n";
+    // Create DSViz graph
+    DSViz::Config config;
+    config.node_style = "style=filled";
+    config.graph_style = "rankdir=LR;";
+    config.other = R"(  // Visual legend:
+  // System states: circles (blue border)
+  // Environment states: boxes (orange border)
+  // Swin: light green fill | Ewin: light red fill
+  // Sys moves: blue solid lines | Env moves: red dashed lines
+)";
 
-    // Define nodes
-    oss << "  // === Nodes ===\n";
+    DSViz::Dot dot(config);
+
+    // Add nodes
     for (const auto& pair : id_map.to_id) {
         const GameState& state = pair.first;
         const std::string& id = pair.second;
@@ -63,43 +65,29 @@ std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
         auto cls_it = classification_.find(state);
         StateClass cls = (cls_it != classification_.end()) ? cls_it->second : StateClass::Unknown;
 
-        // Node shape and color
-        if (is_sys) {
-            oss << "  " << id << " [shape=circle";
-        } else {
-            oss << "  " << id << " [shape=box";
-        }
+        // Build node attributes
+        std::string shape = is_sys ? "circle" : "box";
+        std::string fillcolor;
+        if (cls == StateClass::Swin) fillcolor = "lightgreen";
+        else if (cls == StateClass::Ewin) fillcolor = "lightcoral";
+        else fillcolor = "lightgray";
 
-        // Fill color based on classification
-        if (cls == StateClass::Swin) {
-            oss << ", fillcolor=lightgreen";
-        } else if (cls == StateClass::Ewin) {
-            oss << ", fillcolor=lightcoral";
-        } else {
-            oss << ", fillcolor=lightgray";
-        }
+        std::string color = is_sys ? "blue" : "orange";
+        std::string penwidth = is_initial ? ", penwidth=3" : "";
 
-        // Border color
-        if (is_sys) {
-            oss << ", color=blue";
-        } else {
-            oss << ", color=orange";
-        }
+        // Build label
+        std::string label = id + (is_initial ? " (init)\\n" : "\\n") + to_string(cls);
 
-        // Penwidth for initial state
-        if (is_initial) {
-            oss << ", penwidth=3";
-        }
+        // Build attributes string
+        std::string attrs = fmt::format(
+            "[shape={}, fillcolor={}, color={}{} label=\"{}\"]",
+            shape, fillcolor, color, penwidth, label
+        );
 
-        // Label: just show ID and classification
-        oss << ", label=\"" << id;
-        if (is_initial) oss << " (init)";
-        oss << "\\n" << to_string(cls) << "\"];\n";
+        dot.addNode(id, attrs);
     }
 
-    oss << "\n  // === Transitions ===\n";
-
-    // Define edges
+    // Add edges (transitions)
     for (const auto& pair : successors_) {
         const GameState& from = pair.first;
         const std::string from_id = id_map.get_id(from);
@@ -108,36 +96,36 @@ std::string OnTheFlyGameSolver::to_dot(StateIdMap* external_id_map) const {
         for (const auto& succ : pair.second) {
             const std::string to_id = id_map.get_id(succ);
 
+            std::string attrs;
             if (from_is_sys) {
                 // Sys move: blue solid line
-                oss << "  " << from_id << " -> " << to_id
-                    << " [color=blue, style=solid";
-                // Label with output assignment using variable names (2026-01-04: show implicit false)
+                attrs = "[color=blue, style=solid";
+                // Label with output assignment
                 if (succ.system_chosen_output.has_value() && from.dfa_state) {
-                    oss << ", label=\"sys="
-                        << id_map.get_assignment_label(succ.system_chosen_output.value(), true,
-                                                          &from.dfa_state->prop_atoms())
-                        << "\"";
+                    attrs += fmt::format(", label=\"sys={}\"",
+                        id_map.get_assignment_label(succ.system_chosen_output.value(), true,
+                                                  &from.dfa_state->prop_atoms())
+                    );
                 }
-                oss << "];\n";
+                attrs += "]";
             } else {
                 // Env move: red dashed line
-                oss << "  " << from_id << " -> " << to_id
-                    << " [color=red, style=dashed";
-                // Label with input assignment using variable names (2026-01-04: show implicit false)
+                attrs = "[color=red, style=dashed";
+                // Label with input assignment
                 if (succ.environment_chosen_input.has_value() && from.dfa_state) {
-                    oss << ", label=\"env="
-                        << id_map.get_assignment_label(succ.environment_chosen_input.value(), false,
-                                                          &from.dfa_state->prop_atoms())
-                        << "\"";
+                    attrs += fmt::format(", label=\"env={}\"",
+                        id_map.get_assignment_label(succ.environment_chosen_input.value(), false,
+                                                  &from.dfa_state->prop_atoms())
+                    );
                 }
-                oss << "];\n";
+                attrs += "]";
             }
+
+            dot.addEdge(from_id, to_id, attrs);
         }
     }
 
-    oss << "}\n";
-    return oss.str();
+    return dot.print();
 }
 
 //==============================================================================
