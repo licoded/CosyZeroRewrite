@@ -17,6 +17,7 @@ ADR 记录项目中的重要架构决策，包括：
 | [ADR-001](./001-raw-pointers.md) | 为什么使用原始指针而非 shared_ptr? | 有效 | 2025-12 |
 | [ADR-002](./002-tableau-choice.md) | 为什么选择 Tableau 而非外部工具? | 有效 | 2025-12 |
 | [ADR-003](./003-explicit-state-first.md) | 为什么先实现显式状态? | 有效 | 2025-12 |
+| [ADR-004](./004-spdlog-version.md) | 暂不升级 spdlog 到最新版本 | 有效 | 2026-01-10 |
 
 ## 模板
 
