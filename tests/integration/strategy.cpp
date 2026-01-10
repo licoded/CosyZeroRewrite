@@ -38,10 +38,6 @@ void test_simple_strategy() {
 
     std::cout << "Strategy extracted with " << strategy->size() << " states" << std::endl;
 
-    // Export to JSON
-    std::string json = strategy->to_json(pool);
-    std::cout << "JSON output:\n" << json << std::endl;
-
     // Export to DOT
     std::string dot = strategy->to_dot(pool);
     std::cout << "DOT output:\n" << dot << std::endl;

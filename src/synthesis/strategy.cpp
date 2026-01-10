@@ -35,45 +35,6 @@ std::optional<StrategyMove> Strategy::get_move(const GameState& state) const {
     return std::nullopt;
 }
 
-std::string Strategy::to_json(const formula::FormulaPool& pool) const {
-    std::ostringstream oss;
-    oss << "{\n";
-    oss << "  \"type\": \"ltlf_synthesis_strategy\",\n";
-    oss << "  \"num_states\": " << moves_.size() << ",\n";
-    oss << "  \"states\": {\n";
-
-    bool first_state = true;
-    for (const auto& pair : moves_) {
-        if (!first_state) oss << ",\n";
-        first_state = false;
-
-        const GameState& state = pair.first;
-        const StrategyMove& move = pair.second;
-
-        std::string state_id = StrategyExtractor::state_to_id(state);
-
-        oss << "    \"" << state_id << "\": {\n";
-        oss << "      \"dfa_state\": \"" << state.dfa_state->hash() << "\",\n";
-        oss << "      \"player\": \"" << (state.player == Player::System ? "System" : "Environment") << "\",\n";
-        oss << "      \"output\": [" << StrategyExtractor::assignment_to_string(move.output, pool) << "],\n";
-        oss << "      \"env_responses\": {\n";
-
-        bool first_resp = true;
-        for (const auto& resp : move.env_responses) {
-            if (!first_resp) oss << ",\n";
-            first_resp = false;
-            oss << "        \"" << resp.second << "\": ["
-                 << StrategyExtractor::assignment_to_string(resp.first, pool) << "]";
-        }
-        oss << "\n      }\n";
-        oss << "    }";
-    }
-
-    oss << "\n  }\n";
-    oss << "}\n";
-    return oss.str();
-}
-
 std::string Strategy::to_dot(const formula::FormulaPool& pool) const {
     std::ostringstream oss;
     oss << "digraph Strategy {\n";
