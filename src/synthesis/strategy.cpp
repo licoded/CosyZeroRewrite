@@ -35,49 +35,6 @@ std::optional<StrategyMove> Strategy::get_move(const GameState& state) const {
     return std::nullopt;
 }
 
-std::string Strategy::to_dot(const formula::FormulaPool& pool) const {
-    std::ostringstream oss;
-    oss << "digraph Strategy {\n";
-    oss << "  rankdir=LR;\n";
-    oss << "  node [shape=circle];\n";
-    oss << "  label=\"LTLf Synthesis Strategy\";\n\n";
-
-    // Add nodes
-    std::unordered_map<std::string, std::string> state_labels;
-    for (const auto& pair : moves_) {
-        const GameState& state = pair.first;
-        std::string state_id = StrategyExtractor::state_to_id(state);
-
-        // Create node label
-        std::ostringstream label;
-        label << state_id << "\\n";
-        if (state.system_chosen_output.has_value()) {
-            label << "[" << StrategyExtractor::assignment_to_string(state.system_chosen_output.value(), pool) << "]";
-        }
-        state_labels[state_id] = label.str();
-
-        oss << "  \"" << state_id << "\" [label=\"" << label.str() << "\"];\n";
-    }
-
-    // Add edges
-    for (const auto& pair : moves_) {
-        const GameState& state = pair.first;
-        const StrategyMove& move = pair.second;
-        std::string from_id = StrategyExtractor::state_to_id(state);
-
-        for (const auto& resp : move.env_responses) {
-            std::string to_id = resp.second;
-            std::string input = StrategyExtractor::assignment_to_string(resp.first, pool);
-
-            oss << "  \"" << from_id << "\" -> \"" << to_id << "\" "
-                 << "[label=\"" << input << "\"];\n";
-        }
-    }
-
-    oss << "}\n";
-    return oss.str();
-}
-
 bool Strategy::verify(formula::Formula* phi, formula::FormulaPool& pool) const {
     return StrategyVerifier::verify(*this, phi, pool);
 }

@@ -71,13 +71,6 @@ public:
     size_t size() const { return moves_.size(); }
 
     /**
-     * @brief Export strategy to Graphviz DOT format
-     * @param pool Formula pool for variable name lookup
-     * @return DOT string
-     */
-    std::string to_dot(const formula::FormulaPool& pool) const;
-
-    /**
      * @brief Verify strategy correctness
      * @param phi Original formula
      * @param pool Formula pool

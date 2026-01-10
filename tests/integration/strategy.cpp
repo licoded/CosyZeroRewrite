@@ -38,10 +38,6 @@ void test_simple_strategy() {
 
     std::cout << "Strategy extracted with " << strategy->size() << " states" << std::endl;
 
-    // Export to DOT
-    std::string dot = strategy->to_dot(pool);
-    std::cout << "DOT output:\n" << dot << std::endl;
-
     // Verify strategy
     bool verified = strategy->verify(phi, pool);
     std::cout << "Strategy verified: " << (verified ? "yes" : "no") << std::endl;
