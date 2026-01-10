@@ -321,15 +321,15 @@ int main(int argc, char* argv[]) {
     }
 
     if (!quiet) {
-        NOP_LOG_INFO("Parsed: {}", phi->to_string());
-        NOP_LOG_INFO("Parsed (with names): {}", phi->to_string_with_names(pool));
+        LOG_DEBUG("Parsed: {}", phi->to_string());
+        LOG_DEBUG("Parsed (with names): {}", phi->to_string_with_names(pool));
 
         // Show variable mapping
-        NOP_LOG_INFO("Variable mapping:");
+        LOG_DEBUG("Variable mapping:");
         for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
             std::string var_name = pool.get_variable_name(i);
             std::string type = (i < pool.num_outputs()) ? "output" : "input";
-            NOP_LOG_INFO("  v{} = {} ({})", i, var_name, type);
+            LOG_DEBUG("  v{} = {} ({})", i, var_name, type);
         }
     }
 
@@ -353,7 +353,7 @@ int main(int argc, char* argv[]) {
     // Enable trace if requested (trace_dir non-empty means trace enabled)
     if (!trace_dir.empty()) {
         solver.enable_trace(trace_dir);
-        if (!quiet) NOP_LOG_INFO("Trace recording enabled...");
+        if (!quiet) LOG_DEBUG("Trace recording enabled...");
     }
 
     bool realizable = solver.is_realizable();

@@ -912,7 +912,7 @@ void OnTheFlyGameSolver::enable_trace(const std::string& output_dir) {
     trace_exporter_ = std::make_unique<TraceExporter>(
         original_formula_, pool_, trace_dir);
 
-    LOG_INFO("Trace enabled, output: {}", trace_exporter_->output_path());
+    LOG_DEBUG("Trace enabled, output: {}", trace_exporter_->output_path());
 }
 
 bool OnTheFlyGameSolver::is_trace_enabled() const {

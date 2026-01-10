@@ -4,6 +4,7 @@
 #include <spdlog/spdlog.h>
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/cfg/env.h>  // for load_env_levels()
 #include <filesystem>
 #include <chrono>
 #include <sstream>
@@ -27,6 +28,7 @@ namespace logger {
 class Logger {
 public:
     static Logger& instance() {
+        spdlog::cfg::load_env_levels();  // Load log levels from SPDLOG_LEVEL env var
         static Logger inst;
         return inst;
     }

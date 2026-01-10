@@ -660,7 +660,7 @@ void TraceExporter::finalize(bool realizable) {
     write_json();
 
     finalized_ = true;
-    LOG_INFO("TraceExporter: finalized, trace written to {}", output_path_);
+    NOP_LOG_INFO("TraceExporter: finalized, trace written to {}", output_path_);
 }
 
 void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver& solver) {
