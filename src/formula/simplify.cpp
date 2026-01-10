@@ -242,26 +242,30 @@ Formula* simplify_release(FormulaPool& pool, Formula* left, Formula* right) {
  * @brief Simplify Next formula
  *
  * Rules:
- * - X False → False
- * - X True → True (optional, was disabled in original)
+ * - X[!] False → False
+ * - X[!] True → True (optional, was disabled in original)
  *
  * @param pool FormulaPool for creating formulas
- * @param operand Operand of Next
+ * @param operand Operand of Next (already simplified)
+ * @param original Pointer to original formula for identity check
  * @return Simplified formula
  */
-Formula* simplify_next(FormulaPool& pool, Formula* operand) {
-    // X False → False
+Formula* simplify_next(FormulaPool& pool, Formula* operand, Formula* original) {
+    // X[!] False → False
     if (operand->is_false()) {
         return pool.create_false();
     }
 
-    // X True → True (was disabled in original, keeping that behavior)
+    // X[!] True → True (was disabled in original, keeping that behavior)
     // if (operand->is_true()) {
     //     return pool.create_true();
     // }
 
-    // Default: keep X(operand)
-    return pool.create_next(operand);
+    // Default: keep X[!](operand)
+    if (operand != original->left()) {
+        return pool.create_next(operand);
+    }
+    return original;
 }
 
 /**
@@ -448,7 +452,7 @@ Formula* Formula::simplify(FormulaPool& pool) const {
 
         case Formula::OpType::Next: {
             Formula* simp_left = left_->simplify(pool);
-            return simplify_next(pool, simp_left);
+            return simplify_next(pool, simp_left, const_cast<Formula*>(this));
         }
 
         case Formula::OpType::Until: {
