@@ -72,18 +72,10 @@ private:
             std::tm* tm_info = std::localtime(&time_t);
             int hour = tm_info->tm_hour;
 
-            // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
-            std::string period;
-            if (hour >= 6 && hour < 12) period = "01-morning";
-            else if (hour >= 12 && hour < 18) period = "02-afternoon";
-            else if (hour >= 18) period = "03-evening";
-            else period = "04-night";
-
-            // Create log path: logs/formula/YYYY-MM-DD/period/formula_YYYYMMDD_HHMMSS.log
+            // Create log path: logs/formula/YYYY-MM-DD/formula_YYYYMMDD_HHMMSS.log
             std::ostringstream log_path;
             log_path << "logs/formula/"
                       << std::put_time(tm_info, "%Y-%m-%d")
-                      << "/" << period
                       << "/formula_"
                       << std::put_time(tm_info, "%Y%m%d_%H%M%S")
                       << ".log";

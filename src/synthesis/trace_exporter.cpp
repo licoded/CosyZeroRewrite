@@ -38,16 +38,6 @@ std::string get_timestamp() {
 }
 
 /**
- * @brief Get period string based on hour
- */
-std::string get_period_string(int hour) {
-    if (hour >= 6 && hour < 12) return "01-morning";
-    if (hour >= 12 && hour < 18) return "02-afternoon";
-    if (hour >= 18) return "03-evening";
-    return "04-night";
-}
-
-/**
  * @brief Escape string for JSON
  */
 std::string escape_json_string(const std::string& s) {
@@ -191,13 +181,10 @@ std::string get_trace_output_path() {
     char date_buf[16];
     std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", &tm);
 
-    // Get period string (e.g., "01-morning", "02-afternoon", etc.)
-    std::string period = get_period_string(tm.tm_hour);
-
-    // Build path: output/results/trace/YYYY-MM-DD/HH-period/
+    // Build path: output/results/trace/YYYY-MM-DD/
     // Matches the game_graph directory structure
     std::ostringstream path;
-    path << "output/results/trace/" << date_buf << "/" << period;
+    path << "output/results/trace/" << date_buf;
 
     return path.str();
 }
