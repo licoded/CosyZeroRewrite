@@ -30,8 +30,6 @@ using namespace synthesis;
 // Signal Handling for Timeout
 //==============================================================================
 
-static std::atomic<bool> interrupted{false};
-
 void signal_handler(int signal) {
     const char* signal_name = nullptr;
     switch (signal) {
@@ -57,7 +55,7 @@ void signal_handler(int signal) {
 static std::string read_file(const std::string& filename) {
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Error: Cannot open file: " << filename << std::endl;
+        NOP_LOG_ERROR("Error: Cannot open file: {}", filename);
         return "";
     }
     std::stringstream buffer;
@@ -78,7 +76,7 @@ static Partition parse_partition_file(const std::string& filename) {
     Partition result;
     std::ifstream file(filename);
     if (!file.is_open()) {
-        std::cerr << "Warning: Cannot open partition file: " << filename << std::endl;
+        NOP_LOG_ERROR("Warning: Cannot open partition file: {}", filename);
         return result;
     }
 
@@ -273,7 +271,7 @@ int main(int argc, char* argv[]) {
     if (!formula_file.empty()) {
         std::string raw = read_file(formula_file);
         if (raw.empty()) {
-            std::cerr << "Error: Failed to read formula file" << std::endl;
+            NOP_LOG_ERROR("Error: Failed to read formula file");
             return 1;
         }
         formula_str = clean_formula(raw);
@@ -282,8 +280,8 @@ int main(int argc, char* argv[]) {
 
     // Check if formula is provided
     if (formula_str.empty()) {
-        std::cerr << "Error: No formula provided" << std::endl;
-        std::cerr << "Run 'Cosy2 --help' for usage information." << std::endl;
+        NOP_LOG_ERROR("Error: No formula provided");
+        NOP_LOG_ERROR("Run 'Cosy2 --help' for usage information.");
         return 1;
     }
 
@@ -317,8 +315,8 @@ int main(int argc, char* argv[]) {
 
     Formula* phi = parser.parse(formula_str);
     if (!phi) {
-        std::cerr << "Error: Failed to parse formula" << std::endl;
-        std::cerr << "Parser error: " << parser.error() << std::endl;
+        NOP_LOG_ERROR("Error: Failed to parse formula");
+        NOP_LOG_ERROR("Parser error: {}", parser.error());
         return 1;
     }
 

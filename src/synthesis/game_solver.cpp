@@ -100,7 +100,7 @@ std::optional<bool> GameSolver::is_realizable(
         return graph.is_realizable();
 
     } catch (const std::exception& e) {
-        std::cerr << "Error in is_realizable: " << e.what() << "\n";
+        NOP_LOG_ERROR("Error in is_realizable: {}", e.what());
         return std::nullopt;
     }
 }

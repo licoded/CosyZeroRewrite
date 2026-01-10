@@ -6,9 +6,8 @@
 #include <cmath>
 #include <chrono>
 
-#ifdef FORMULA_USE_LOGGER
+// Always include logger for NOP_LOG_ERROR macro (unconditionally)
 #include "log/logger.hpp"
-#endif
 
 namespace formula {
 
@@ -88,9 +87,8 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
                 LOG_WARN("Estimated time for bound={} is {:.1f}s, exceeding timeout of {:.1f}s. Aborting.",
                          bound, safe_estimate / 1000.0, timeout_ms / 1000.0);
 #else
-                std::cerr << "[Z3 BMC] Estimated time for bound=" << bound
-                          << " is " << static_cast<int>(safe_estimate / 1000.0)
-                          << "s, exceeding timeout of " << (timeout_ms / 1000.0) << "s. Aborting.\n";
+                NOP_LOG_ERROR("[Z3 BMC] Estimated time for bound={} is {}s, exceeding timeout of {}s. Aborting.",
+                             bound, static_cast<int>(safe_estimate / 1000.0), timeout_ms / 1000.0);
 #endif
                 return std::nullopt;
             }
@@ -135,8 +133,8 @@ std::optional<bool> FormulaZ3::are_equivalent_incremental(Formula* f1, Formula* 
     LOG_WARN("Unable to determine equivalence after {} attempts (up to bound {})",
              attempts.size(), attempts.back().bound);
 #else
-    std::cerr << "[Z3 BMC] Unable to determine equivalence after "
-              << attempts.size() << " attempts (up to bound " << attempts.back().bound << ")\n";
+    NOP_LOG_ERROR("[Z3 BMC] Unable to determine equivalence after {} attempts (up to bound {})",
+                  attempts.size(), attempts.back().bound);
 #endif
     return std::nullopt;
 }
