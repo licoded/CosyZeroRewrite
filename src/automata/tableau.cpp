@@ -54,38 +54,36 @@ bool FormulaEqual::operator()(formula::Formula* a, formula::Formula* b) const no
 void TableauState::compute_prop_atoms(formula::Formula* phi, FormulaSet& result) {
     if (!phi) return;
 
-    auto op = phi->op();
+    switch(phi->op()) {
+        case formula::Formula::OpType::True:
+        case formula::Formula::OpType::False:
+            // Constants have empty PA
+            break;
 
-    // Base cases:
-    // - Literal (atomic variable): add to PA
-    // - Next/Until/Release: add as atomic subformula (for tableau state construction)
-    // - True/False: constants, NOT part of PA (empty set)
-    if (op == formula::Formula::OpType::Literal ||
-        op == formula::Formula::OpType::Next ||
-        op == formula::Formula::OpType::Until ||
-        op == formula::Formula::OpType::Release) {
-        result.insert(phi);
-        return;
-    }
+        case formula::Formula::OpType::Not:
+            // Recurse on child
+            assert(phi->left()->is_literal());
+            compute_prop_atoms(phi->left(), result);
+            break;
 
-    // True/False: constants have empty PA
-    if (op == formula::Formula::OpType::True ||
-        op == formula::Formula::OpType::False) {
-        return;
-    }
+        case formula::Formula::OpType::And:
+        case formula::Formula::OpType::Or:
+            // Union of children's PA
+            compute_prop_atoms(phi->left(), result);
+            compute_prop_atoms(phi->right(), result);
+            break;
 
-    // Not: recurse on child
-    if (op == formula::Formula::OpType::Not) {
-        compute_prop_atoms(phi->left(), result);
-        return;
-    }
-
-    // And/Or: union of children's PA
-    if (op == formula::Formula::OpType::And ||
-        op == formula::Formula::OpType::Or) {
-        compute_prop_atoms(phi->left(), result);
-        compute_prop_atoms(phi->right(), result);
-        return;
+        case formula::Formula::OpType::Literal:
+        case formula::Formula::OpType::Next:
+            result.insert(phi);
+            break;
+        
+        case formula::Formula::OpType::Until:
+        case formula::Formula::OpType::Release:
+            assert(false && "Until/Release should not appear in XNF");
+        default:
+            assert(false && "Unknown formula operator in compute_prop_atoms");
+            break;
     }
 }
 
