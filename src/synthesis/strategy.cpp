@@ -7,6 +7,7 @@
 #include "log/logger.hpp"
 #include <sstream>
 #include <queue>
+#include <spdlog/fmt/fmt.h>
 
 namespace synthesis {
 
@@ -15,16 +16,7 @@ namespace synthesis {
 //==============================================================================
 
 std::string StrategyMove::to_string() const {
-    std::ostringstream oss;
-    oss << "{out=[";
-    bool first = true;
-    for (int v : output) {
-        if (!first) oss << ",";
-        oss << v;
-        first = false;
-    }
-    oss << "]}";
-    return oss.str();
+    return fmt::format("{{out=[{}]}}", fmt::join(output, ","));
 }
 
 //==============================================================================
@@ -295,16 +287,13 @@ std::string StrategyExtractor::assignment_to_string(
         return "{}";
     }
 
-    std::ostringstream oss;
-    oss << "{";
-    bool first = true;
+    // Collect variable names with quotes, then join
+    std::vector<std::string> strs;
+    strs.reserve(assignment.size());
     for (int var_id : assignment) {
-        if (!first) oss << ", ";
-        oss << "\"" << pool.get_variable_name(var_id) << "\"";
-        first = false;
+        strs.push_back(fmt::format("\"{}\"", pool.get_variable_name(var_id)));
     }
-    oss << "}";
-    return oss.str();
+    return fmt::format("{{{}}}", fmt::join(strs, ", "));
 }
 
 //==============================================================================

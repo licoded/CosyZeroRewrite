@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <iostream>
 #include <queue>
+#include <spdlog/fmt/fmt.h>
 
 namespace automata {
 
@@ -14,13 +15,18 @@ namespace automata {
 std::string StateFormulaSet::to_string(const formula::FormulaPool& pool) const {
     if (empty()) return "{}";
 
+    // Collect strings first, then join (more efficient than repeated string +=)
+    std::vector<std::string> strs;
+    strs.reserve(formulas_.size());
+    for (auto f : formulas_) {
+        strs.push_back(f->to_string());
+    }
+
     std::ostringstream oss;
     oss << "{";
-    bool first = true;
-    for (auto f : formulas_) {
-        if (!first) oss << ", ";
-        oss << f->to_string();
-        first = false;
+    for (size_t i = 0; i < strs.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << strs[i];
     }
     oss << "}";
     return oss.str();
@@ -29,21 +35,18 @@ std::string StateFormulaSet::to_string(const formula::FormulaPool& pool) const {
 // ========== TransitionLabel ==========
 
 std::string TransitionLabel::to_string() const {
-    std::ostringstream oss;
-    oss << "[";
-    bool first = true;
+    // Collect all formatted strings first
+    std::vector<std::string> strs;
+    strs.reserve(positive_vars.size() + negative_vars.size());
+
     for (int v : positive_vars) {
-        if (!first) oss << ", ";
-        oss << "p" << v << "=true";
-        first = false;
+        strs.push_back(fmt::format("p{}=true", v));
     }
     for (int v : negative_vars) {
-        if (!first) oss << ", ";
-        oss << "p" << v << "=false";
-        first = false;
+        strs.push_back(fmt::format("p{}=false", v));
     }
-    oss << "]";
-    return oss.str();
+
+    return fmt::format("[{}]", fmt::join(strs, ", "));
 }
 
 // ========== DFA ==========

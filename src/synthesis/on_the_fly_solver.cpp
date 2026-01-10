@@ -15,6 +15,7 @@
 #include <iostream>
 #include <set>
 #include <vector>
+#include <spdlog/fmt/fmt.h>
 
 namespace synthesis {
 
@@ -27,24 +28,14 @@ std::string GameState::to_string() const {
     oss << "{dfa=" << dfa_state << ", player="
         << (player == Player::System ? "Sys" : "Env");
     if (system_chosen_output.has_value()) {
-        oss << ", out={";
-        bool first = true;
-        for (int v : system_chosen_output.value()) {
-            if (!first) oss << ",";
-            oss << v;
-            first = false;
-        }
-        oss << "}";
+        oss << ", out={"
+            << fmt::format("{}", fmt::join(system_chosen_output.value(), ","))
+            << "}";
     }
     if (environment_chosen_input.has_value()) {
-        oss << ", in={";
-        bool first = true;
-        for (int v : environment_chosen_input.value()) {
-            if (!first) oss << ",";
-            oss << v;
-            first = false;
-        }
-        oss << "}";
+        oss << ", in={"
+            << fmt::format("{}", fmt::join(environment_chosen_input.value(), ","))
+            << "}";
     }
     oss << "}";
     return oss.str();

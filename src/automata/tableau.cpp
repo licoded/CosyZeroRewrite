@@ -285,16 +285,16 @@ std::string TableauState::to_string() const {
     oss << "{phi: " << (phi_ ? phi_->to_string() : "null");
     oss << ", atoms: [";
 
-    bool first = true;
+    // Collect strings first, then join (eliminates 'first' flag)
+    std::vector<std::string> strs;
+    strs.reserve(prop_atoms_.size());
     for (formula::Formula* f : prop_atoms_) {
-        if (!first) oss << ", ";
-        first = false;
+        strs.push_back(f ? f->to_string() : "null");
+    }
 
-        if (f) {
-            oss << f->to_string();
-        } else {
-            oss << "null";
-        }
+    for (size_t i = 0; i < strs.size(); ++i) {
+        if (i > 0) oss << ", ";
+        oss << strs[i];
     }
 
     oss << "]}";

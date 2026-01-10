@@ -12,6 +12,7 @@
 #include <iostream>
 #include <sstream>
 #include <unordered_set>
+#include <spdlog/fmt/fmt.h>
 
 namespace synthesis {
 
@@ -665,22 +666,17 @@ std::string TraceExporter::format_assignment_label(const GameState& state,
     std::sort(relevant_vars.begin(), relevant_vars.end());
 
     // Build label: show true vars as "var", false vars as "!var"
-    std::ostringstream oss;
-    oss << (is_sys_move ? "sys={" : "env={");
-
-    bool first = true;
+    std::vector<std::string> strs;
+    strs.reserve(relevant_vars.size());
     for (int idx : relevant_vars) {
-        if (!first) oss << ", ";
         if (true_vars.count(idx)) {
-            oss << var_names[idx];
+            strs.push_back(var_names[idx]);
         } else {
-            oss << "!" << var_names[idx];
+            strs.push_back(fmt::format("!{}", var_names[idx]));
         }
-        first = false;
     }
 
-    oss << "}";
-    return oss.str();
+    return fmt::format("{}{{{}}}", is_sys_move ? "sys=" : "env=", fmt::join(strs, ", "));
 }
 
 //==============================================================================
