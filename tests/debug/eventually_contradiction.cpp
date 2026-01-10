@@ -47,7 +47,7 @@ int main() {
 
     // Enable debug logging on all sinks
     logger::Logger::instance().set_level(spdlog::level::debug);
-    for (auto& sink : logger::Logger::instance().get()->sinks()) {
+    for (auto& sink : logger::Logger::instance().logger()->sinks()) {
         sink->set_level(spdlog::level::debug);
     }
 

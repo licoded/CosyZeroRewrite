@@ -567,7 +567,7 @@ int main(int argc, char* argv[]) {
 
     // Cleanup
     LOG_FLUSH();
-    logger::Logger::instance().get()->flush();
+    logger::Logger::instance().logger()->flush();
     spdlog::shutdown();
 
     return (stats.total_count > stats.parsed) ? 1 : 0;
