@@ -6,73 +6,9 @@
 #include "automata/tableau.hpp"
 #include "log/logger.hpp"
 #include <algorithm>
-#include <cstdlib>  // for std::getenv
 #include <functional>
-#include <sstream>
-#include <iomanip>
-#include <iostream>
-#include <fstream>
-#include <chrono>
-#include <filesystem>
 
 namespace automata {
-
-// Debug log file (shared across all calls)
-namespace {
-    std::ofstream g_debug_log;
-    bool g_debug_log_initialized = false;
-    bool g_debug_enabled = false;  // Default OFF
-
-    void init_debug_log() {
-        if (!g_debug_log_initialized) {
-            // Check environment variable to enable debug output
-            const char* debug_env = std::getenv("COSY_DEBUG_TABLEAU");
-            g_debug_enabled = (debug_env != nullptr && std::string(debug_env) == "1");
-
-            if (!g_debug_enabled) {
-                g_debug_log_initialized = true;  // Mark as initialized but disabled
-                return;
-            }
-
-            // Create log path: logs/tableau/YYYY-MM-DD/period/tableau_debug.log
-            namespace fs = std::filesystem;
-            auto now = std::chrono::system_clock::now();
-            auto time_t = std::chrono::system_clock::to_time_t(now);
-            struct tm* tm_info = std::localtime(&time_t);
-            int hour = tm_info->tm_hour;
-
-            // Determine period: 01-morning(6-12), 02-afternoon(12-18), 03-evening(18-24), 04-night(0-6)
-            std::string period;
-            if (hour >= 6 && hour < 12) period = "01-morning";
-            else if (hour >= 12 && hour < 18) period = "02-afternoon";
-            else if (hour >= 18) period = "03-evening";
-            else period = "04-night";
-
-            std::ostringstream log_path;
-            log_path << "output/logs/tableau/"
-                      << std::put_time(tm_info, "%Y-%m-%d")
-                      << "/" << period
-                      << "/tableau_debug_"
-                      << std::put_time(tm_info, "%Y%m%d_%H%M%S")
-                      << ".log";
-
-            // Create directory
-            fs::create_directories(fs::path(log_path.str()).parent_path());
-
-            g_debug_log.open(log_path.str(), std::ios::out | std::ios::trunc);
-            g_debug_log_initialized = true;
-        }
-    }
-
-    void debug_log(const std::string& msg) {
-        init_debug_log();
-        if (g_debug_enabled) {
-            std::cerr << msg;
-            g_debug_log << msg;
-            g_debug_log.flush();
-        }
-    }
-}
 
 //==============================================================================
 // FormulaEqual implementation
@@ -318,19 +254,25 @@ formula::Formula* formula_progression(
 formula::Formula* TableauState::next_phi(const Assignment& assignment,
                                           formula::FormulaPool& pool) const {
     // DEBUG: Log input
-    debug_log("DEBUG next_phi:\n");
-    debug_log("  xnf_phi_ = " + (xnf_phi_ ? xnf_phi_->to_string() : "null") + "\n");
-    debug_log("  assignment = {");
-    for (int v : assignment) debug_log(std::to_string(v) + " ");
-    debug_log("}\n");
+    LOG_DEBUG("next_phi: xnf_phi_={}", xnf_phi_ ? xnf_phi_->to_string() : "null");
+
+    std::string assignment_str = "{";
+    bool first = true;
+    for (int v : assignment) {
+        if (!first) assignment_str += " ";
+        assignment_str += std::to_string(v);
+        first = false;
+    }
+    assignment_str += "}";
+    LOG_DEBUG("  assignment={}", assignment_str);
 
     // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
     formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
-    debug_log("  next_phi = " + (next_phi ? next_phi->to_string() : "null") + "\n");
+    LOG_DEBUG("  next_phi={}", next_phi ? next_phi->to_string() : "null");
 
     // Simplify the result
     formula::Formula* next_phi_simplified = next_phi->simplify(pool);
-    debug_log("  next_phi_simp = " + (next_phi_simplified ? next_phi_simplified->to_string() : "null") + "\n");
+    LOG_DEBUG("  next_phi_simp={}", next_phi_simplified ? next_phi_simplified->to_string() : "null");
 
     return next_phi_simplified;
 }
@@ -385,7 +327,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     if (!phi) return nullptr;
 
     // DEBUG: Log input
-    debug_log("DEBUG get_or_create: phi = " + phi->to_string() + "\n");
+    LOG_DEBUG("get_or_create: phi={}", phi->to_string());
 
     // Create a temporary state to check for existence
     // We need the xnf and prop_atoms, but for checking existence we just need phi hash
@@ -394,7 +336,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     // Check if equivalent state exists (based on phi hash)
     auto it = states_.find(temp.get());
     if (it != states_.end()) {
-        debug_log("  -> found existing state\n");
+        LOG_DEBUG("  -> found existing state");
         return *it;
     }
 
@@ -404,14 +346,14 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     formula::Formula* xnf_phi = nnf_phi->xnf_with_end_marker(pool);
 
     // DEBUG: Log NNF and XNF
-    debug_log("  nnf_phi = " + nnf_phi->to_string() + "\n");
-    debug_log("  xnf_phi = " + xnf_phi->to_string() + "\n");
+    LOG_DEBUG("  nnf_phi={}", nnf_phi->to_string());
+    LOG_DEBUG("  xnf_phi={}", xnf_phi->to_string());
 
     // Compute PA(xnf_phi)
     TableauState::FormulaSet prop_atoms;
     TableauState::compute_prop_atoms(xnf_phi, prop_atoms);
 
-    debug_log("  prop_atoms size = " + std::to_string(prop_atoms.size()) + "\n");
+    LOG_DEBUG("  prop_atoms size={}", prop_atoms.size());
 
     // Create the actual state
     auto actual_state = std::unique_ptr<TableauState>(
@@ -422,7 +364,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     states_.insert(raw_ptr);
     storage_.push_back(std::move(actual_state));
 
-    debug_log("  -> created new state, total states = " + std::to_string(states_.size()) + "\n");
+    LOG_DEBUG("  -> created new state, total states={}", states_.size());
 
     return raw_ptr;
 }
