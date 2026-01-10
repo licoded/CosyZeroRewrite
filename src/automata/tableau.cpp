@@ -326,14 +326,13 @@ formula::Formula* TableauState::next_phi(const Assignment& assignment,
 
     // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
     formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
-
-    // DEBUG: Log output
     debug_log("  next_phi = " + (next_phi ? next_phi->to_string() : "null") + "\n");
 
-    // TODO: Simplify the result (currently disabled)
-    // formula::Formula* next_phi_simplified = next_phi->simplify(pool);
+    // Simplify the result
+    formula::Formula* next_phi_simplified = next_phi->simplify(pool);
+    debug_log("  next_phi_simp = " + (next_phi_simplified ? next_phi_simplified->to_string() : "null") + "\n");
 
-    return next_phi;
+    return next_phi_simplified;
 }
 
 //------------------------------------------------------------------------------
