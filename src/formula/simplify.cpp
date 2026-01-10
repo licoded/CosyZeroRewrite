@@ -1,6 +1,6 @@
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
-#include <unordered_set>
+#include <set>
 
 namespace formula {
 
@@ -15,11 +15,14 @@ namespace {
  * Uses hash consing: Formula* pointer equality = structural equality
  * Collects all terms including True, False (caller checks for them afterward)
  *
+ * Note: Uses std::set (not unordered_set) to ensure deterministic iteration order
+ * for consistent formula construction and hash consing.
+ *
  * @param f Formula to collect from
  * @param terms Output set of terms
  * @param op The operator type to flatten (And or Or)
  */
-void collect_binary_terms(Formula* f, std::unordered_set<Formula*>& terms,
+void collect_binary_terms(Formula* f, std::set<Formula*>& terms,
                           Formula::OpType op) {
     if (!f) return;
 
@@ -46,10 +49,10 @@ void collect_binary_terms(Formula* f, std::unordered_set<Formula*>& terms,
  * @param pool FormulaPool for creating Not formulas
  * @return true if complementary pair found
  */
-bool has_complementary_literals(const std::unordered_set<Formula*>& terms,
+bool has_complementary_literals(const std::set<Formula*>& terms,
                                  FormulaPool& pool) {
-    std::unordered_set<Formula*> positives;  // v0, v1, ...
-    std::unordered_set<Formula*> negatives;  // !v0, !v1, ...
+    std::set<Formula*> positives;  // v0, v1, ...
+    std::set<Formula*> negatives;  // !v0, !v1, ...
 
     for (Formula* f : terms) {
         if (f->is_not()) {
@@ -80,13 +83,16 @@ bool has_complementary_literals(const std::unordered_set<Formula*>& terms,
  * - For AND: returns True if empty, single term if only one, otherwise AND chain
  * - For OR: returns False if empty, single term if only one, otherwise OR chain
  *
+ * Note: Uses std::set for deterministic iteration order, ensuring consistent
+ * formula construction for hash consing.
+ *
  * @param pool FormulaPool for creating formulas
  * @param terms Set of terms to chain
  * @param op Operator type (OpType::And or OpType::Or)
  * @return Rebuilt formula
  */
 Formula* rebuild_chain(FormulaPool& pool,
-                       const std::unordered_set<Formula*>& terms,
+                       const std::set<Formula*>& terms,
                        Formula::OpType op) {
     if (terms.empty()) {
         return (op == Formula::OpType::And) ? pool.create_true() : pool.create_false();
@@ -323,7 +329,7 @@ Formula* simplify_not(FormulaPool& pool, Formula* operand, Formula* original) {
  * @return Simplified formula
  */
 Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
-    std::unordered_set<Formula*> terms;
+    std::set<Formula*> terms;
 
     // Phase 1: Initial collection (flatten nested AND from original tree)
     collect_binary_terms(left, terms, Formula::OpType::And);
@@ -337,7 +343,7 @@ Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
 
     // Phase 2: Simplify each term and expand any new AND formulas
     // Single pass: simplified terms cannot generate new AND
-    std::unordered_set<Formula*> new_terms;
+    std::set<Formula*> new_terms;
     for (Formula* f : terms) {
         Formula* simplified = f->simplify(pool);
 
@@ -384,7 +390,7 @@ Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
  * @return Simplified formula
  */
 Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
-    std::unordered_set<Formula*> terms;
+    std::set<Formula*> terms;
 
     // Phase 1: Initial collection (flatten nested OR from original tree)
     collect_binary_terms(left, terms, Formula::OpType::Or);
@@ -398,7 +404,7 @@ Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
 
     // Phase 2: Simplify each term and expand any new OR formulas
     // Single pass: simplified terms cannot generate new OR
-    std::unordered_set<Formula*> new_terms;
+    std::set<Formula*> new_terms;
     for (Formula* f : terms) {
         Formula* simplified = f->simplify(pool);
 
