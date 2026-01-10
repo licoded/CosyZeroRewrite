@@ -7,6 +7,7 @@
 #include "log/logger.hpp"
 #include <algorithm>
 #include <functional>
+#include <spdlog/fmt/fmt.h>
 
 namespace automata {
 
@@ -255,16 +256,7 @@ formula::Formula* TableauState::next_phi(const Assignment& assignment,
                                           formula::FormulaPool& pool) const {
     // DEBUG: Log input
     LOG_DEBUG("next_phi: xnf_phi_={}", xnf_phi_ ? xnf_phi_->to_string() : "null");
-
-    std::string assignment_str = "{";
-    bool first = true;
-    for (int v : assignment) {
-        if (!first) assignment_str += " ";
-        assignment_str += std::to_string(v);
-        first = false;
-    }
-    assignment_str += "}";
-    LOG_DEBUG("  assignment={}", assignment_str);
+    LOG_DEBUG("  assignment={{{}}}", fmt::join(assignment, " "));
 
     // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
     formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
