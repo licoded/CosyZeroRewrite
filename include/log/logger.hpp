@@ -28,8 +28,8 @@ namespace logger {
 class Logger {
 public:
     static Logger& instance() {
-        spdlog::cfg::load_env_levels();  // Load log levels from SPDLOG_LEVEL env var
         static Logger inst;
+        spdlog::cfg::load_env_levels();  // Load log levels from SPDLOG_LEVEL env var
         return inst;
     }
 
