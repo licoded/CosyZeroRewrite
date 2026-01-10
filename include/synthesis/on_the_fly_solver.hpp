@@ -388,66 +388,6 @@ public:
     size_t check_propagation_consistency() const;
 
     /**
-     * @brief Export game graph to DOT format (GraphViz)
-     *
-     * Visual elements:
-     * - System states: circles, blue border
-     * - Environment states: boxes, orange border
-     * - Swin states: light green fill
-     * - Ewin states: light red fill
-     * - Initial state: bold border (penwidth=3)
-     * - Sys moves: blue solid lines (System -> Environment)
-     * - Env moves: red dashed lines (Environment -> System)
-     *
-     * @param external_id_map Optional external StateIdMap to use for consistent IDs
-     *                        If nullptr, creates a temporary internal map
-     * @return DOT format string
-     */
-    std::string to_dot(StateIdMap* external_id_map = nullptr) const;
-
-    /**
-     * @brief Export game graph metadata to JSON format
-     *
-     * Contains complete formula information for each state:
-     * - Formula strings (with variable names)
-     * - State classifications
-     * - Transition assignments
-     *
-     * @return JSON format string
-     */
-    std::string to_json() const;
-
-    /**
-     * @brief Export game graph to interactive HTML (single self-contained file)
-     *
-     * Generates an HTML file with:
-     * - Embedded viz.js for graph rendering (loads from CDN)
-     * - Embedded DOT content for the graph
-     * - Embedded JSON data for state metadata
-     * - Interactive tooltips showing formula information on hover
-     * - Click-to-highlight functionality
-     *
-     * @return HTML content as string
-     */
-    std::string to_html() const;
-
-    /**
-     * @brief Write game graph to files (DOT + JSON + HTML)
-     *
-     * Creates three files:
-     * - <base_path>.dot - GraphViz DOT format
-     * - <base_path>.json - Metadata with full formulas
-     * - <base_path>.html - Interactive HTML visualization
-     *
-     * The base_path should NOT include extension.
-     * Example: write_dot("results/game_graph/2026-01-04/10-morning/game_graph_20260104_101500")
-     *
-     * @param base_path Output file path without extension
-     * @return true if all files written successfully
-     */
-    bool write_dot(const std::string& base_path) const;
-
-    /**
      * @brief Enable execution trace recording for visualization
      *
      * When enabled, the solver will record each step of the synthesis process
@@ -461,6 +401,30 @@ public:
      * @brief Check if tracing is enabled
      */
     bool is_trace_enabled() const;
+
+    /**
+     * @brief Get the formula pool (for TraceExporter)
+     */
+    formula::FormulaPool& get_pool() const { return pool_; }
+
+    //==========================================================================
+    // Iterators for TraceExporter (internal use)
+    //==========================================================================
+
+    /**
+     * @brief Iterator type for state-successor pairs
+     */
+    using const_iterator = typename std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>::const_iterator;
+
+    /**
+     * @brief Begin iterator over state->successors map
+     */
+    const_iterator begin() const { return successors_.begin(); }
+
+    /**
+     * @brief End iterator over state->successors map
+     */
+    const_iterator end() const { return successors_.end(); }
 
 private:
     // Formula and pool

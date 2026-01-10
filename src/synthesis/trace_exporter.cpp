@@ -5,6 +5,7 @@
 
 #include "synthesis/trace_exporter.hpp"
 #include "log/logger.hpp"
+#include "DSViz/dsv.hpp"  // For DOT generation
 #include <nlohmann/json.hpp>
 #include <algorithm>    // for std::sort
 #include <filesystem>
@@ -78,6 +79,102 @@ std::string escape_json_string(const std::string& s) {
 }
 
 } // anonymous namespace
+
+//==============================================================================
+// Internal DOT generation function for TraceExporter
+//==============================================================================
+
+/**
+ * @brief Generate DOT format from solver (internal function for TraceExporter)
+ */
+static std::string solver_to_dot(const OnTheFlyGameSolver& solver, StateIdMap& id_map) {
+    // Set pool for variable name lookup
+    if (!id_map.pool) {
+        id_map.pool = &solver.get_pool();
+    }
+
+    // Build ID map first
+    for (const auto& pair : solver) {
+        id_map.get_id(pair.first);
+        for (const auto& succ : pair.second) {
+            id_map.get_id(succ);
+        }
+    }
+
+    // Create DSViz graph
+    DSViz::Config config;
+    config.node_style = "style=filled";
+    config.graph_style = "rankdir=LR;";
+    config.other = R"(  // Visual legend:
+  // System states: circles (blue border)
+  // Environment states: boxes (orange border)
+  // Swin: light green fill | Ewin: light red fill
+  // Sys moves: blue solid lines | Env moves: red dashed lines
+)";
+
+    DSViz::Dot dot(config);
+
+    // Add nodes
+    for (const auto& pair : id_map.to_id) {
+        const GameState& state = pair.first;
+        const std::string& id = pair.second;
+        bool is_sys = (state.player == Player::System);
+
+        StateClass cls = solver.get_classification(state);
+
+        std::string shape = is_sys ? "circle" : "box";
+        std::string fillcolor;
+        if (cls == StateClass::Swin) fillcolor = "lightgreen";
+        else if (cls == StateClass::Ewin) fillcolor = "lightcoral";
+        else fillcolor = "lightgray";
+
+        std::string color = is_sys ? "blue" : "orange";
+        std::string label = id + "\\n" + to_string(cls);
+
+        std::string attrs = fmt::format(
+            "[shape={}, fillcolor={}, color={} label=\"{}\"]",
+            shape, fillcolor, color, label
+        );
+
+        dot.addNode(id, attrs);
+    }
+
+    // Add edges (transitions)
+    for (const auto& pair : solver) {
+        const GameState& from = pair.first;
+        const std::string from_id = id_map.get_id(from);
+        bool from_is_sys = (from.player == Player::System);
+
+        for (const auto& succ : pair.second) {
+            const std::string to_id = id_map.get_id(succ);
+
+            std::string attrs;
+            if (from_is_sys) {
+                attrs = "[color=blue, style=solid";
+                if (succ.system_chosen_output.has_value() && from.dfa_state) {
+                    attrs += fmt::format(", label=\"sys={}\"",
+                        id_map.get_assignment_label(succ.system_chosen_output.value(), true,
+                                                  &from.dfa_state->prop_atoms())
+                    );
+                }
+                attrs += "]";
+            } else {
+                attrs = "[color=red, style=dashed";
+                if (succ.environment_chosen_input.has_value() && from.dfa_state) {
+                    attrs += fmt::format(", label=\"env={}\"",
+                        id_map.get_assignment_label(succ.environment_chosen_input.value(), false,
+                                                  &from.dfa_state->prop_atoms())
+                    );
+                }
+                attrs += "]";
+            }
+
+            dot.addEdge(from_id, to_id, attrs);
+        }
+    }
+
+    return dot.print();
+}
 
 //==============================================================================
 // Public Helper Functions
@@ -355,7 +452,7 @@ void TraceExporter::capture_state(const std::string& description,
     begin_sub_step(description);
 
     // Get current DOT from solver (using shared StateIdMap)
-    std::string dot = solver.to_dot(&id_map_);
+    std::string dot = solver_to_dot(solver, id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);  // edges count not readily available
 
     // Collect state data for tooltips (phi, xnf_phi, prop_atoms)
@@ -409,7 +506,7 @@ void TraceExporter::record_expansion(const GameState& state,
     begin_sub_step("Expand state: " + id_map_.get_id(state));
 
     // Get current DOT
-    std::string dot = solver.to_dot(&id_map_);
+    std::string dot = solver_to_dot(solver, id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -453,7 +550,7 @@ void TraceExporter::record_scc(const std::vector<GameState>& scc,
     begin_sub_step("Found SCC: " + scc_id);
 
     // Get current DOT
-    std::string dot = solver.to_dot(&id_map_);
+    std::string dot = solver_to_dot(solver, id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -496,7 +593,7 @@ void TraceExporter::record_classification_change(const GameState& state,
     begin_sub_step(oss.str());
 
     // Get current DOT
-    std::string dot = solver.to_dot(&id_map_);
+    std::string dot = solver_to_dot(solver, id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -585,7 +682,7 @@ void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver& solver) 
     begin_sub_step("Complete game graph with final classifications");
 
     // Get current DOT from solver
-    std::string dot = solver.to_dot(&id_map_);
+    std::string dot = solver_to_dot(solver, id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips

@@ -361,51 +361,6 @@ int main(int argc, char* argv[]) {
     bool realizable = solver.is_realizable();
 
     //==========================================================================
-    // Export game graph if environment variable is set
-    //==========================================================================
-    const char* debug_graph = std::getenv("COSY_DEBUG_GAME_GRAPH");
-    if (debug_graph && std::string(debug_graph) == "1") {
-        if (!quiet) LOG_OUTPUT("Exporting game graph...");
-
-        // Generate timestamp for filename
-        auto now = std::chrono::system_clock::now();
-        auto time_t_now = std::chrono::system_clock::to_time_t(now);
-        std::tm tm_now;
-        localtime_r(&time_t_now, &tm_now);
-
-        // Format: results/game_graph/YYYY-MM-DD/HH-period/game_graph_YYYYMMDD_HHMMSS
-        char time_buf[64];
-        std::strftime(time_buf, sizeof(time_buf), "%Y-%m-%d", &tm_now);
-        std::string date_dir = time_buf;
-
-        std::strftime(time_buf, sizeof(time_buf), "%H", &tm_now);
-        int hour = std::atoi(time_buf);
-
-        // Period: AM (00-11) or PM (12-23)
-        std::string period = (hour < 12) ? "AM" : "PM";
-        std::strftime(time_buf, sizeof(time_buf), "%I", &tm_now);
-        std::string hour_str = time_buf;
-        // Remove leading zero
-        if (hour_str[0] == '0') hour_str = hour_str.substr(1);
-
-        std::string subdir = hour_str + "-" + period;
-
-        std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
-        std::string timestamp = time_buf;
-
-        std::string base_path = "output/results/game_graph/" + date_dir + "/" + subdir + "/game_graph_" + timestamp;
-
-        if (solver.write_dot(base_path)) {
-            LOG_OUTPUT("  Game graph exported:");
-            LOG_OUTPUT("    DOT:  {}", base_path + ".dot");
-            LOG_OUTPUT("    JSON: {}", base_path + ".json");
-            LOG_OUTPUT("    HTML: {} (interactive)", base_path + ".html");
-        } else {
-            std::cerr << "  Warning: Failed to export game graph" << std::endl;
-        }
-    }
-
-    //==========================================================================
     // Output result
     //==========================================================================
     if (!quiet) {
