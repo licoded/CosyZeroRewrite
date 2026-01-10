@@ -74,19 +74,22 @@ bool has_complementary_literals(const std::unordered_set<Formula*>& terms,
 }
 
 /**
- * @brief Rebuild an AND chain from a set of terms
+ * @brief Rebuild a binary operator chain from a set of terms
  *
- * Creates a right-leaning chain of AND operators from the given terms.
- * Returns True if empty, single term if only one, otherwise AND chain.
+ * Creates a right-leaning chain of AND or OR operators from the given terms.
+ * - For AND: returns True if empty, single term if only one, otherwise AND chain
+ * - For OR: returns False if empty, single term if only one, otherwise OR chain
  *
  * @param pool FormulaPool for creating formulas
  * @param terms Set of terms to chain
+ * @param op Operator type (OpType::And or OpType::Or)
  * @return Rebuilt formula
  */
-Formula* rebuild_and_chain(FormulaPool& pool,
-                           const std::unordered_set<Formula*>& terms) {
+Formula* rebuild_chain(FormulaPool& pool,
+                       const std::unordered_set<Formula*>& terms,
+                       Formula::OpType op) {
     if (terms.empty()) {
-        return pool.create_true();
+        return (op == Formula::OpType::And) ? pool.create_true() : pool.create_false();
     }
 
     if (terms.size() == 1) {
@@ -99,38 +102,11 @@ Formula* rebuild_and_chain(FormulaPool& pool,
     ++it;
 
     for (; it != terms.end(); ++it) {
-        result = pool.create_and(result, *it);
-    }
-
-    return result;
-}
-
-/**
- * @brief Rebuild an OR chain from a set of terms
- *
- * Similar to rebuild_and_chain but for OR operator.
- *
- * @param pool FormulaPool for creating formulas
- * @param terms Set of terms to chain
- * @return Rebuilt formula
- */
-Formula* rebuild_or_chain(FormulaPool& pool,
-                          const std::unordered_set<Formula*>& terms) {
-    if (terms.empty()) {
-        return pool.create_false();
-    }
-
-    if (terms.size() == 1) {
-        return *terms.begin();
-    }
-
-    // Build right-leaning chain: a | b | c → |(a, |(b, c))
-    auto it = terms.begin();
-    Formula* result = *it;
-    ++it;
-
-    for (; it != terms.end(); ++it) {
-        result = pool.create_or(result, *it);
+        if (op == Formula::OpType::And) {
+            result = pool.create_and(result, *it);
+        } else {
+            result = pool.create_or(result, *it);
+        }
     }
 
     return result;
@@ -382,7 +358,7 @@ Formula* simplify_and(FormulaPool& pool, Formula* left, Formula* right) {
     }
 
     // Rebuild chain from deduplicated terms
-    return rebuild_and_chain(pool, new_terms);
+    return rebuild_chain(pool, new_terms, Formula::OpType::And);
 }
 
 /**
@@ -443,7 +419,7 @@ Formula* simplify_or(FormulaPool& pool, Formula* left, Formula* right) {
     }
 
     // Rebuild chain from deduplicated terms
-    return rebuild_or_chain(pool, new_terms);
+    return rebuild_chain(pool, new_terms, Formula::OpType::Or);
 }
 
 } // anonymous namespace
