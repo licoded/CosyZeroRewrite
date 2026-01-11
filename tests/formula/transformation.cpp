@@ -217,13 +217,11 @@ TEST_CASE("Transformation: Parse → to_string_with_names → Re-parse", "[trans
             if (result) {
                 passed++;
                 stats.passed++;
-                std::cout << "  PASS: " << formula_str << " → " << f1_str
-                          << " (" << elapsed << "ms)\n";
+                LOG_TRACE("PASS: {} → {} ({}ms)", formula_str, f1_str, elapsed);
             } else {
                 failed++;
                 stats.failed++;
-                std::cout << "  FAIL: " << formula_str << " → " << f1_str
-                          << " (NOT EQUIV) (" << elapsed << "ms)\n";
+                LOG_DEBUG("FAIL: {} → {} (NOT EQUIV) ({}ms)", formula_str, f1_str, elapsed);
                 log_failure("StringRoundtrip", formula_str, f1_str,
                           "equivalent", "not-equivalent", elapsed);
             }
@@ -233,7 +231,7 @@ TEST_CASE("Transformation: Parse → to_string_with_names → Re-parse", "[trans
             stats.failed++;
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
-            std::cout << "  ERROR: " << formula_str << " - " << e.what() << " (" << elapsed << "ms)\n";
+            LOG_DEBUG("ERROR: {} - {} ({}ms)", formula_str, e.what(), elapsed);
             log_failure("StringRoundtrip", formula_str, e.what(),
                         "no error", "exception", elapsed);
         }
@@ -287,13 +285,11 @@ TEST_CASE("Transformation: NNF preserves semantics", "[transformation][nnf]") {
             if (result) {
                 passed++;
                 stats.passed++;
-                std::cout << "  PASS: " << formula_str << " → NNF"
-                          << " (" << elapsed << "ms)\n";
+                LOG_TRACE("PASS: {} → NNF ({}ms)", formula_str, elapsed);
             } else {
                 failed++;
                 stats.failed++;
-                std::cout << "  FAIL: " << formula_str << " → NNF (NOT EQUIV)"
-                          << " (" << elapsed << "ms)\n";
+                LOG_DEBUG("FAIL: {} → NNF (NOT EQUIV) ({}ms)", formula_str, elapsed);
                 log_failure("NNF_Transform", formula_str, f2->to_string(),
                           "equivalent", "not-equivalent", elapsed);
             }
@@ -303,7 +299,7 @@ TEST_CASE("Transformation: NNF preserves semantics", "[transformation][nnf]") {
             stats.failed++;
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
-            std::cout << "  ERROR: " << formula_str << " - " << e.what() << " (" << elapsed << "ms)\n";
+            LOG_DEBUG("ERROR: {} - {} ({}ms)", formula_str, e.what(), elapsed);
             log_failure("NNF_Transform", formula_str, e.what(),
                         "no error", "exception", elapsed);
         }
@@ -356,13 +352,11 @@ TEST_CASE("Transformation: XNF preserves semantics", "[transformation][xnf]") {
             if (result) {
                 passed++;
                 stats.passed++;
-                std::cout << "  PASS: " << formula_str << " → XNF"
-                          << " (" << elapsed << "ms)\n";
+                LOG_TRACE("PASS: {} → XNF ({}ms)", formula_str, elapsed);
             } else {
                 failed++;
                 stats.failed++;
-                std::cout << "  FAIL: " << formula_str << " → XNF (NOT EQUIV)"
-                          << " (" << elapsed << "ms)\n";
+                LOG_DEBUG("FAIL: {} → XNF (NOT EQUIV) ({}ms)", formula_str, elapsed);
                 log_failure("XNF_Transform", formula_str, f2->to_string(),
                           "equivalent", "not-equivalent", elapsed);
             }
@@ -372,7 +366,7 @@ TEST_CASE("Transformation: XNF preserves semantics", "[transformation][xnf]") {
             stats.failed++;
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
-            std::cout << "  ERROR: " << formula_str << " - " << e.what() << " (" << elapsed << "ms)\n";
+            LOG_DEBUG("ERROR: {} - {} ({}ms)", formula_str, e.what(), elapsed);
             log_failure("XNF_Transform", formula_str, e.what(),
                         "no error", "exception", elapsed);
         }
@@ -427,13 +421,11 @@ TEST_CASE("Transformation: Full pipeline (NNF → Simplify → XNF)", "[transfor
             if (result) {
                 passed++;
                 stats.passed++;
-                std::cout << "  PASS: " << formula_str << " → Full Pipeline"
-                          << " (" << elapsed << "ms)\n";
+                LOG_TRACE("PASS: {} → Full Pipeline ({}ms)", formula_str, elapsed);
             } else {
                 failed++;
                 stats.failed++;
-                std::cout << "  FAIL: " << formula_str << " → Full Pipeline (NOT EQUIV)"
-                          << " (" << elapsed << "ms)\n";
+                LOG_DEBUG("FAIL: {} → Full Pipeline (NOT EQUIV) ({}ms)", formula_str, elapsed);
                 std::string pipeline_desc = "NNF: " + f_nnf->to_string() +
                                            "\nSimplify: " + f_simp->to_string() +
                                            "\nXNF: " + f_xnf->to_string();
@@ -446,7 +438,7 @@ TEST_CASE("Transformation: Full pipeline (NNF → Simplify → XNF)", "[transfor
             stats.failed++;
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
-            std::cout << "  ERROR: " << formula_str << " - " << e.what() << " (" << elapsed << "ms)\n";
+            LOG_DEBUG("ERROR: {} - {} ({}ms)", formula_str, e.what(), elapsed);
             log_failure("Full_Pipeline", formula_str, e.what(),
                         "no error", "exception", elapsed);
         }

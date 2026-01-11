@@ -150,7 +150,7 @@ std::string Formula::to_string_impl(const VarNameResolver& resolver,
             if (op_ == OpType::Or && right_ && right_->is_end() &&
                 left_ && left_->is_next()) {
                 // This is X(expr) | end, output as WX(expr) for weak next
-                oss << "WX";
+                oss << "X";
                 if (left_->left()) {
                     std::string child_str = left_->left()->to_string_impl(resolver, end_marker);
                     if (is_wrapped_in_parens(child_str)) {

@@ -106,7 +106,7 @@ TEST_CASE("Formula: Create unary operators", "[formula][creation]") {
     REQUIRE(next_a->left() == a);
 
     REQUIRE(not_a->to_string() == "!v0");
-    REQUIRE(next_a->to_string() == "X(v0)");
+    REQUIRE(next_a->to_string() == "X[!](v0)");
 }
 
 TEST_CASE("Formula: Create binary operators", "[formula][creation]") {
