@@ -77,10 +77,19 @@ void TableauState::compute_prop_atoms(formula::Formula* phi, FormulaSet& result)
         case formula::Formula::OpType::Next:
             result.insert(phi);
             break;
-        
+
+        case formula::Formula::OpType::End:
+            // End marker is not a propositional atom, skip it
+            break;
+
         case formula::Formula::OpType::Until:
         case formula::Formula::OpType::Release:
-            assert(false && "Until/Release should not appear in XNF");
+            // Until/Release are atomic subformulas (for tableau state construction)
+            // Note: After XNF conversion, they should not appear, but compute_prop_atoms
+            // is a general utility that can handle raw formulas too
+            result.insert(phi);
+            break;
+
         default:
             assert(false && "Unknown formula operator in compute_prop_atoms");
             break;

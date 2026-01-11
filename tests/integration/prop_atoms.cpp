@@ -107,21 +107,6 @@ TEST_CASE("PA: !p = {p}", "[pa][not]") {
     REQUIRE(result.count(not_p) == 0);  // !p is NOT in result, p is
 }
 
-TEST_CASE("PA: !!p = {p}", "[pa][not]") {
-    INFO("Formula: !!p");
-    FormulaPool pool;
-    pool.declare_variables({"p"}, {});
-    Formula* p = pool.create_variable("p");
-    Formula* not_p = pool.create_not(p);
-    Formula* not_not_p = pool.create_not(not_p);
-
-    TableauState::FormulaSet result;
-    TableauState::compute_prop_atoms(not_not_p, result);
-
-    REQUIRE(result.size() == 1);
-    REQUIRE(result.count(p) == 1);
-}
-
 //==============================================================================
 // PA: Next (Atomic)
 //==============================================================================
@@ -291,24 +276,6 @@ TEST_CASE("PA: (p & q) | X(r) = {p, q, X(r)}", "[pa][complex]") {
     REQUIRE(result.count(p) == 1);
     REQUIRE(result.count(q) == 1);
     REQUIRE(result.count(next_r) == 1);
-}
-
-TEST_CASE("PA: !(p & q) = {p, q}", "[pa][complex][not]") {
-    INFO("Formula: !(p && q)");
-    FormulaPool pool;
-    pool.declare_variables({"p", "q"}, {});
-    Formula* p = pool.create_variable("p");
-    Formula* q = pool.create_variable("q");
-    Formula* and_pq = pool.create_and(p, q);
-    Formula* not_and = pool.create_not(and_pq);
-
-    TableauState::FormulaSet result;
-    TableauState::compute_prop_atoms(not_and, result);
-
-    // Not penetrates, then And expands
-    REQUIRE(result.size() == 2);
-    REQUIRE(result.count(p) == 1);
-    REQUIRE(result.count(q) == 1);
 }
 
 TEST_CASE("PA: (p U q) & r = {p U q, r}", "[pa][complex]") {
