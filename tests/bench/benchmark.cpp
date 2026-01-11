@@ -24,6 +24,7 @@
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
+#include "synthesis/on_the_fly_solver.hpp"
 #include "parallel/thread_pool.hpp"
 #include "log/logger.hpp"
 
@@ -164,6 +165,7 @@ struct TaskResult {
     std::string formula_str;
     std::string partition_str;
     std::string error_msg;
+    std::optional<bool> realizable;  // synthesis result
 
     TaskResult() : bench_dir(0), formula_index(0), success(false), elapsed_ms(0.0) {}
 };
@@ -390,25 +392,26 @@ public:
                 FormulaPool pool;
                 Formula* f = parse_formula(formula_str, pool);
 
-                auto end = std::chrono::high_resolution_clock::now();
-                result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                result.formula_str = formula_str;
-                result.partition_str = make_partition_string(inputs, outputs);
-
-                if (f) {
-                    result.success = true;
-                } else {
+                if (!f) {
+                    auto end = std::chrono::high_resolution_clock::now();
+                    result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+                    result.formula_str = formula_str;
+                    result.partition_str = make_partition_string(inputs, outputs);
                     result.success = false;
                     result.error_msg = "parse error";
-                }
+                } else {
+                    // Declare variables and run synthesis
+                    pool.declare_variables(outputs, inputs);
 
-                // Artificial delay for testing progress bar (random duration)
-                if (sleep_per_task_ > 0) {
-                    // Random sleep: 0 to 2*sleep_per_task_ (average = sleep_per_task_)
-                    static thread_local std::mt19937 rng(std::random_device{}());
-                    std::uniform_int_distribution<int> dist(0, 2 * sleep_per_task_);
-                    int sleep_ms = dist(rng) * 1000; // Convert to milliseconds
-                    std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
+                    synthesis::OnTheFlyGameSolver solver(f, pool, outputs.size(), inputs.size());
+                    bool realizable = solver.is_realizable();
+
+                    auto end = std::chrono::high_resolution_clock::now();
+                    result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
+                    result.formula_str = formula_str;
+                    result.partition_str = make_partition_string(inputs, outputs);
+                    result.success = true;
+                    result.realizable = realizable;
                 }
             }
 
@@ -564,8 +567,11 @@ static void print_banner(const BenchmarkConfig& config) {
 // ============================================================================
 
 struct BenchmarkStats {
-    int parsed = 0;             // failed = total_count - parsed
-    int found_results = 0;      // not_found = total_count - found_results
+    int parsed = 0;
+    int realizable = 0;
+    int unrealizable = 0;
+    int timeout = 0;
+    int found_results = 0;      // matched with results.csv
     double total_time_ms = 0;
     double wall_time_ms = 0;
     size_t total_count = 0;
@@ -578,6 +584,8 @@ static void print_summary(const BenchmarkStats& stats) {
     fmt::print("\n========== Summary ==========\n");
     fmt::print("Parsed: {}\n", stats.parsed);
     fmt::print("Failed parse: {}\n", failed);
+    fmt::print("Realizable: {}\n", stats.realizable);
+    fmt::print("Unrealizable: {}\n", stats.unrealizable);
     fmt::print("Results found: {}\n", stats.found_results);
     fmt::print("Results not found: {}\n", not_found);
     fmt::print("Total formulas: {}\n", stats.total_count);
@@ -638,6 +646,14 @@ int main(int argc, char* argv[]) {
         stats.total_time_ms += r.elapsed_ms;
         stats.parsed += r.success ? 1 : 0;
 
+        if (r.realizable.has_value()) {
+            if (r.realizable.value()) {
+                stats.realizable++;
+            } else {
+                stats.unrealizable++;
+            }
+        }
+
         // Check expected result
         auto expected = read_expected_result(config.base_dir, r.formula_index);
         stats.found_results += expected.has_value() ? 1 : 0;
@@ -652,8 +668,12 @@ int main(int argc, char* argv[]) {
         if (!config.verbose && r.success) continue;
 
         if (r.success) {
-            fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n",
-                                 r.bench_dir, r.formula_index, r.elapsed_ms);
+            const char* result_str = "UNKNOWN";
+            if (r.realizable.has_value()) {
+                result_str = r.realizable.value() ? "REALIZABLE" : "UNREALIZABLE";
+            }
+            fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms) {}\n",
+                                 r.bench_dir, r.formula_index, r.elapsed_ms, result_str);
         } else {
             fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
                                  r.bench_dir, r.formula_index, r.error_msg);
