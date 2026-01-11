@@ -235,10 +235,10 @@ bool OnTheFlyGameSolver::is_realizable() {
     }
 
     LOG_DEBUG("=== Classification Summary ===");
-    LOG_DEBUG("  Total states: ", total_states);
-    LOG_DEBUG("  Swin: ", swin_count, " | Ewin: ", ewin_count, " | Unknown: ", unknown_count);
-    LOG_DEBUG("  Initial state player: ", initial_state_.player == Player::System ? "Sys" : "Env");
-    LOG_DEBUG("  Initial state classification: ", to_string(result));
+    LOG_DEBUG("  Total states: {}", total_states);
+    LOG_DEBUG("  Swin: {} | Ewin: {} | Unknown: ", swin_count, ewin_count, unknown_count);
+    LOG_DEBUG("  Initial state player: {}", initial_state_.player == Player::System ? "Sys" : "Env");
+    LOG_DEBUG("  Initial state classification: {}", to_string(result));
 
     if (enable_consistency_check) {
         LOG_DEBUG("=== Running propagation consistency check ===");
@@ -640,7 +640,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
     }
 
     // DEBUG: Log SCC info
-    LOG_DEBUG("classify_scc: processing SCC with ", scc.size(), " states");
+    LOG_DEBUG("classify_scc: processing SCC with {} states", scc.size());
 
     // ========== Step 1: Initialize seed set (swin_states) ==========
     // swin_states only contains System states (about to perform sys move)
@@ -658,16 +658,16 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         }
 
         bool esa = is_empty_string_accepting(s.dfa_state);
-        LOG_DEBUG("classify_scc: state=", s.to_string(),
-                  ", phi=", (s.dfa_state ? s.dfa_state->phi()->to_string() : "null"),
-                  ", esa=", esa);
+        LOG_DEBUG("classify_scc: state={}, phi={}, esa={}", s.to_string(),
+                  (s.dfa_state ? s.dfa_state->phi()->to_string() : "null"),
+                  esa);
         if (esa) {
             // Only System states in swin_states
             if (s.player == Player::System) {
                 swin_states.insert(s);
                 classification_[s] = StateClass::Swin;
                 accepting_seed_count++;
-                LOG_DEBUG("  Seed Swin: ", s.to_string(), " (empty-string accepting)");
+                LOG_DEBUG("  Seed Swin: {} (empty-string accepting)", s.to_string());
             } else {
                 // Environment states are classified but not added to swin_states
                 classification_[s] = StateClass::Swin;
@@ -685,7 +685,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         }
     }
 
-    LOG_DEBUG("  Initialized ", swin_states.size(), " Swin seeds (", accepting_seed_count, " empty-string accepting)");
+    LOG_DEBUG("  Initialized {} Swin seeds ({} empty-string accepting)", swin_states.size(), accepting_seed_count);
 
     // ========== Step 2: Fixed-point iteration ==========
     bool changed = true;
@@ -739,7 +739,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
                     }
                     if (cls_it->second == StateClass::Ewin) {
                         classification_[e] = StateClass::Ewin;
-                        LOG_DEBUG("  [has_env_moves_ewin] Classified env state as Ewin: ", e.to_string());
+                        LOG_DEBUG("  [has_env_moves_ewin] Classified env state as Ewin: {}", e.to_string());
                     }
                     // If we reach here, successor has unknown classification - conservatively assume not safe
                     all_env_moves_swin = false;
@@ -749,9 +749,9 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
                 // If this sys move has all env moves leading to Swin, it's safe
                 if (all_env_moves_swin) {
                     classification_[e] = StateClass::Swin;
-                    LOG_DEBUG("  [all_env_moves_swin] Classified env state as Swin: ", e.to_string());
+                    LOG_DEBUG("  [all_env_moves_swin] Classified env state as Swin: {}", e.to_string());
                     classification_[s] = StateClass::Swin;
-                    LOG_DEBUG("  [all_env_moves_swin] Classified sys state as Swin: ", s.to_string());
+                    LOG_DEBUG("  [all_env_moves_swin] Classified sys state as Swin: {}", s.to_string());
                     has_safe_sys_move = true;
                     // break; // NOTE: comment this to detect all safe sys moves
                 }
@@ -764,13 +764,13 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
 
             if (all_sys_moves_ewin) {
                 classification_[s] = StateClass::Ewin;
-                LOG_DEBUG("  [all_sys_moves_ewin] Classified sys state as Ewin: ", s.to_string());
+                LOG_DEBUG("  [all_sys_moves_ewin] Classified sys state as Ewin: {}", s.to_string());
             }
             if (has_safe_sys_move) {
                 classification_[s] = StateClass::Swin;
                 new_swin_states.insert(s);
                 changed = true;
-                LOG_DEBUG("  [has_safe_sys_move] Classified sys state as Swin: ", s.to_string());
+                LOG_DEBUG("  [has_safe_sys_move] Classified sys state as Swin: {}", s.to_string());
             }
         }
 
@@ -782,9 +782,9 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
         if (!classification_.count(s)) {
             classification_[s] = StateClass::Ewin;
             if (s.player == Player::System) {
-                LOG_DEBUG("  Classified sys state as Ewin: ", s.to_string());
+                LOG_DEBUG("  Classified sys state as Ewin: {}", s.to_string());
             } else {
-                LOG_DEBUG("  Classified env state as Ewin: ", s.to_string());
+                LOG_DEBUG("  Classified env state as Ewin: {}", s.to_string());
             }
         }
     }
@@ -826,8 +826,8 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
                     }
                 }
                 if (!has_swin_succ && !succs.empty()) {
-                    LOG_WARN("Propagation violation: System state ", state.to_string(),
-                             " is Swin but has no Swin successor (has ", succs.size(), " successors)");
+                    LOG_WARN("Propagation violation: System state {} is Swin but has no Swin successor (has {} successors)",
+                        state.to_string(), succs.size());
                     violations++;
                 }
             } else if (cls == StateClass::Ewin) {
@@ -838,8 +838,7 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
                     if (succ_cls == classification_.end() ||
                         succ_cls->second != StateClass::Ewin) {
                         all_ewin = false;
-                        LOG_WARN("Propagation violation: System state ", state.to_string(),
-                                 " is Ewin but successor is not Ewin");
+                        LOG_WARN("Propagation violation: System state {} is Ewin but successor is not Ewin", state.to_string());
                         break;
                     }
                 }
@@ -857,8 +856,7 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
                     if (succ_cls == classification_.end() ||
                         succ_cls->second != StateClass::Swin) {
                         all_swin = false;
-                        LOG_WARN("Propagation violation: Environment state ", state.to_string(),
-                                 " is Swin but not all successors are Swin");
+                        LOG_WARN("Propagation violation: Environment state {} is Swin but not all successors are Swin", state.to_string());
                         break;
                     }
                 }
@@ -877,8 +875,9 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
                     }
                 }
                 if (!has_ewin_succ && !succs.empty()) {
-                    LOG_WARN("Propagation violation: Environment state ", state.to_string(),
-                             " is Ewin but has no Ewin successor (has ", succs.size(), " successors)");
+                    LOG_WARN("Propagation violation: Environment state {} is Ewin but has no Ewin successor (has {} successors)",
+                            state.to_string(),
+                            succs.size());
                     violations++;
                 }
             }
@@ -886,7 +885,7 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const {
     }
 
     if (violations > 0) {
-        LOG_ERROR("Found ", violations, " propagation consistency violations!");
+        LOG_ERROR("Found {} propagation consistency violations!", violations);
     } else {
         LOG_DEBUG("Propagation consistency check: PASSED");
     }
