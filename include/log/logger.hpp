@@ -92,7 +92,7 @@ private:
      */
     static spdlog::sink_ptr create_console_sink() {
         auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        sink->set_level(spdlog::level::info);
+        sink->set_level(spdlog::level::trace);
         sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
         return sink;
     }
@@ -103,7 +103,7 @@ private:
      */
     static spdlog::sink_ptr create_nop_console_sink() {
         auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-        sink->set_level(spdlog::level::info);
+        sink->set_level(spdlog::level::trace);
         sink->set_pattern("%v");  // No prefix, just the message
         return sink;
     }
@@ -132,7 +132,7 @@ private:
         sinks.push_back(create_file_sink(log_file));
 
         auto logger = std::make_shared<spdlog::logger>("formula", sinks.begin(), sinks.end());
-        logger->set_level(spdlog::level::debug);
+        logger->set_level(spdlog::level::info);
         logger->flush_on(spdlog::level::warn);
 
         spdlog::register_logger(logger);
