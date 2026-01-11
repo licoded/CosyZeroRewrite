@@ -2,11 +2,6 @@
 #include <algorithm>
 #include <stdexcept>
 
-// Z3 must be included outside namespace formula to avoid namespace conflicts
-#ifdef FORMULA_USE_Z3
-#include "formula/formula_z3.hpp"
-#endif
-
 namespace formula {
 
 // =============================================================================
@@ -81,44 +76,6 @@ bool FormulaChecker::likely_equivalent(FormulaPool& pool, Formula* f1,
 
     return true;  // All samples agree
 }
-
-// =============================================================================
-// Z3-based Equivalence Checking
-// =============================================================================
-
-#ifdef FORMULA_USE_Z3
-
-std::optional<bool> FormulaChecker::are_equivalent_z3(Formula* f1, Formula* f2,
-                                                         unsigned timeout_ms) {
-    // Use auto-detected bound (0), pass timeout_ms
-    return FormulaZ3::are_equivalent(f1, f2, 0, timeout_ms);
-}
-
-std::optional<bool> FormulaChecker::are_equivalent_smart(Formula* f1, Formula* f2,
-                                                          unsigned timeout_ms) {
-    // Count variables
-    std::unordered_set<int> vars = get_variables(f1);
-    std::unordered_set<int> vars2 = get_variables(f2);
-    vars.insert(vars2.begin(), vars2.end());
-
-    // For small formulas, truth table is fastest
-    if (vars.size() <= 4) {
-        FormulaPool pool;
-        return are_equivalent(pool, f1, f2);
-    }
-
-    // For larger formulas, use Z3 with auto-detected bound
-    auto z3_result = FormulaZ3::are_equivalent(f1, f2, 0, timeout_ms);
-
-    if (z3_result.has_value()) {
-        return z3_result;
-    }
-
-    // Z3 timed out or failed - fallback to sampling
-    // Return std::nullopt to indicate uncertainty
-    return std::nullopt;
-}
-#endif
 
 // =============================================================================
 // Property Checking

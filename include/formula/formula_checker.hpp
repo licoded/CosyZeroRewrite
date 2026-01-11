@@ -56,38 +56,6 @@ public:
     static bool likely_equivalent(FormulaPool& pool, Formula* f1, Formula* f2,
                                    size_t samples = 1000);
 
-#ifdef FORMULA_USE_Z3
-    /**
-     * @brief Check equivalence using Z3 SMT solver (exact, any variable count)
-     * @param f1 First formula
-     * @param f2 Second formula
-     * @param timeout_ms Timeout in milliseconds (0 = no timeout)
-     * @return std::nullopt if Z3 not available or timeout, true/false for equivalence
-     *
-     * Uses Z3 to check if (f1 XOR f2) is unsatisfiable. This provides exact
-     * equivalence checking for formulas with any number of variables.
-     *
-     * Time complexity: Depends on Z3, typically much faster than 2^n for large n.
-     */
-    static std::optional<bool> are_equivalent_z3(Formula* f1, Formula* f2,
-                                                   unsigned timeout_ms = 5000);
-
-    /**
-     * @brief Smart equivalence checking (uses best method available)
-     * @param f1 First formula
-     * @param f2 Second formula
-     * @param timeout_ms Z3 timeout in milliseconds
-     * @return true if equivalent, false if not, std::nullopt if uncertain
-     *
-     * Strategy:
-     * - ≤4 vars: Use truth table (fast, exact)
-     * - >4 vars: Use Z3 if available (exact)
-     * - Fallback: Use sampling (statistical)
-     */
-    static std::optional<bool> are_equivalent_smart(Formula* f1, Formula* f2,
-                                                     unsigned timeout_ms = 5000);
-#endif
-
     // =========================================================================
     // Property Checking
     // =========================================================================

@@ -71,25 +71,3 @@ if(USE_CUDD)
     endif()
 endif()
 
-# ============================================================
-# Z3 (SMT solver)
-# ============================================================
-option(USE_Z3 "Enable Z3 SMT solver for equivalence checking" ON)
-
-if(USE_Z3)
-    # Use custom Find module
-    find_package(Z3 QUIET)
-
-    if(Z3_FOUND)
-        message(STATUS "Z3 found: ${Z3_LIBRARIES}")
-        include_directories(${Z3_INCLUDE_DIRS})
-        add_compile_definitions(FORMULA_USE_Z3)
-
-        # Add Z3 source file to FORMULA_SOURCES
-        list(APPEND FORMULA_SOURCES src/formula/formula_z3.cpp)
-    else()
-        message(WARNING "Z3 requested but not found. Z3 support will be disabled.")
-        message(STATUS "  To install: sudo apt install libz3-dev (Ubuntu/Debian)")
-        message(STATUS "             brew install z3 (macOS)")
-    endif()
-endif()

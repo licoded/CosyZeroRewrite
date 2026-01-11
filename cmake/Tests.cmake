@@ -133,7 +133,18 @@ endif()
 # Bench tests
 # ============================================================================
 if(BUILD_BENCH_TESTS)
-    add_cosy_test_standalone(benchmark_test bench tests/bench/benchmark.cpp)
+    # benchmark_test needs fmt, CLI, indicators
+    add_executable(benchmark_test tests/bench/benchmark.cpp)
+    target_link_libraries(benchmark_test PRIVATE formula)
+    target_include_directories(benchmark_test PRIVATE
+        /opt/homebrew/opt/fmt/include
+        ${PROJECT_SOURCE_DIR}/deps/external
+    )
+    target_link_libraries(benchmark_test PRIVATE /opt/homebrew/opt/fmt/lib/libfmt.a)
+    set_target_properties(benchmark_test PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/bench
+    )
+
     add_cosy_test_standalone(io_separation_test integration tests/integration/io_separation.cpp)
     add_cosy_test_standalone(strategy_test integration tests/integration/strategy.cpp)
     message(STATUS "Bench tests enabled")

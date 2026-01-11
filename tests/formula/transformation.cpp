@@ -7,7 +7,7 @@
  * 2. NNF transformation should be equivalent to original
  * 3. XNF transformation should be equivalent to original
  *
- * Uses Z3 BMC as the ground truth for equivalence checking.
+ * Uses FormulaChecker for equivalence checking.
  * Failed cases are logged to logs/ with full context.
  *
  * Author: Claude Code
@@ -17,11 +17,10 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 
-#define FORMULA_USE_Z3
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
-#include "formula/formula_z3.hpp"
+#include "formula/formula_checker.hpp"
 #include "log/logger.hpp"
 
 #include <iostream>
@@ -39,7 +38,6 @@ struct TestStats {
     int total = 0;
     int passed = 0;
     int failed = 0;
-    int timeouts = 0;
     double total_time_ms = 0;
 };
 
@@ -208,31 +206,26 @@ TEST_CASE("Transformation: Parse → to_string_with_names → Re-parse", "[trans
             std::string f1_str = f1->to_string_with_names(pool);
             Formula* f2 = parser.parse(f1_str);
 
-            // Check equivalence using Z3
-            auto result = FormulaZ3::are_equivalent(f1, f2, -1, 5000);
+            // Check equivalence using FormulaChecker
+            bool result = FormulaChecker::are_equivalent(pool, f1, f2);
 
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
             total_time += elapsed;
             stats.total_time_ms += elapsed;
 
-            if (result.has_value()) {
-                if (result.value()) {
-                    passed++;
-                    stats.passed++;
-                    std::cout << "  PASS: " << formula_str << " → " << f1_str
-                              << " (" << elapsed << "ms)\n";
-                } else {
-                    failed++;
-                    stats.failed++;
-                    std::cout << "  FAIL: " << formula_str << " → " << f1_str
-                              << " (NOT EQUIV) (" << elapsed << "ms)\n";
-                    log_failure("StringRoundtrip", formula_str, f1_str,
-                              "equivalent", "not-equivalent", elapsed);
-                }
+            if (result) {
+                passed++;
+                stats.passed++;
+                std::cout << "  PASS: " << formula_str << " → " << f1_str
+                          << " (" << elapsed << "ms)\n";
             } else {
-                stats.timeouts++;
-                std::cout << "  TIMEOUT: " << formula_str << " (" << elapsed << "ms)\n";
+                failed++;
+                stats.failed++;
+                std::cout << "  FAIL: " << formula_str << " → " << f1_str
+                          << " (NOT EQUIV) (" << elapsed << "ms)\n";
+                log_failure("StringRoundtrip", formula_str, f1_str,
+                          "equivalent", "not-equivalent", elapsed);
             }
 
         } catch (const std::exception& e) {
@@ -283,31 +276,26 @@ TEST_CASE("Transformation: NNF preserves semantics", "[transformation][nnf]") {
             // Transform to NNF
             Formula* f2 = f1->nnf(pool);
 
-            // Check equivalence using Z3
-            auto result = FormulaZ3::are_equivalent(f1, f2, -1, 10000);
+            // Check equivalence using FormulaChecker
+            bool result = FormulaChecker::are_equivalent(pool, f1, f2);
 
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
             total_time += elapsed;
             stats.total_time_ms += elapsed;
 
-            if (result.has_value()) {
-                if (result.value()) {
-                    passed++;
-                    stats.passed++;
-                    std::cout << "  PASS: " << formula_str << " → NNF"
-                              << " (" << elapsed << "ms)\n";
-                } else {
-                    failed++;
-                    stats.failed++;
-                    std::cout << "  FAIL: " << formula_str << " → NNF (NOT EQUIV)"
-                              << " (" << elapsed << "ms)\n";
-                    log_failure("NNF_Transform", formula_str, f2->to_string(),
-                              "equivalent", "not-equivalent", elapsed);
-                }
+            if (result) {
+                passed++;
+                stats.passed++;
+                std::cout << "  PASS: " << formula_str << " → NNF"
+                          << " (" << elapsed << "ms)\n";
             } else {
-                stats.timeouts++;
-                std::cout << "  TIMEOUT: " << formula_str << " → NNF (" << elapsed << "ms)\n";
+                failed++;
+                stats.failed++;
+                std::cout << "  FAIL: " << formula_str << " → NNF (NOT EQUIV)"
+                          << " (" << elapsed << "ms)\n";
+                log_failure("NNF_Transform", formula_str, f2->to_string(),
+                          "equivalent", "not-equivalent", elapsed);
             }
 
         } catch (const std::exception& e) {
@@ -357,31 +345,26 @@ TEST_CASE("Transformation: XNF preserves semantics", "[transformation][xnf]") {
             // Transform to XNF
             Formula* f2 = f1->xnf_with_end_marker(pool);
 
-            // Check equivalence using Z3
-            auto result = FormulaZ3::are_equivalent(f1, f2, -1, 10000);
+            // Check equivalence using FormulaChecker
+            bool result = FormulaChecker::are_equivalent(pool, f1, f2);
 
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
             total_time += elapsed;
             stats.total_time_ms += elapsed;
 
-            if (result.has_value()) {
-                if (result.value()) {
-                    passed++;
-                    stats.passed++;
-                    std::cout << "  PASS: " << formula_str << " → XNF"
-                              << " (" << elapsed << "ms)\n";
-                } else {
-                    failed++;
-                    stats.failed++;
-                    std::cout << "  FAIL: " << formula_str << " → XNF (NOT EQUIV)"
-                              << " (" << elapsed << "ms)\n";
-                    log_failure("XNF_Transform", formula_str, f2->to_string(),
-                              "equivalent", "not-equivalent", elapsed);
-                }
+            if (result) {
+                passed++;
+                stats.passed++;
+                std::cout << "  PASS: " << formula_str << " → XNF"
+                          << " (" << elapsed << "ms)\n";
             } else {
-                stats.timeouts++;
-                std::cout << "  TIMEOUT: " << formula_str << " → XNF (" << elapsed << "ms)\n";
+                failed++;
+                stats.failed++;
+                std::cout << "  FAIL: " << formula_str << " → XNF (NOT EQUIV)"
+                          << " (" << elapsed << "ms)\n";
+                log_failure("XNF_Transform", formula_str, f2->to_string(),
+                          "equivalent", "not-equivalent", elapsed);
             }
 
         } catch (const std::exception& e) {
@@ -433,34 +416,29 @@ TEST_CASE("Transformation: Full pipeline (NNF → Simplify → XNF)", "[transfor
             Formula* f_simp = f_nnf->simplify(pool);
             Formula* f_xnf = f_simp->xnf_with_end_marker(pool);
 
-            // Check equivalence using Z3
-            auto result = FormulaZ3::are_equivalent(f1, f_xnf, -1, 15000);
+            // Check equivalence using FormulaChecker
+            bool result = FormulaChecker::are_equivalent(pool, f1, f_xnf);
 
             auto end = steady_clock::now();
             double elapsed = duration<double, std::milli>(end - start).count();
             total_time += elapsed;
             stats.total_time_ms += elapsed;
 
-            if (result.has_value()) {
-                if (result.value()) {
-                    passed++;
-                    stats.passed++;
-                    std::cout << "  PASS: " << formula_str << " → Full Pipeline"
-                              << " (" << elapsed << "ms)\n";
-                } else {
-                    failed++;
-                    stats.failed++;
-                    std::cout << "  FAIL: " << formula_str << " → Full Pipeline (NOT EQUIV)"
-                              << " (" << elapsed << "ms)\n";
-                    std::string pipeline_desc = "NNF: " + f_nnf->to_string() +
-                                               "\nSimplify: " + f_simp->to_string() +
-                                               "\nXNF: " + f_xnf->to_string();
-                    log_failure("Full_Pipeline", formula_str, pipeline_desc,
-                              "equivalent", "not-equivalent", elapsed);
-                }
+            if (result) {
+                passed++;
+                stats.passed++;
+                std::cout << "  PASS: " << formula_str << " → Full Pipeline"
+                          << " (" << elapsed << "ms)\n";
             } else {
-                stats.timeouts++;
-                std::cout << "  TIMEOUT: " << formula_str << " → Full Pipeline (" << elapsed << "ms)\n";
+                failed++;
+                stats.failed++;
+                std::cout << "  FAIL: " << formula_str << " → Full Pipeline (NOT EQUIV)"
+                          << " (" << elapsed << "ms)\n";
+                std::string pipeline_desc = "NNF: " + f_nnf->to_string() +
+                                           "\nSimplify: " + f_simp->to_string() +
+                                           "\nXNF: " + f_xnf->to_string();
+                log_failure("Full_Pipeline", formula_str, pipeline_desc,
+                          "equivalent", "not-equivalent", elapsed);
             }
 
         } catch (const std::exception& e) {
@@ -537,7 +515,6 @@ int main(int argc, char* argv[]) {
     LOG_INFO("Tests run: {}", stats.total);
     LOG_INFO("Passed: {}", stats.passed);
     LOG_INFO("Failed: {}", stats.failed);
-    LOG_INFO("Timeouts: {}", stats.timeouts);
 
     if (summary_log.is_open()) {
         summary_log << "\n========== Final Summary ==========\n";
@@ -546,7 +523,6 @@ int main(int argc, char* argv[]) {
         summary_log << "Tests run: " << stats.total << "\n";
         summary_log << "Passed: " << stats.passed << "\n";
         summary_log << "Failed: " << stats.failed << "\n";
-        summary_log << "Timeouts: " << stats.timeouts << "\n";
         summary_log.close();
     }
 

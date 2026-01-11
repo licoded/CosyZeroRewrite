@@ -12,9 +12,6 @@
 #include "formula/formula_parser.hpp"
 #include "formula/formula_checker.hpp"
 
-#define FORMULA_USE_Z3
-#include "formula/formula_z3.hpp"
-
 #include <iostream>
 #include <random>
 #include <chrono>

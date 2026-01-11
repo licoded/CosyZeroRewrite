@@ -1,6 +1,5 @@
 #include "synthesis/synthesis.hpp"
 #include "synthesis/game_solver.hpp"
-#include "formula/formula_z3.hpp"
 #include <fstream>
 #include <sstream>
 #include <filesystem>
@@ -105,19 +104,13 @@ bool Synthesis::load_partition(const std::string& part_file,
 }
 
 std::optional<bool> Synthesis::is_satisfiable([[maybe_unused]] formula::Formula* f) {
-#ifdef FORMULA_USE_Z3
-    return formula::FormulaZ3::is_satisfiable(f, 0, 1000);  // 1s timeout for benchmark
-#else
+    // Z3 support removed - always return nullopt
     return std::nullopt;
-#endif
 }
 
 std::optional<bool> Synthesis::is_valid([[maybe_unused]] formula::Formula* f) {
-#ifdef FORMULA_USE_Z3
-    return formula::FormulaZ3::is_valid(f, 0, 10000);
-#else
+    // Z3 support removed - always return nullopt
     return std::nullopt;
-#endif
 }
 
 std::optional<bool> Synthesis::is_realizable([[maybe_unused]] formula::Formula* f) {
