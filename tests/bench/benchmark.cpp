@@ -375,7 +375,7 @@ private:
 
 struct BenchmarkConfig {
     // Paths and spec
-    std::string base_dir = "benchmarks/sm1000";
+    std::string base_dir = "tools/benchmarks/sm1000";
     std::string bench_spec = "all";
 
     // Formula range
