@@ -126,7 +126,7 @@ private:
      * @param log_file Path to log file
      * @return Configured main logger
      */
-    static std::shared_ptr<spdlog::logger> create_main_logger(const std::string& log_file) {
+    static std::shared_ptr<spdlog::logger> create_logger(const std::string& log_file) {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.push_back(create_console_sink());
         sinks.push_back(create_file_sink(log_file));
@@ -146,7 +146,7 @@ private:
      * @param file_sink Shared file sink (for debugging user output)
      * @return Configured output logger
      */
-    static std::shared_ptr<spdlog::logger> create_output_logger(spdlog::sink_ptr file_sink) {
+    static std::shared_ptr<spdlog::logger> create_nop_logger(spdlog::sink_ptr file_sink) {
         std::vector<spdlog::sink_ptr> sinks;
         sinks.push_back(create_nop_console_sink());
         sinks.push_back(file_sink);  // Share file sink for debugging
@@ -194,15 +194,16 @@ private:
             std::string log_file = generate_log_path();
             std::filesystem::create_directories(std::filesystem::path(log_file).parent_path());
 
-            logger_ = create_main_logger(log_file);
-            no_perfix_logger_ = create_output_logger(logger_->sinks()[1]);  // file_sink
+            logger_ = create_logger(log_file);
+            no_perfix_logger_ = create_nop_logger(logger_->sinks()[1]);  // file_sink
         } catch (const std::exception& ex) {
             std::cerr << "Log initialization failed: " << ex.what() << std::endl;
             std::cerr << "Continuing without file logging..." << std::endl;
             fallback_to_console_only();
         } catch (...) {
             std::cerr << "Unknown error during log initialization, continuing without logging..." << std::endl;
-            // logger_ and no_perfix_logger_ remain null
+            logger_ = nullptr;
+            no_perfix_logger_ = nullptr;
         }
     }
 
