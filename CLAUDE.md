@@ -106,29 +106,45 @@
 
 ## 快速开始
 
-### 构建
+### 构建与测试（推荐方式）
+
+从项目根目录执行：
+
+```bash
+# 配置 + 构建 + 测试（一条命令）
+cmake -S . -B build && cmake --build build -j8 && ctest --test-dir build
+```
+
+**分步执行**：
+```bash
+# 1. 配置 CMake
+cmake -S . -B build
+
+# 2. 构建（8 线程）
+cmake --build build -j8
+# 或
+cd build && make -j8
+
+# 3. 运行测试
+ctest --test-dir build
+# 或
+cmake --build build --target test
+```
+
+**常用 ctest 选项**：
+```bash
+ctest --test-dir build --output-on-failure   # 显示失败测试详情
+ctest --test-dir build -R "formula"          # 只运行匹配正则的测试
+ctest --test-dir build -j8                   # 并行运行
+```
+
+### 传统构建方式
 
 ```bash
 mkdir build && cd build
 cmake ..
-make -j$(nproc)
-```
-
-**⚠️ 编译命令注意**：
-- 项目使用 **CMake** 构建系统
-- **正确方式**：`cd build && make -j$(nproc)` 或 `cmake --build build -j$(nproc)`
-- **错误方式**：在项目根目录直接运行 `make`（会触发自定义 Makefile 的 help 命令）
-- **错误方式**：`cd build && make` （未开启多线程，编译很慢）
-- **原因**：项目根目录的 Makefile 是用于管理 changelog 和测试的辅助工具，不是 CMake 的编译入口
-- **⚠️ 重要**：必须使用 `make -j$(nproc)` 开启多线程编译，否则编译速度很慢！
-
-### 运行测试
-
-```bash
-./formula_tests
-./parser_checker_tests
-# 或运行全部测试
-make test
+make -j$(nproc)  # Linux
+make -j8        # macOS
 ```
 
 ### 运行 Synthesis
