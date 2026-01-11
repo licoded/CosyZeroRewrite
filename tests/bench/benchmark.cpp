@@ -21,7 +21,6 @@
  * === Updated: 2026-01-05 ===
  */
 
-#include "synthesis/synthesis.hpp"
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
@@ -46,9 +45,112 @@
 #include <atomic>
 #include <set>
 #include <mutex>
+#include <fstream>
+#include <optional>
 
 using namespace formula;
-using namespace synthesis;
+
+// ============================================================================
+// Benchmark helper functions (previously in Synthesis class)
+// ============================================================================
+
+namespace {
+
+/**
+ * @brief Parse an LTLf formula from string
+ */
+Formula* parse_formula(const std::string& formula_str, FormulaPool& pool) {
+    FormulaParser parser(pool);
+    Formula* f = parser.parse(formula_str);
+    if (parser.has_error()) {
+        return nullptr;
+    }
+    return f;
+}
+
+/**
+ * @brief Read expected result from results.csv file
+ */
+std::optional<bool> read_expected_result(const std::string& base_dir, int bench_num) {
+    std::string results_file = base_dir + "/results.csv";
+    std::ifstream file(results_file);
+
+    if (!file.is_open()) {
+        return std::nullopt;
+    }
+
+    std::string line;
+    // Skip header
+    std::getline(file, line);
+
+    std::string target_filename = "f" + std::to_string(bench_num);
+
+    while (std::getline(file, line)) {
+        if (line.empty()) continue;
+
+        std::istringstream iss(line);
+        std::string folder, filename, result;
+        if (!std::getline(iss, folder, ',')) continue;
+        if (!std::getline(iss, filename, ',')) continue;
+        if (!std::getline(iss, result, ',')) continue;
+
+        if (filename == target_filename) {
+            // Trim whitespace and check
+            if (result == "Realizable") return true;
+            if (result == "Unrealizable") return false;
+        }
+    }
+
+    return std::nullopt;
+}
+
+/**
+ * @brief Read benchmark file (formula + partition) from specific directory
+ */
+bool read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num,
+                              std::string& formula_str,
+                              std::vector<std::string>& outputs,
+                              std::vector<std::string>& inputs) {
+    std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
+    std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
+
+    // Read formula
+    std::ifstream ltlf(ltlf_file);
+    if (!ltlf.is_open()) {
+        return false;
+    }
+
+    std::getline(ltlf, formula_str);
+
+    // Read partition
+    std::ifstream part(part_file);
+    if (part.is_open()) {
+        std::string line;
+        while (std::getline(part, line)) {
+            if (line.empty() || line[0] == '#') continue;
+
+            std::istringstream iss(line);
+            std::string keyword;
+            iss >> keyword;
+
+            if (keyword == ".outputs:") {
+                std::string var;
+                while (iss >> var) {
+                    outputs.push_back(var);
+                }
+            } else if (keyword == ".inputs:") {
+                std::string var;
+                while (iss >> var) {
+                    inputs.push_back(var);
+                }
+            }
+        }
+    }
+
+    return true;
+}
+
+} // anonymous namespace
 
 // ============================================================================
 // Task result structure
@@ -278,7 +380,7 @@ public:
             // Read benchmark
             std::string formula_str;
             std::vector<std::string> outputs, inputs;
-            if (!Synthesis::read_benchmark_from_dir(
+            if (!read_benchmark_from_dir(
                 base_dir_, bench_dir, formula_index, formula_str, outputs, inputs))
             {
                 result.success = false;
@@ -286,7 +388,7 @@ public:
             } else {
                 // Parse formula
                 FormulaPool pool;
-                Formula* f = Synthesis::parse_formula(formula_str, pool);
+                Formula* f = parse_formula(formula_str, pool);
 
                 auto end = std::chrono::high_resolution_clock::now();
                 result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
@@ -537,7 +639,7 @@ int main(int argc, char* argv[]) {
         stats.parsed += r.success ? 1 : 0;
 
         // Check expected result
-        auto expected = Synthesis::read_expected_result(config.base_dir, r.formula_index);
+        auto expected = read_expected_result(config.base_dir, r.formula_index);
         stats.found_results += expected.has_value() ? 1 : 0;
     }
 

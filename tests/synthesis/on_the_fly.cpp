@@ -6,7 +6,6 @@
 #define CATCH_CONFIG_RUNNER
 #include "catch.hpp"
 #include "synthesis/on_the_fly_solver.hpp"
-#include "synthesis/synthesis.hpp"
 #include "formula/formula_parser.hpp"
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"

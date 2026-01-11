@@ -90,7 +90,6 @@ endif()
 # Automata tests
 # ============================================================================
 if(BUILD_TESTS)
-    add_cosy_test(dfa_test automata tests/automata/dfa.cpp)
     add_cosy_test(tarjan_test automata tests/automata/tarjan.cpp)
     add_cosy_test(progression_test automata tests/automata/progression.cpp)
 endif()
@@ -99,7 +98,6 @@ endif()
 # Synthesis tests
 # ============================================================================
 if(BUILD_TESTS)
-    add_cosy_test(synthesis_test synthesis tests/synthesis/synthesis.cpp)
     add_cosy_test(on_the_fly_test synthesis tests/synthesis/on_the_fly.cpp)
     add_cosy_test_standalone(bdd_test synthesis tests/synthesis/bdd_test.cpp)
 endif()
@@ -146,7 +144,6 @@ if(BUILD_BENCH_TESTS)
     )
 
     add_cosy_test(io_separation_test integration tests/integration/io_separation.cpp)
-    add_cosy_test_standalone(strategy_test integration tests/integration/strategy.cpp)
     message(STATUS "Bench tests enabled")
 endif()
 
@@ -172,12 +169,10 @@ if(BUILD_TESTS)
     add_test(NAME xnf_test COMMAND ${CMAKE_BINARY_DIR}/tests/transformation/xnf_test)
 
     # Automata tests
-    add_test(NAME dfa_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/dfa_test)
     add_test(NAME tarjan_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/tarjan_test)
     add_test(NAME progression_test COMMAND ${CMAKE_BINARY_DIR}/tests/automata/progression_test)
 
     # Synthesis tests
-    add_test(NAME synthesis_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/synthesis_test)
     add_test(NAME on_the_fly_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/on_the_fly_test)
     add_test(NAME bdd_test COMMAND ${CMAKE_BINARY_DIR}/tests/synthesis/bdd_test)
 
@@ -189,9 +184,9 @@ if(BUILD_TESTS)
     message(STATUS "  tests/formula/     - formula_test, transformation_test")
     message(STATUS "  tests/parser/      - parser_test")
     message(STATUS "  tests/transformation/ - nnf_test, xnf_test")
-    message(STATUS "  tests/automata/    - dfa_test, tarjan_test, progression_test")
-    message(STATUS "  tests/synthesis/   - synthesis_test, on_the_fly_test")
-    message(STATUS "  tests/integration/ - prop_atoms_test, io_separation_test, strategy_test")
+    message(STATUS "  tests/automata/    - tarjan_test, progression_test")
+    message(STATUS "  tests/synthesis/   - on_the_fly_test, bdd_test")
+    message(STATUS "  tests/integration/ - prop_atoms_test, io_separation_test")
     message(STATUS "  tests/fuzz/        - nnf_fuzz, xnf_fuzz, random_fuzz")
     message(STATUS "  tests/debug/       - eventually_contradiction, failing_tests")
     message(STATUS "  tests/bench/       - benchmark_test, stress_test")
