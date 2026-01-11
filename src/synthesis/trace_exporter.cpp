@@ -37,37 +37,6 @@ std::string get_timestamp() {
     return oss.str();
 }
 
-/**
- * @brief Escape string for JSON
- */
-std::string escape_json_string(const std::string& s) {
-    std::string result;
-    result.reserve(s.size() * 1.2);
-    for (char c : s) {
-        switch (c) {
-            case '\\': result += "\\\\"; break;
-            case '"':  result += "\\\""; break;
-            case '\b': result += "\\b"; break;
-            case '\f': result += "\\f"; break;
-            case '\n': result += "\\n"; break;
-            case '\r': result += "\\r"; break;
-            case '\t': result += "\\t"; break;
-            default:
-                if (c < 0x20) {
-                    // Control characters
-                    result += "\\u";
-                    char buf[5];
-                    snprintf(buf, sizeof(buf), "%04x", static_cast<unsigned char>(c));
-                    result += buf;
-                } else {
-                    result += c;
-                }
-                break;
-        }
-    }
-    return result;
-}
-
 } // anonymous namespace
 
 //==============================================================================
@@ -187,16 +156,6 @@ std::string get_trace_output_path() {
     path << "output/results/trace/" << date_buf;
 
     return path.str();
-}
-
-std::string get_state_id(const GameState& state,
-                         size_t& sys_count,
-                         size_t& env_count) {
-    if (state.player == Player::System) {
-        return "S" + std::to_string(sys_count++);
-    } else {
-        return "E" + std::to_string(env_count++);
-    }
 }
 
 //==============================================================================
@@ -708,10 +667,6 @@ std::string TraceExporter::generate_step_id() {
     std::ostringstream oss;
     oss << "step_" << std::setfill('0') << std::setw(3) << step_counter_++;
     return oss.str();
-}
-
-std::string TraceExporter::escape_json(const std::string& s) const {
-    return escape_json_string(s);
 }
 
 std::string TraceExporter::format_assignment_label(const GameState& state,

@@ -414,7 +414,6 @@ private:
     // Helper methods
     std::string generate_stage_id();
     std::string generate_step_id();
-    std::string escape_json(const std::string& s) const;
 
     /**
      * @brief Collect state data from solver for tooltip display
@@ -448,19 +447,6 @@ private:
  * @return Generated path
  */
 std::string get_trace_output_path();
-
-/**
- * @brief Get state ID string from GameState
- * (Convenience function for external use)
- *
- * @param state The game state
- * @param sys_count Current system state count (reference)
- * @param env_count Current environment state count (reference)
- * @return State ID string
- */
-std::string get_state_id(const GameState& state,
-                         size_t& sys_count,
-                         size_t& env_count);
 
 } // namespace synthesis
 

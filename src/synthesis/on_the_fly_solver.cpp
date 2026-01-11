@@ -919,24 +919,4 @@ bool OnTheFlyGameSolver::is_trace_enabled() const {
     return trace_exporter_ != nullptr && trace_exporter_->is_enabled();
 }
 
-//==============================================================================
-// Convenience function
-//==============================================================================
-
-bool is_realizable_on_the_fly(formula::Formula* phi,
-                              formula::FormulaPool& pool) {
-    // Get variable counts from the pool
-    int num_outputs = pool.num_outputs();
-    int num_inputs = pool.num_inputs();
-
-    // If variables not declared, extract them from the formula
-    if (num_outputs == 0 && num_inputs == 0) {
-        // Count all variables as outputs (simplified)
-        num_outputs = static_cast<int>(formula::Formula::collect_variables(phi).size());
-    }
-
-    synthesis::OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
-    return solver.is_realizable();
-}
-
 } // namespace synthesis

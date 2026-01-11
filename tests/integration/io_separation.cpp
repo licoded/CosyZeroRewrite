@@ -13,6 +13,18 @@
 using namespace formula;
 using namespace synthesis;
 
+// Helper function to check realizability using OnTheFlyGameSolver
+static bool check_realizable(Formula* phi, FormulaPool& pool) {
+    int num_outputs = pool.num_outputs();
+    int num_inputs = pool.num_inputs();
+    // If variables not declared, extract them from the formula
+    if (num_outputs == 0 && num_inputs == 0) {
+        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
+    }
+    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    return solver.is_realizable();
+}
+
 #define TEST(name) void test_##name()
 #define ASSERT_TRUE(cond) do { \
     if (!(cond)) { \
@@ -77,7 +89,7 @@ TEST(part_file_synthesis_simple) {
 
     // Formula: p2 (output must be true)
     Formula* p2 = pool.create_variable("p2");
-    bool result = is_realizable_on_the_fly(p2, pool);
+    bool result = check_realizable(p2, pool);
 
     ASSERT_TRUE(result);  // System can set p2 = true
     std::cout << "PASS: part_file_synthesis_simple" << std::endl;
@@ -104,7 +116,7 @@ TEST(part_file_synthesis_response) {
     Formula* not_p2 = pool.create_not(p2);
     Formula* implies = pool.create_or(not_p2, p3);  // !p2 | p3
 
-    bool result = is_realizable_on_the_fly(implies, pool);
+    bool result = check_realizable(implies, pool);
 
     ASSERT_TRUE(result);  // Realizable: verified with Cosy reference
     std::cout << "PASS: part_file_synthesis_response" << std::endl;

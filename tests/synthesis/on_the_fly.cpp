@@ -19,6 +19,22 @@ using namespace formula;
 using namespace synthesis;
 
 //==============================================================================
+// Test Helper
+//==============================================================================
+
+// Helper function to check realizability using OnTheFlyGameSolver
+static bool check_realizable(Formula* phi, FormulaPool& pool) {
+    int num_outputs = pool.num_outputs();
+    int num_inputs = pool.num_inputs();
+    // If variables not declared, extract them from the formula
+    if (num_outputs == 0 && num_inputs == 0) {
+        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
+    }
+    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    return solver.is_realizable();
+}
+
+//==============================================================================
 // Basic Formula Tests
 //==============================================================================
 
@@ -27,7 +43,7 @@ TEST_CASE("On-the-Fly: true formula", "[on_the_fly][basic][true]") {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* phi = pool.create_true();
-    bool result = is_realizable_on_the_fly(phi, pool);
+    bool result = check_realizable(phi, pool);
     REQUIRE(result);
 }
 
@@ -36,7 +52,7 @@ TEST_CASE("On-the-Fly: false formula", "[on_the_fly][basic][false]") {
     FormulaPool pool;
     pool.declare_variables({}, {});
     Formula* phi = pool.create_false();
-    bool result = is_realizable_on_the_fly(phi, pool);
+    bool result = check_realizable(phi, pool);
     REQUIRE_FALSE(result);
 }
 
@@ -45,7 +61,7 @@ TEST_CASE("On-the-Fly: single literal p1", "[on_the_fly][basic][literal]") {
     FormulaPool pool;
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
-    bool result = is_realizable_on_the_fly(p1, pool);
+    bool result = check_realizable(p1, pool);
     REQUIRE(result);  // p1 is realizable (system sets p1 = true)
 }
 
@@ -55,7 +71,7 @@ TEST_CASE("On-the-Fly: negated literal !p1", "[on_the_fly][basic][literal]") {
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
     Formula* not_p1 = pool.create_not(p1);
-    bool result = is_realizable_on_the_fly(not_p1, pool);
+    bool result = check_realizable(not_p1, pool);
     REQUIRE(result);  // !p1 is realizable (system sets p1 = false)
 }
 
@@ -69,7 +85,7 @@ TEST_CASE("On-the-Fly: next X p1", "[on_the_fly][temporal][next]") {
     pool.declare_variables({"p1"}, {});
     Formula* p1 = pool.create_variable("p1");
     Formula* next_p1 = pool.create_next(p1);
-    bool result = is_realizable_on_the_fly(next_p1, pool);
+    bool result = check_realizable(next_p1, pool);
     REQUIRE(result);  // X p1 is realizable
 }
 
@@ -80,7 +96,7 @@ TEST_CASE("On-the-Fly: eventually F p1 (true U p1)", "[on_the_fly][temporal][eve
     Formula* p1 = pool.create_variable("p1");
     Formula* true_f = pool.create_true();
     Formula* fp1 = pool.create_until(true_f, p1);
-    bool result = is_realizable_on_the_fly(fp1, pool);
+    bool result = check_realizable(fp1, pool);
     REQUIRE(result);  // F p1 is realizable (eventually set p1 = true)
 }
 
@@ -91,7 +107,7 @@ TEST_CASE("On-the-Fly: always G p1 (false R p1)", "[on_the_fly][temporal][always
     Formula* p1 = pool.create_variable("p1");
     Formula* false_f = pool.create_false();
     Formula* gp1 = pool.create_release(false_f, p1);
-    bool result = is_realizable_on_the_fly(gp1, pool);
+    bool result = check_realizable(gp1, pool);
     REQUIRE(result);  // G p1 is realizable (always set p1 = true)
 }
 
@@ -102,7 +118,7 @@ TEST_CASE("On-the-Fly: until p1 U p2", "[on_the_fly][temporal][until]") {
     Formula* p1 = pool.create_variable("p1");
     Formula* p2 = pool.create_variable("p2");
     Formula* until = pool.create_until(p1, p2);
-    bool result = is_realizable_on_the_fly(until, pool);
+    bool result = check_realizable(until, pool);
     REQUIRE(result);  // p1 U p2 is realizable
 }
 
@@ -117,7 +133,7 @@ TEST_CASE("On-the-Fly: contradiction p1 & !p1", "[on_the_fly][unrealizable]") {
     Formula* p1 = pool.create_variable("p1");
     Formula* not_p1 = pool.create_not(p1);
     Formula* and_f = pool.create_and(p1, not_p1);
-    bool result = is_realizable_on_the_fly(and_f, pool);
+    bool result = check_realizable(and_f, pool);
     REQUIRE_FALSE(result);  // Contradiction is unrealizable
 }
 
@@ -130,7 +146,7 @@ TEST_CASE("On-the-Fly: eventually contradiction F(p1 & !p1)", "[on_the_fly][unre
     Formula* and_f = pool.create_and(p1, not_p1);
     Formula* true_f = pool.create_true();
     Formula* fand = pool.create_until(true_f, and_f);
-    bool result = is_realizable_on_the_fly(fand, pool);
+    bool result = check_realizable(fand, pool);
     REQUIRE_FALSE(result);  // Eventually impossible is unrealizable
 }
 
@@ -146,7 +162,7 @@ TEST_CASE("On-the-Fly: response formula (!req) U ack", "[on_the_fly][complex]") 
     Formula* ack = pool.create_variable("ack");
     Formula* not_req = pool.create_not(req);
     Formula* response = pool.create_until(not_req, ack);
-    bool result = is_realizable_on_the_fly(response, pool);
+    bool result = check_realizable(response, pool);
     REQUIRE(result);
 }
 
@@ -161,7 +177,7 @@ TEST_CASE("On-the-Fly: sequence p1 & X p2", "[on_the_fly][complex][!mayfail][kno
     Formula* p2 = pool.create_variable("p2");
     Formula* next_p2 = pool.create_next(p2);
     Formula* seq = pool.create_and(p1, next_p2);
-    bool result = is_realizable_on_the_fly(seq, pool);
+    bool result = check_realizable(seq, pool);
     // This should be true but currently fails
     REQUIRE(result);  // TODO: Fix this
 }

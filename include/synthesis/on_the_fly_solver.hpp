@@ -560,16 +560,6 @@ private:
     static int count_variables(formula::Formula* phi);
 };
 
-/**
- * @brief Convenience function: check if formula is realizable using on-the-fly solver
- *
- * @param phi LTLf formula
- * @param pool Formula pool (must have variables declared)
- * @return true if realizable
- */
-bool is_realizable_on_the_fly(formula::Formula* phi,
-                              formula::FormulaPool& pool);
-
 } // namespace synthesis
 
 #endif // SYNTHESIS_ON_THE_FLY_SOLVER_HPP

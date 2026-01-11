@@ -10,6 +10,18 @@
 using namespace formula;
 using namespace synthesis;
 
+// Helper function to check realizability using OnTheFlyGameSolver
+static bool check_realizable(Formula* phi, FormulaPool& pool) {
+    int num_outputs = pool.num_outputs();
+    int num_inputs = pool.num_inputs();
+    // If variables not declared, extract them from the formula
+    if (num_outputs == 0 && num_inputs == 0) {
+        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
+    }
+    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    return solver.is_realizable();
+}
+
 int main() {
     logger::Logger::instance().set_level(spdlog::level::debug);
 
@@ -21,7 +33,7 @@ int main() {
         Formula* p1 = pool.create_variable("p1");
         Formula* next_p1 = pool.create_next(p1);
         std::cout << "Formula: " << next_p1->to_string() << std::endl;
-        bool result = is_realizable_on_the_fly(next_p1, pool);
+        bool result = check_realizable(next_p1, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: YES" << std::endl;
         std::cout << "Test: " << (result ? "PASS" : "FAIL") << std::endl;
@@ -36,7 +48,7 @@ int main() {
         Formula* false_f = pool.create_false();
         Formula* gp1 = pool.create_release(false_f, p1);
         std::cout << "Formula: " << gp1->to_string() << std::endl;
-        bool result = is_realizable_on_the_fly(gp1, pool);
+        bool result = check_realizable(gp1, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: YES" << std::endl;
         std::cout << "Test: " << (result ? "PASS" : "FAIL") << std::endl;
@@ -61,7 +73,7 @@ int main() {
         if (and_f->right()->op() == formula::Formula::OpType::Not && and_f->right()->left()) {
             std::cout << "  and_f->right->left op=" << (int)and_f->right()->left()->op() << ", var_id=" << and_f->right()->left()->var_id() << std::endl;
         }
-        bool result = is_realizable_on_the_fly(and_f, pool);
+        bool result = check_realizable(and_f, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: NO" << std::endl;
         std::cout << "Test: " << (!result ? "PASS" : "FAIL") << std::endl;
@@ -78,7 +90,7 @@ int main() {
         Formula* true_f = pool.create_true();
         Formula* fand = pool.create_until(true_f, and_f);
         std::cout << "Formula: " << fand->to_string() << std::endl;
-        bool result = is_realizable_on_the_fly(fand, pool);
+        bool result = check_realizable(fand, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: NO" << std::endl;
         std::cout << "Test: " << (!result ? "PASS" : "FAIL") << std::endl;
