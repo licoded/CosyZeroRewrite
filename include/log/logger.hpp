@@ -5,10 +5,10 @@
 #include <spdlog/sinks/stdout_color_sinks.h>
 #include <spdlog/sinks/rotating_file_sink.h>
 #include <spdlog/cfg/env.h>  // for load_env_levels()
+#include <spdlog/fmt/fmt.h>  // for fmt::format
 #include <filesystem>
 #include <chrono>
-#include <sstream>
-#include <iomanip>
+#include <cstdio>    // for std::strftime
 #include <iostream>
 #include <memory>
 #include <string>
@@ -73,17 +73,14 @@ private:
             int hour = tm_info->tm_hour;
 
             // Create log path: logs/formula/YYYY-MM-DD/formula_YYYYMMDD_HHMMSS.log
-            std::ostringstream log_path;
-            log_path << "logs/formula/"
-                      << std::put_time(tm_info, "%Y-%m-%d")
-                      << "/formula_"
-                      << std::put_time(tm_info, "%Y%m%d_%H%M%S")
-                      << ".log";
+            char date_buf[16];
+            char time_buf[16];
+            std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", tm_info);
+            std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", tm_info);
+            std::string log_file = fmt::format("logs/formula/{}/formula_{}.log", date_buf, time_buf);
 
             // Create directory
-            std::filesystem::create_directories(std::filesystem::path(log_path.str()).parent_path());
-
-            std::string log_file = log_path.str();
+            std::filesystem::create_directories(std::filesystem::path(log_file).parent_path());
 
             //==================================================================
             // 1. Internal logging logger (with prefix for debugging)
