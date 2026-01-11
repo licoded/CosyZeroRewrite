@@ -12,6 +12,7 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace logger {
 
@@ -64,107 +65,144 @@ public:
     }
 
 private:
-    Logger() {
+    //==========================================================================
+    // Helper functions for logger construction
+    //==========================================================================
+
+    /**
+     * @brief Generate log file path with timestamp
+     * @return Path like "logs/formula/YYYY-MM-DD/formula_YYYYMMDD_HHMMSS.log"
+     */
+    static std::string generate_log_path() {
+        auto now = std::chrono::system_clock::now();
+        auto time_t = std::chrono::system_clock::to_time_t(now);
+        std::tm* tm_info = std::localtime(&time_t);
+
+        char date_buf[16];
+        char time_buf[16];
+        std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", tm_info);
+        std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", tm_info);
+
+        return fmt::format("logs/formula/{}/formula_{}.log", date_buf, time_buf);
+    }
+
+    /**
+     * @brief Create console sink with standard pattern
+     * @return Configured console sink
+     */
+    static spdlog::sink_ptr create_console_sink() {
+        auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        sink->set_level(spdlog::level::info);
+        sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
+        return sink;
+    }
+
+    /**
+     * @brief Create console sink for user output (no prefix)
+     * @return Configured console sink with clean pattern
+     */
+    static spdlog::sink_ptr create_nop_console_sink() {
+        auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+        sink->set_level(spdlog::level::info);
+        sink->set_pattern("%v");  // No prefix, just the message
+        return sink;
+    }
+
+    /**
+     * @brief Create file sink with rotation
+     * @param log_file Path to log file
+     * @return Configured file sink
+     */
+    static spdlog::sink_ptr create_file_sink(const std::string& log_file) {
+        auto sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
+            log_file, 1024 * 1024 * 5, 3);  // 5MB per file, max 3 files
+        sink->set_level(spdlog::level::trace);
+        sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] %v");
+        return sink;
+    }
+
+    /**
+     * @brief Create main logger with console and file sinks
+     * @param log_file Path to log file
+     * @return Configured main logger
+     */
+    static std::shared_ptr<spdlog::logger> create_main_logger(const std::string& log_file) {
+        std::vector<spdlog::sink_ptr> sinks;
+        sinks.push_back(create_console_sink());
+        sinks.push_back(create_file_sink(log_file));
+
+        auto logger = std::make_shared<spdlog::logger>("formula", sinks.begin(), sinks.end());
+        logger->set_level(spdlog::level::debug);
+        logger->flush_on(spdlog::level::warn);
+
+        spdlog::register_logger(logger);
+        spdlog::set_default_logger(logger);
+
+        return logger;
+    }
+
+    /**
+     * @brief Create output logger for user-facing messages
+     * @param file_sink Shared file sink (for debugging user output)
+     * @return Configured output logger
+     */
+    static std::shared_ptr<spdlog::logger> create_output_logger(spdlog::sink_ptr file_sink) {
+        std::vector<spdlog::sink_ptr> sinks;
+        sinks.push_back(create_nop_console_sink());
+        sinks.push_back(file_sink);  // Share file sink for debugging
+
+        auto logger = std::make_shared<spdlog::logger>("output", sinks.begin(), sinks.end());
+        logger->set_level(spdlog::level::info);
+        logger->flush_on(spdlog::level::info);  // Always flush user output
+
+        spdlog::register_logger(logger);
+        return logger;
+    }
+
+    /**
+     * @brief Fallback to console-only logging when file logging fails
+     */
+    void fallback_to_console_only() {
         try {
-            // Get current time for directory structure
-            auto now = std::chrono::system_clock::now();
-            auto time_t = std::chrono::system_clock::to_time_t(now);
-            std::tm* tm_info = std::localtime(&time_t);
-            int hour = tm_info->tm_hour;
-
-            // Create log path: logs/formula/YYYY-MM-DD/formula_YYYYMMDD_HHMMSS.log
-            char date_buf[16];
-            char time_buf[16];
-            std::strftime(date_buf, sizeof(date_buf), "%Y-%m-%d", tm_info);
-            std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", tm_info);
-            std::string log_file = fmt::format("logs/formula/{}/formula_{}.log", date_buf, time_buf);
-
-            // Create directory
-            std::filesystem::create_directories(std::filesystem::path(log_file).parent_path());
-
-            //==================================================================
-            // 1. Internal logging logger (with prefix for debugging)
-            //==================================================================
+            // Create minimal main logger
             std::vector<spdlog::sink_ptr> sinks;
-
-            // Console sink (colored, with prefix)
-            auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-            console_sink->set_level(spdlog::level::info);
-            console_sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
-            sinks.push_back(console_sink);
-
-            // File sink (rotating)
-            auto file_sink = std::make_shared<spdlog::sinks::rotating_file_sink_mt>(
-                log_file, 1024 * 1024 * 5, 3);  // 5MB per file, max 3 files
-            file_sink->set_level(spdlog::level::trace);
-            file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%t] %v");
-            sinks.push_back(file_sink);
-
-            // Create internal logger
+            sinks.push_back(create_console_sink());
             logger_ = std::make_shared<spdlog::logger>("formula", sinks.begin(), sinks.end());
-            logger_->set_level(spdlog::level::debug);  // Default level
-            logger_->flush_on(spdlog::level::warn);   // Auto-flush on warning+
-
+            logger_->set_level(spdlog::level::debug);
+            logger_->flush_on(spdlog::level::warn);
             spdlog::register_logger(logger_);
             spdlog::set_default_logger(logger_);
 
-            //==================================================================
-            // 2. User-facing output logger (no prefix, clean output)
-            //==================================================================
+            // Create minimal output logger
             std::vector<spdlog::sink_ptr> nop_sinks;
-
-            // Console sink (no prefix)
-            auto nop_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-            nop_console_sink->set_level(spdlog::level::info);
-            nop_console_sink->set_pattern("%v");  // No prefix, just the message
-            nop_sinks.push_back(nop_console_sink);
-
-            // Share the same file sink (for debugging user output in logs)
-            nop_sinks.push_back(file_sink);
-
-            // Create output logger
+            nop_sinks.push_back(create_nop_console_sink());
             no_perfix_logger_ = std::make_shared<spdlog::logger>("output", nop_sinks.begin(), nop_sinks.end());
-            no_perfix_logger_->set_level(spdlog::level::info);
-            no_perfix_logger_->flush_on(spdlog::level::info);  // Always flush user output
-
             spdlog::register_logger(no_perfix_logger_);
-
-        } catch (const std::exception& ex) {
-            // Catch all exceptions including filesystem_error
-            std::cerr << "Log initialization failed: " << ex.what() << std::endl;
-            std::cerr << "Continuing without file logging..." << std::endl;
-            // Fallback to console-only logger
-            if (!logger_) {
-                try {
-                    std::vector<spdlog::sink_ptr> sinks;
-                    auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-                    console_sink->set_level(spdlog::level::info);
-                    console_sink->set_pattern("[%H:%M:%S.%e] [%^%l%$] %v");
-                    sinks.push_back(console_sink);
-                    logger_ = std::make_shared<spdlog::logger>("formula", sinks.begin(), sinks.end());
-                    logger_->set_level(spdlog::level::debug);
-                    logger_->flush_on(spdlog::level::warn);
-                    spdlog::register_logger(logger_);
-                    spdlog::set_default_logger(logger_);
-
-                    // Create minimal output logger
-                    std::vector<spdlog::sink_ptr> nop_sinks;
-                    auto nop_console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
-                    nop_console_sink->set_level(spdlog::level::info);
-                    nop_console_sink->set_pattern("%v");
-                    nop_sinks.push_back(nop_console_sink);
-                    no_perfix_logger_ = std::make_shared<spdlog::logger>("output", nop_sinks.begin(), nop_sinks.end());
-                    spdlog::register_logger(no_perfix_logger_);
-                } catch (...) {
-                    // Last resort: use stderr
-                    logger_ = nullptr;
-                    no_perfix_logger_ = nullptr;
-                }
-            }
         } catch (...) {
-            std::cerr << "Unknown error during log initialization, continuing without logging..." << std::endl;
+            // Last resort: use stderr
             logger_ = nullptr;
             no_perfix_logger_ = nullptr;
+        }
+    }
+
+    //==========================================================================
+    // Constructor / Destructor
+    //==========================================================================
+
+    Logger() {
+        try {
+            std::string log_file = generate_log_path();
+            std::filesystem::create_directories(std::filesystem::path(log_file).parent_path());
+
+            logger_ = create_main_logger(log_file);
+            no_perfix_logger_ = create_output_logger(logger_->sinks()[1]);  // file_sink
+        } catch (const std::exception& ex) {
+            std::cerr << "Log initialization failed: " << ex.what() << std::endl;
+            std::cerr << "Continuing without file logging..." << std::endl;
+            fallback_to_console_only();
+        } catch (...) {
+            std::cerr << "Unknown error during log initialization, continuing without logging..." << std::endl;
+            // logger_ and no_perfix_logger_ remain null
         }
     }
 
