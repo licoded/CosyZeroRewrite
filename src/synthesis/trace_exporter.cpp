@@ -260,7 +260,7 @@ TraceExporter::TraceExporter(formula::Formula* formula,
     oss << output_dir_ << "/trace_" << timestamp << ".json";
     output_path_ = oss.str();
 
-    LOG_DEBUG("TraceExporter: initialized, output: ", output_path_);
+    LOG_DEBUG("TraceExporter: initialized, output: {}", output_path_);
 }
 
 TraceExporter::~TraceExporter() {
@@ -291,7 +291,7 @@ void TraceExporter::begin_stage(const std::string& stage_type,
     current_stage_index_ = static_cast<int>(stages_.size()) - 1;
     stage_start_time_ = std::chrono::steady_clock::now();
 
-    LOG_DEBUG("TraceExporter: began stage ", stage_counter_, " (", stage_type, ")");
+    LOG_DEBUG("TraceExporter: began stage {} ({})", stage_counter_, stage_type);
 }
 
 void TraceExporter::end_stage() {
@@ -301,9 +301,9 @@ void TraceExporter::end_stage() {
     double duration_ms = std::chrono::duration<double, std::milli>(
         end_time - stage_start_time_).count();
 
-    LOG_DEBUG("TraceExporter: ended stage ", current_stage_index_,
-              " (", stages_[current_stage_index_].stage_type,
-              "), duration: ", duration_ms, "ms");
+    LOG_DEBUG("TraceExporter: ended stage {} ({}), duration: {}ms", current_stage_index_,
+              stages_[current_stage_index_].stage_type,
+              duration_ms);
 
     current_stage_index_ = -1;
 }
@@ -351,8 +351,8 @@ void TraceExporter::end_sub_step(bool include_graph) {
         TraceStage& stage = stages_[current_stage_index_];
         if (!stage.sub_steps.empty()) {
             const SubStep& step = stage.sub_steps.back();
-            LOG_DEBUG("TraceExporter: ended step ", step_counter_,
-                      " (", step.description, "), duration: ", step.metrics.duration_ms, "ms");
+            LOG_DEBUG("TraceExporter: ended step {} ({}), duration: {}ms", step_counter_,
+                      step.description, step.metrics.duration_ms);
         }
     }
 }
