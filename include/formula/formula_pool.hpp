@@ -306,7 +306,7 @@ private:
             // Operators
             "not", "and", "or", "next", "until", "release",
             "NOT", "AND", "OR", "NEXT", "UNTIL", "RELEASE",
-            "X", "U", "R", "G", "F", "W",  // Single-letter operators
+            "X[!]", "X", "U", "R", "G", "F", "W",  // Single-letter operators
             // Special
             "end", "End", "END", "last", "Last", "LAST",
             "tail", "Tail", "TAIL"

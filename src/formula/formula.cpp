@@ -103,7 +103,7 @@ const char* Formula::op_name() const {
         case OpType::Not:     return "!";
         case OpType::And:     return "&";
         case OpType::Or:      return "|";
-        case OpType::Next:    return "X";
+        case OpType::Next:    return "X[!]";
         case OpType::Until:   return "U";
         case OpType::Release: return "R";
         case OpType::End:     return "End";
@@ -182,7 +182,7 @@ std::string Formula::to_string_impl(const VarNameResolver& resolver,
 
         case OpType::Next:
             // Strong Next: output X(...) (no prefix, since WX is weak)
-            oss << "X";
+            oss << "X[!]";
             if (left_) {
                 std::string child_str = left_->to_string_impl(resolver, end_marker);
                 if (is_wrapped_in_parens(child_str)) {
