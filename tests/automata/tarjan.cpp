@@ -6,7 +6,7 @@
  * with various graph structures.
  */
 
-#define CATCH_CONFIG_RUNNER
+#define CATCH_CONFIG_MAIN
 #include "synthesis/on_the_fly_solver.hpp"
 #include "formula/formula_pool.hpp"
 #include "catch.hpp"
@@ -500,12 +500,4 @@ TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]") {
     // So s5_scc_idx < s3_scc_idx < s1_scc_idx
     REQUIRE(s5_scc_idx < s3_scc_idx);
     REQUIRE(s3_scc_idx < s1_scc_idx);
-}
-
-//==============================================================================
-// Custom Main
-//==============================================================================
-
-int main(int argc, char* argv[]) {
-    return Catch::Session().run(argc, argv);
 }
