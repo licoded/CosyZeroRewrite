@@ -145,7 +145,7 @@ if(BUILD_BENCH_TESTS)
         RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests/bench
     )
 
-    add_cosy_test_standalone(io_separation_test integration tests/integration/io_separation.cpp)
+    add_cosy_test(io_separation_test integration tests/integration/io_separation.cpp)
     add_cosy_test_standalone(strategy_test integration tests/integration/strategy.cpp)
     message(STATUS "Bench tests enabled")
 endif()
@@ -183,6 +183,7 @@ if(BUILD_TESTS)
 
     # Integration tests
     add_test(NAME prop_atoms_test COMMAND ${CMAKE_BINARY_DIR}/tests/integration/prop_atoms_test)
+    add_test(NAME io_separation_test COMMAND ${CMAKE_BINARY_DIR}/tests/integration/io_separation_test)
 
     message(STATUS "=== Test Structure ===")
     message(STATUS "  tests/formula/     - formula_test, transformation_test")

@@ -3,11 +3,12 @@
  * @brief Test input/output variable separation
  */
 
+#define CATCH_CONFIG_MAIN
+#include "catch.hpp"
+
 #include "synthesis/on_the_fly_solver.hpp"
 #include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
-#include <iostream>
-#include <cassert>
 #include <fstream>
 
 using namespace formula;
@@ -25,26 +26,11 @@ static bool check_realizable(Formula* phi, FormulaPool& pool) {
     return solver.is_realizable();
 }
 
-#define TEST(name) void test_##name()
-#define ASSERT_TRUE(cond) do { \
-    if (!(cond)) { \
-        std::cerr << "FAILED: " << #cond << " at " << __FILE__ << ":" << __LINE__ << std::endl; \
-        return; \
-    } \
-} while(0)
-#define ASSERT_FALSE(cond) ASSERT_TRUE(!(cond))
-#define ASSERT_EQ(a, b) do { \
-    if ((a) != (b)) { \
-        std::cerr << "FAILED: " << #a << " == " << #b << " (" << (a) << " vs " << (b) << ") at " << __FILE__ << ":" << __LINE__ << std::endl; \
-        return; \
-    } \
-} while(0)
-
 //==============================================================================
 // Partition File Tests
 //==============================================================================
 
-TEST(part_file_parsing) {
+TEST_CASE("Partition file parsing", "[io_separation]") {
     FormulaPool pool;
 
     // Create a temporary .part file
@@ -56,26 +42,24 @@ TEST(part_file_parsing) {
 
     pool.load_from_partition(part_file);
 
-    ASSERT_EQ(pool.num_inputs(), 2);
-    ASSERT_EQ(pool.num_outputs(), 2);
-    ASSERT_EQ(pool.num_variables(), 4);
+    REQUIRE(pool.num_inputs() == 2);
+    REQUIRE(pool.num_outputs() == 2);
+    REQUIRE(pool.num_variables() == 4);
 
     // Check variable IDs
-    ASSERT_EQ(pool.get_variable_id("p0"), 2);  // First input, after outputs
-    ASSERT_EQ(pool.get_variable_id("p1"), 3);  // Second input
-    ASSERT_EQ(pool.get_variable_id("p2"), 0);  // First output
-    ASSERT_EQ(pool.get_variable_id("p3"), 1);  // Second output
+    REQUIRE(pool.get_variable_id("p0") == 2);  // First input, after outputs
+    REQUIRE(pool.get_variable_id("p1") == 3);  // Second input
+    REQUIRE(pool.get_variable_id("p2") == 0);  // First output
+    REQUIRE(pool.get_variable_id("p3") == 1);  // Second output
 
     // Check type checks
-    ASSERT_TRUE(pool.is_output_variable(0));
-    ASSERT_TRUE(pool.is_output_variable(1));
-    ASSERT_TRUE(pool.is_input_variable(2));
-    ASSERT_TRUE(pool.is_input_variable(3));
-
-    std::cout << "PASS: part_file_parsing" << std::endl;
+    REQUIRE(pool.is_output_variable(0));
+    REQUIRE(pool.is_output_variable(1));
+    REQUIRE(pool.is_input_variable(2));
+    REQUIRE(pool.is_input_variable(3));
 }
 
-TEST(part_file_synthesis_simple) {
+TEST_CASE("Partition file synthesis simple", "[io_separation]") {
     // Test with simple formula: p2 (output must be true)
     FormulaPool pool;
 
@@ -91,11 +75,10 @@ TEST(part_file_synthesis_simple) {
     Formula* p2 = pool.create_variable("p2");
     bool result = check_realizable(p2, pool);
 
-    ASSERT_TRUE(result);  // System can set p2 = true
-    std::cout << "PASS: part_file_synthesis_simple" << std::endl;
+    REQUIRE(result);  // System can set p2 = true
 }
 
-TEST(part_file_synthesis_response) {
+TEST_CASE("Partition file synthesis response", "[io_separation]") {
     // Test implies formula: p2 -> p3 = !p2 | p3
     // Environment controls p2 (input), system controls p3 (output)
     // Verified with Cosy reference: Realizable
@@ -118,15 +101,14 @@ TEST(part_file_synthesis_response) {
 
     bool result = check_realizable(implies, pool);
 
-    ASSERT_TRUE(result);  // Realizable: verified with Cosy reference
-    std::cout << "PASS: part_file_synthesis_response" << std::endl;
+    REQUIRE(result);  // Realizable: verified with Cosy reference
 }
 
 //==============================================================================
 // Variable ID Assignment Tests
 //==============================================================================
 
-TEST(variable_id_ordering) {
+TEST_CASE("Variable ID ordering", "[io_separation]") {
     FormulaPool pool;
 
     // Declare outputs first, then inputs
@@ -136,53 +118,17 @@ TEST(variable_id_ordering) {
     pool.declare_variables(outputs, inputs);
 
     // Outputs should get IDs 0, 1, 2
-    ASSERT_EQ(pool.get_variable_id("a"), 0);
-    ASSERT_EQ(pool.get_variable_id("b"), 1);
-    ASSERT_EQ(pool.get_variable_id("c"), 2);
+    REQUIRE(pool.get_variable_id("a") == 0);
+    REQUIRE(pool.get_variable_id("b") == 1);
+    REQUIRE(pool.get_variable_id("c") == 2);
 
     // Inputs should get IDs 3, 4
-    ASSERT_EQ(pool.get_variable_id("x"), 3);
-    ASSERT_EQ(pool.get_variable_id("y"), 4);
+    REQUIRE(pool.get_variable_id("x") == 3);
+    REQUIRE(pool.get_variable_id("y") == 4);
 
-    ASSERT_TRUE(pool.is_output_variable(0));
-    ASSERT_TRUE(pool.is_output_variable(1));
-    ASSERT_TRUE(pool.is_output_variable(2));
-    ASSERT_TRUE(pool.is_input_variable(3));
-    ASSERT_TRUE(pool.is_input_variable(4));
-
-    std::cout << "PASS: variable_id_ordering" << std::endl;
-}
-
-//==============================================================================
-// Main
-//==============================================================================
-
-int main() {
-    std::cout << "========================================" << std::endl;
-    std::cout << "I/O Separation Tests" << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    int passed = 0;
-    int total = 0;
-
-    #define RUN_TEST(name) do { \
-        total++; \
-        try { \
-            test_##name(); \
-            passed++; \
-        } catch (...) { \
-            std::cerr << "EXCEPTION in test_" << #name << std::endl; \
-        } \
-    } while(0)
-
-    RUN_TEST(part_file_parsing);
-    RUN_TEST(part_file_synthesis_simple);
-    RUN_TEST(part_file_synthesis_response);
-    RUN_TEST(variable_id_ordering);
-
-    std::cout << "========================================" << std::endl;
-    std::cout << "Results: " << passed << "/" << total << " tests passed" << std::endl;
-    std::cout << "========================================" << std::endl;
-
-    return (passed == total) ? 0 : 1;
+    REQUIRE(pool.is_output_variable(0));
+    REQUIRE(pool.is_output_variable(1));
+    REQUIRE(pool.is_output_variable(2));
+    REQUIRE(pool.is_input_variable(3));
+    REQUIRE(pool.is_input_variable(4));
 }
