@@ -41,10 +41,6 @@ int main() {
     }
     std::cout << std::endl;
 
-    // Check empty-string acceptance
-    static bool (*esa_func)(formula::Formula*) = nullptr;
-    // We'll need to access the internal function or replicate logic
-
     // Enable debug logging on all sinks
     logger::Logger::instance().set_level(spdlog::level::debug);
     for (auto& sink : logger::Logger::instance().logger()->sinks()) {

@@ -134,6 +134,7 @@ TEST_CASE("Parser: Auto-declare single char variables", "[parser]") {
 
     // Variables a, b, c should be auto-declared
     Formula* f = parser.parse("a & b | c");
+    (void)f;  // We only care that parsing succeeds and variables are declared
     REQUIRE_FALSE(parser.has_error());
     REQUIRE(pool.has_variable("a"));
     REQUIRE(pool.has_variable("b"));

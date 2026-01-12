@@ -27,13 +27,12 @@ private:
     std::uniform_int_distribution<int> op_dist_;
     std::uniform_int_distribution<int> var_dist_;
     std::uniform_int_distribution<int> depth_dist_;
-    int max_var_id_;
     std::vector<std::string> var_names_;
 
 public:
     RandomFormulaGenerator(int max_var_id = 10, int seed = 0)
         : rng_(seed), op_dist_(0, 8), var_dist_(0, max_var_id),
-          depth_dist_(1, 6), max_var_id_(max_var_id) {
+          depth_dist_(1, 6) {
 
         // Pre-generate variable names
         for (int i = 0; i <= max_var_id; ++i) {
@@ -190,7 +189,7 @@ int main(int argc, char* argv[]) {
     RandomFormulaGenerator gen(max_var_id);
     Minimizer minimizer;
     TestResult parser_result, nnf_result, xnf_result, simplify_result;
-    TestResult equiv_result, idempotent_result;
+    TestResult idempotent_result;  // equiv_result removed (not implemented)
 
     std::ofstream crash_log("output/logs/crashes.log");
     std::ofstream failure_log("output/logs/fuzz_failures.log");

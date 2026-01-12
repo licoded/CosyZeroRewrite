@@ -56,7 +56,7 @@ std::string get_timestamp() {
 
     char buf[64];
     std::strftime(buf, sizeof(buf), "%Y-%m-%d %H:%M:%S", &tm);
-    std::sprintf(buf + std::strlen(buf), ".%03d", static_cast<int>(ms_count.count()));
+    std::snprintf(buf + std::strlen(buf), sizeof(buf) - std::strlen(buf), ".%03d", static_cast<int>(ms_count.count()));
     return std::string(buf);
 }
 

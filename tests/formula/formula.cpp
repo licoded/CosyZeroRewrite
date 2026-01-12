@@ -156,9 +156,10 @@ TEST_CASE("Formula: Pool statistics", "[formula][pool]") {
     Formula* a = pool.create_variable("a");
     Formula* b = pool.create_variable("b");
     Formula* and_ab = pool.create_and(a, b);
-    Formula* or_ab = pool.create_or(a, b);
+    Formula* or_ab = pool.create_or(a, b);  // Counted in pool statistics
 
     // Total includes: true, false, end, a, b, and_ab, or_ab
+    (void)or_ab;  // Created for pool statistics, not directly tested
     REQUIRE(pool.total_count() >= 7);
     REQUIRE(pool.unique_count() == pool.total_count());
 
