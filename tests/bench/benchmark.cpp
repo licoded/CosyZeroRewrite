@@ -27,6 +27,7 @@
 #include "synthesis/on_the_fly_solver.hpp"
 #include "parallel/thread_pool.hpp"
 #include "log/logger.hpp"
+#include "io/file_utils.hpp"
 
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
@@ -50,6 +51,7 @@
 #include <optional>
 
 using namespace formula;
+using namespace io;
 
 // ============================================================================
 // Benchmark helper functions (previously in Synthesis class)
@@ -74,26 +76,26 @@ Formula* parse_formula(const std::string& formula_str, FormulaPool& pool) {
  */
 std::optional<bool> read_expected_result(const std::string& base_dir, int bench_num) {
     std::string results_file = base_dir + "/results.csv";
-    std::ifstream file(results_file);
-
-    if (!file.is_open()) {
+    auto content_opt = read_file_opt(results_file);
+    if (!content_opt) {
         return std::nullopt;
     }
 
+    std::istringstream iss(*content_opt);
     std::string line;
     // Skip header
-    std::getline(file, line);
+    std::getline(iss, line);
 
     std::string target_filename = "f" + std::to_string(bench_num);
 
-    while (std::getline(file, line)) {
+    while (std::getline(iss, line)) {
         if (line.empty()) continue;
 
-        std::istringstream iss(line);
+        std::istringstream line_ss(line);
         std::string folder, filename, result;
-        if (!std::getline(iss, folder, ',')) continue;
-        if (!std::getline(iss, filename, ',')) continue;
-        if (!std::getline(iss, result, ',')) continue;
+        if (!std::getline(line_ss, folder, ',')) continue;
+        if (!std::getline(line_ss, filename, ',')) continue;
+        if (!std::getline(line_ss, result, ',')) continue;
 
         if (filename == target_filename) {
             // Trim whitespace and check
@@ -116,36 +118,17 @@ bool read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int ben
     std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
 
     // Read formula
-    std::ifstream ltlf(ltlf_file);
-    if (!ltlf.is_open()) {
+    auto formula_content = read_file_opt(ltlf_file);
+    if (!formula_content) {
         return false;
     }
-
-    std::getline(ltlf, formula_str);
+    formula_str = trim(*formula_content);
 
     // Read partition
-    std::ifstream part(part_file);
-    if (part.is_open()) {
-        std::string line;
-        while (std::getline(part, line)) {
-            if (line.empty() || line[0] == '#') continue;
-
-            std::istringstream iss(line);
-            std::string keyword;
-            iss >> keyword;
-
-            if (keyword == ".outputs:") {
-                std::string var;
-                while (iss >> var) {
-                    outputs.push_back(var);
-                }
-            } else if (keyword == ".inputs:") {
-                std::string var;
-                while (iss >> var) {
-                    inputs.push_back(var);
-                }
-            }
-        }
+    auto partition = parse_partition_file(part_file);
+    if (partition) {
+        outputs = partition->outputs;
+        inputs = partition->inputs;
     }
 
     return true;

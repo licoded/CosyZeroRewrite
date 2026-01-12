@@ -60,3 +60,9 @@ docs/working_issues/
 
 # Sourcetrail
 *.srctrl*
+
+# Python
+.venv
+
+# PUML
+*.puml

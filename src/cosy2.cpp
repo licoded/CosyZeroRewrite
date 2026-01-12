@@ -11,6 +11,7 @@
 #include "formula/formula_parser.hpp"
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"
+#include "io/file_utils.hpp"
 #include "CLI/CLI.hpp"  // CLI11 command line parsing
 #include <iostream>
 #include <fstream>
@@ -25,6 +26,7 @@
 
 using namespace formula;
 using namespace synthesis;
+using namespace io;
 
 //==============================================================================
 // Signal Handling for Timeout
@@ -46,153 +48,6 @@ void signal_handler(int signal) {
 
     // Exit immediately - we cannot gracefully exit from a signal handler
     _exit(124);  // 124 is timeout's exit code convention
-}
-
-//==============================================================================
-// File Reading Helpers
-//==============================================================================
-
-static std::string read_file(const std::string& filename) {
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        NOP_LOG_ERROR("Error: Cannot open file: {}", filename);
-        return "";
-    }
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
-}
-
-//==============================================================================
-// Partition File Parser
-//==============================================================================
-
-struct Partition {
-    std::vector<std::string> outputs;
-    std::vector<std::string> inputs;
-};
-
-static Partition parse_partition_file(const std::string& filename) {
-    Partition result;
-    std::ifstream file(filename);
-    if (!file.is_open()) {
-        NOP_LOG_ERROR("Warning: Cannot open partition file: {}", filename);
-        return result;
-    }
-
-    enum class Section { None, Outputs, Inputs };
-    Section section = Section::None;
-    std::string line;
-
-    while (std::getline(file, line)) {
-        // Skip empty lines and comments
-        if (line.empty() || line[0] == '#') continue;
-
-        // Remove leading/trailing whitespace
-        size_t start = line.find_first_not_of(" \t\r\n");
-        if (start == std::string::npos) continue;
-        line = line.substr(start);
-        size_t end = line.find_last_not_of(" \t\r\n");
-        if (end != std::string::npos) line = line.substr(0, end + 1);
-
-        // Check for section headers (with or without dot, with or without colon)
-        std::string upper_line = line;
-        for (char& c : upper_line) c = std::toupper(c);
-
-        if (upper_line == ".OUTPUTS:" || upper_line == "OUTPUTS:" ||
-            upper_line == ".OUTPUTS" || upper_line == "OUTPUTS") {
-            section = Section::Outputs;
-            continue;
-        } else if (upper_line == ".INPUTS:" || upper_line == "INPUTS:" ||
-                   upper_line == ".INPUTS" || upper_line == "INPUTS") {
-            section = Section::Inputs;
-            continue;
-        }
-
-        // Check if line starts with a section header followed by variables
-        size_t colon_pos = line.find(':');
-        if (colon_pos != std::string::npos) {
-            std::string prefix = line.substr(0, colon_pos);
-            std::string upper_prefix = prefix;
-            for (char& c : upper_prefix) c = std::toupper(c);
-
-            if (upper_prefix == ".OUTPUTS" || upper_prefix == "OUTPUTS") {
-                section = Section::Outputs;
-                // Extract variables after colon
-                std::string rest = line.substr(colon_pos + 1);
-                std::istringstream iss(rest);
-                std::string token;
-                while (iss >> token) {
-                    if (!token.empty()) result.outputs.push_back(token);
-                }
-                continue;
-            } else if (upper_prefix == ".INPUTS" || upper_prefix == "INPUTS") {
-                section = Section::Inputs;
-                // Extract variables after colon
-                std::string rest = line.substr(colon_pos + 1);
-                std::istringstream iss(rest);
-                std::string token;
-                while (iss >> token) {
-                    if (!token.empty()) result.inputs.push_back(token);
-                }
-                continue;
-            }
-        }
-
-        // Variable name (standalone, not on same line as section header)
-        if (section == Section::Outputs) {
-            std::istringstream iss(line);
-            std::string token;
-            while (iss >> token) {
-                if (!token.empty()) result.outputs.push_back(token);
-            }
-        } else if (section == Section::Inputs) {
-            std::istringstream iss(line);
-            std::string token;
-            while (iss >> token) {
-                if (!token.empty()) result.inputs.push_back(token);
-            }
-        }
-    }
-
-    NOP_LOG_INFO("Parsed partition: {} outputs, {} inputs",
-               result.outputs.size(), result.inputs.size());
-
-    return result;
-}
-
-//==============================================================================
-// Formula Cleaning (remove comments and extra whitespace)
-//==============================================================================
-
-static std::string clean_formula(const std::string& raw) {
-    std::string result;
-    bool in_comment = false;
-
-    for (size_t i = 0; i < raw.size(); ++i) {
-        if (in_comment) {
-            if (raw[i] == '\n') in_comment = false;
-            continue;
-        }
-
-        if (raw[i] == '#') {
-            in_comment = true;
-            continue;
-        }
-
-        // Replace newlines with spaces
-        if (raw[i] == '\n' || raw[i] == '\r') {
-            result += ' ';
-        } else {
-            result += raw[i];
-        }
-    }
-
-    // Trim leading/trailing whitespace
-    size_t start = result.find_first_not_of(" \t\n\r");
-    if (start == std::string::npos) return "";
-    size_t end = result.find_last_not_of(" \t\n\r");
-    return result.substr(start, end - start + 1);
 }
 
 //==============================================================================
@@ -290,9 +145,12 @@ int main(int argc, char* argv[]) {
     //==========================================================================
     // Parse partition if provided
     //==========================================================================
-    Partition partition;
+    Partition partition;  // Default empty partition
     if (!partition_file.empty()) {
-        partition = parse_partition_file(partition_file);
+        auto part_opt = parse_partition_file(partition_file);
+        if (part_opt) {
+            partition = *part_opt;
+        }
     }
 
     //==========================================================================

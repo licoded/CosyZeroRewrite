@@ -15,6 +15,7 @@ set(FORMULA_SOURCES
     src/automata/tableau.cpp
     src/synthesis/on_the_fly_solver.cpp
     src/synthesis/trace_exporter.cpp
+    src/io/file_utils.cpp
 )
 
 # ============================================================
