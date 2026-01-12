@@ -14,6 +14,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <tl/expected.hpp>
 
 namespace io {
 
@@ -61,9 +62,9 @@ struct Partition {
 /**
  * @brief Parse a .part partition file
  * @param filename Path to the partition file
- * @return Parsed partition, or std::nullopt on error
+ * @return Parsed partition, or error message on failure
  */
-std::optional<Partition> parse_partition_file(const std::string& filename);
+tl::expected<Partition, std::string> parse_partition_file(const std::string& filename);
 
 //==============================================================================
 // String Cleaning

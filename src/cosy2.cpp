@@ -25,6 +25,7 @@
 #include <unistd.h>
 
 #include <spdlog/fmt/fmt.h>
+#include <tl/expected.hpp>
 
 using namespace formula;
 using namespace synthesis;
@@ -67,9 +68,8 @@ struct Config {
 // Helper Functions
 //==============================================================================
 
-// Parse command line arguments
+// Parse command line arguments (returns nullptr on parse error)
 std::unique_ptr<Config> parse_command_line(int argc, char* argv[]) {
-    (void)argc; (void)argv;  // Used by CLI11
     auto config = std::make_unique<Config>();
     CLI::App app{"CosyZero LTLf Synthesis Tool - LTLf to Automata Synthesis"};
     app.set_version_flag("--version", "CosyZero v2.0");
@@ -90,13 +90,15 @@ Examples:
   Cosy2 -f formula.ltlf --trace
   Cosy2 -f formula.ltlf -p partition.part --trace custom_dir
 
-For more information, see: https://github.com/your-repo/CosyZero
+For more information, see: https://github.com/licoded/CosyZeroRewrite
 )xx"));
 
     try {
         app.parse(argc, argv);
-    } catch (const CLI::ParseError&) {
-        return nullptr;
+    } catch (const CLI::ParseError& e) {
+        // CLI11 already printed the error/help message
+        // Exit with the appropriate error code
+        std::exit(app.exit(e));
     }
 
     return config;
@@ -136,32 +138,29 @@ std::string read_formula(const Config& config) {
 }
 
 // Load partition from file
-Partition load_partition(const Config& config) {
-    Partition partition;
-
-    if (!config.partition_file.empty()) {
-        auto part_opt = parse_partition_file(config.partition_file);
-        if (part_opt) {
-            partition = *part_opt;
-            NOP_LOG_INFO("Partition loaded: {} outputs, {} inputs",
-                       partition.outputs.size(), partition.inputs.size());
-        }
+tl::expected<Partition, std::string> load_partition(const Config& config) {
+    if (config.partition_file.empty()) {
+        return Partition{};  // Empty partition is valid
     }
 
-    return partition;
+    auto part_result = parse_partition_file(config.partition_file);
+    if (!part_result) {
+        return tl::unexpected(fmt::format("Failed to load partition: {}", part_result.error()));
+    }
+
+    NOP_LOG_INFO("Partition loaded: {} outputs, {} inputs",
+               part_result->outputs.size(), part_result->inputs.size());
+    return part_result;
 }
 
 // Parse formula and prepare formula pool (pool must be kept alive)
 Formula* parse_formula(const std::string& formula_str,
                         FormulaPool& pool,
                         const Partition& partition,
-                        bool quiet) {
+                        const Config& config) {
     if (!partition.outputs.empty() || !partition.inputs.empty()) {
         pool.declare_variables(partition.outputs, partition.inputs);
-        if (!quiet) {
-            NOP_LOG_INFO("Variables declared: {} outputs, {} inputs",
-                       pool.num_outputs(), pool.num_inputs());
-        }
+        NOP_LOG_INFO("Variables declared: {} outputs, {} inputs", pool.num_outputs(), pool.num_inputs());
     }
 
     FormulaParser parser(pool);
@@ -173,7 +172,7 @@ Formula* parse_formula(const std::string& formula_str,
         return nullptr;
     }
 
-    if (!quiet) {
+    if (!config.quiet) {
         LOG_DEBUG("Parsed: {}", phi->to_string());
         LOG_DEBUG("Parsed (with names): {}", phi->to_string_with_names(pool));
         LOG_DEBUG("Variable mapping:");
@@ -209,10 +208,17 @@ bool run_synthesis(Formula* phi, FormulaPool& pool, const Config& config) {
 }
 
 // Print synthesis result
-void print_result(bool realizable) {
-    NOP_LOG_INFO("========================================");
-    NOP_LOG_INFO(realizable ? "REALIZABLE" : "UNREALIZABLE");
-    NOP_LOG_INFO("========================================");
+void print_result(bool realizable, const Config& config) {
+    constexpr const char* sep = "========================================";
+    const char* result = realizable ? "REALIZABLE" : "UNREALIZABLE";
+
+    if (!config.quiet) {
+        NOP_LOG_INFO(sep);
+        NOP_LOG_INFO(result);
+        NOP_LOG_INFO(sep);
+    } else {
+        NOP_LOG_INFO(result);
+    }
 }
 
 //==============================================================================
@@ -238,22 +244,23 @@ int main(int argc, char* argv[]) {
     if (formula_str.empty()) return 1;
 
     // Load partition
-    Partition partition = load_partition(*config);
+    auto partition_result = load_partition(*config);
+    if (!partition_result) {
+        NOP_LOG_ERROR("{}", partition_result.error());
+        return 1;
+    }
+    Partition partition = *partition_result;
 
     // Parse formula (pool must stay alive)
     FormulaPool pool;
-    Formula* phi = parse_formula(formula_str, pool, partition, config->quiet);
+    Formula* phi = parse_formula(formula_str, pool, partition, *config);
     if (!phi) return 1;
 
     // Run synthesis
     bool realizable = run_synthesis(phi, pool, *config);
 
     // Print result
-    if (!config->quiet) {
-        print_result(realizable);
-    } else {
-        NOP_LOG_INFO(realizable ? "REALIZABLE" : "UNREALIZABLE");
-    }
+    print_result(realizable, *config);
 
     return realizable ? 0 : 1;
 }

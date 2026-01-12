@@ -125,7 +125,7 @@ tl::expected<Benchmark, std::string> read_benchmark_from_dir(const std::string& 
     // Read partition (required)
     auto partition = parse_partition_file(part_file);
     if (!partition) {
-        return tl::unexpected(fmt::format("Cannot read partition file: {}", part_file));
+        return tl::unexpected(fmt::format("Cannot read partition file: {} - {}", part_file, partition.error()));
     }
 
     return Benchmark{trim(*formula_content), *partition};

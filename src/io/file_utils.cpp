@@ -6,6 +6,8 @@
 #include "io/file_utils.hpp"
 #include "log/logger.hpp"
 
+#include <spdlog/fmt/fmt.h>
+
 #include <fstream>
 #include <sstream>
 #include <algorithm>
@@ -76,13 +78,12 @@ static std::string trim_whitespace(const std::string& s) {
     return s.substr(start, end - start + 1);
 }
 
-std::optional<Partition> parse_partition_file(const std::string& filename) {
+tl::expected<Partition, std::string> parse_partition_file(const std::string& filename) {
     Partition result;
     std::ifstream file(filename);
 
     if (!file.is_open()) {
-        LOG_ERROR("Cannot open partition file: {}", filename);
-        return std::nullopt;
+        return tl::unexpected(fmt::format("Cannot open partition file: {}", filename));
     }
 
     enum class Section { None, Outputs, Inputs };
