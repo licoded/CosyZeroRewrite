@@ -11,10 +11,11 @@
 
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
+
+#include <functional>
+#include <memory>
 #include <unordered_set>
 #include <vector>
-#include <memory>
-#include <functional>
 
 namespace automata {
 
@@ -30,10 +31,12 @@ using Assignment = std::unordered_set<int>;
  * @brief Hash function for Assignment
  */
 struct AssignmentHash {
-    size_t operator()(const Assignment& a) const {
+    size_t operator()(const Assignment &a) const
+    {
         size_t h = 0;
-        for (int v : a) {
-            h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        for (int v : a)
+        {
+            h ^= std::hash<int> {}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
         }
         return h;
     }
@@ -43,16 +46,14 @@ struct AssignmentHash {
  * @brief Hash function for Formula pointers
  */
 struct FormulaHash {
-    size_t operator()(formula::Formula* f) const noexcept {
-        return f ? f->hash() : 0;
-    }
+    size_t operator()(formula::Formula *f) const noexcept { return f ? f->hash() : 0; }
 };
 
 /**
  * @brief Equality function for Formula pointers (structural equality)
  */
 struct FormulaEqual {
-    bool operator()(formula::Formula* a, formula::Formula* b) const noexcept;
+    bool operator()(formula::Formula *a, formula::Formula *b) const noexcept;
 };
 
 /**
@@ -68,9 +69,10 @@ struct FormulaEqual {
  * Example: phi = a U b, xnf_phi = (a & X(a U b)) | b
  *          prop_atoms_ = {a, X(a U b), b}
  */
-class TableauState {
-public:
-    using FormulaSet = std::unordered_set<formula::Formula*, FormulaHash, FormulaEqual>;
+class TableauState
+{
+  public:
+    using FormulaSet = std::unordered_set<formula::Formula *, FormulaHash, FormulaEqual>;
 
     /**
      * @brief Create the initial tableau state from a formula
@@ -78,7 +80,7 @@ public:
      * @param pool Formula pool for creating new formulas
      * @return Initial tableau state
      */
-    static std::unique_ptr<TableauState> initial(formula::Formula* phi, formula::FormulaPool& pool);
+    static std::unique_ptr<TableauState> initial(formula::Formula *phi, formula::FormulaPool &pool);
 
     /**
      * @brief Compute next phi given an assignment
@@ -93,18 +95,17 @@ public:
      * @param pool Formula pool for creating new formulas
      * @return Next phi (progressed formula)
      */
-    formula::Formula* next_phi(const Assignment& assignment,
-                                formula::FormulaPool& pool) const;
+    formula::Formula *next_phi(const Assignment &assignment, formula::FormulaPool &pool) const;
 
     /**
      * @brief Get the original formula phi
      */
-    formula::Formula* phi() const { return phi_; }
+    formula::Formula *phi() const { return phi_; }
 
     /**
      * @brief Get the XNF formula
      */
-    formula::Formula* xnf_phi() const { return xnf_phi_; }
+    formula::Formula *xnf_phi() const { return xnf_phi_; }
 
     /**
      * @brief Get propositional atoms PA(xnf_phi)
@@ -112,12 +113,12 @@ public:
      * Per AAAI2019 Definition 2: PA(φ) expands at And/Or,
      * stops at Next/Until/Release formulas.
      */
-    const FormulaSet& prop_atoms() const { return prop_atoms_; }
+    const FormulaSet &prop_atoms() const { return prop_atoms_; }
 
     /**
      * @brief Get all formulas in this state (backward compatibility alias for prop_atoms)
      */
-    const FormulaSet& formulas() const { return prop_atoms_; }
+    const FormulaSet &formulas() const { return prop_atoms_; }
 
     /**
      * @brief Get hash value of this state (based on phi only)
@@ -127,18 +128,18 @@ public:
     /**
      * @brief Check equality of two tableau states (based on phi only)
      */
-    bool operator==(const TableauState& other) const;
+    bool operator==(const TableauState &other) const;
 
     /**
      * @brief String representation for debugging
      * @param pool Formula pool for variable name lookup
      */
-    std::string to_string(formula::FormulaPool& pool) const;
+    std::string to_string(formula::FormulaPool &pool) const;
 
     /**
      * @brief Check if a formula is purely temporal (starts with Next/Until/Release)
      */
-    static bool is_temporal(formula::Formula* f);
+    static bool is_temporal(formula::Formula *f);
 
     /**
      * @brief Compute PA(φ) - Propositional Atoms
@@ -152,43 +153,44 @@ public:
      * @param phi Formula to compute PA for
      * @param result Output set for accumulated atoms
      */
-    static void compute_prop_atoms(formula::Formula* phi, FormulaSet& result);
+    static void compute_prop_atoms(formula::Formula *phi, FormulaSet &result);
 
     // Friend declarations for pool access
     friend class TableauStatePool;
     friend class OnTheFlyDFA;
 
-private:
+  private:
     /**
      * @brief Private constructor - use initial() or next() factory methods
      * @param phi Original formula
      * @param xnf_phi XNF form of phi
      * @param prop_atoms PA(xnf_phi) - propositional atoms
      */
-    TableauState(formula::Formula* phi, formula::Formula* xnf_phi, FormulaSet prop_atoms);
+    TableauState(formula::Formula *phi, formula::Formula *xnf_phi, FormulaSet prop_atoms);
 
-    formula::Formula* phi_;        // Original formula (used for hash and empty-string check)
-    formula::Formula* xnf_phi_;    // XNF form (used for formula progression)
-    FormulaSet prop_atoms_;         // PA(xnf_phi) - propositional atoms
-    size_t hash_;                   // Hash based on phi only
+    formula::Formula *phi_;     // Original formula (used for hash and empty-string check)
+    formula::Formula *xnf_phi_; // XNF form (used for formula progression)
+    FormulaSet prop_atoms_;     // PA(xnf_phi) - propositional atoms
+    size_t hash_;               // Hash based on phi only
 };
 
 /**
  * @brief Hash function for TableauState pointers
  */
 struct TableauStateHash {
-    size_t operator()(const TableauState* s) const {
-        return s ? s->hash() : 0;
-    }
+    size_t operator()(const TableauState *s) const { return s ? s->hash() : 0; }
 };
 
 /**
  * @brief Equality function for TableauState pointers
  */
 struct TableauStateEqual {
-    bool operator()(const TableauState* a, const TableauState* b) const {
-        if (a == b) return true;
-        if (!a || !b) return false;
+    bool operator()(const TableauState *a, const TableauState *b) const
+    {
+        if (a == b)
+            return true;
+        if (!a || !b)
+            return false;
         return *a == *b;
     }
 };
@@ -200,14 +202,15 @@ struct TableauStateEqual {
  * by a single object (same pointer).
  * States are uniquely identified by their phi formula.
  */
-class TableauStatePool {
-public:
+class TableauStatePool
+{
+  public:
     TableauStatePool() = default;
     ~TableauStatePool() = default;
 
     // No copy/move
-    TableauStatePool(const TableauStatePool&) = delete;
-    TableauStatePool& operator=(const TableauStatePool&) = delete;
+    TableauStatePool(const TableauStatePool &) = delete;
+    TableauStatePool &operator=(const TableauStatePool &) = delete;
 
     /**
      * @brief Get or create a tableau state from phi
@@ -219,7 +222,7 @@ public:
      * @param pool Formula pool for computing XNF and prop atoms
      * @return Pointer to the (possibly new) tableau state
      */
-    TableauState* get_or_create(formula::Formula* phi, formula::FormulaPool& pool);
+    TableauState *get_or_create(formula::Formula *phi, formula::FormulaPool &pool);
 
     /**
      * @brief Number of unique states in the pool
@@ -231,9 +234,9 @@ public:
      */
     void clear();
 
-private:
+  private:
     // States with custom hash/equal
-    using StateSet = std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual>;
+    using StateSet = std::unordered_set<TableauState *, TableauStateHash, TableauStateEqual>;
 
     StateSet states_;
 
@@ -247,19 +250,20 @@ private:
  * Builds DFA states lazily as needed during game solving.
  * Uses TableauState for state representation and caches transitions.
  */
-class OnTheFlyDFA {
-public:
+class OnTheFlyDFA
+{
+  public:
     /**
      * @brief Construct on-the-fly DFA from formula
      * @param phi LTLf formula (will be converted to NNF internally)
      * @param pool Formula pool
      */
-    OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool);
+    OnTheFlyDFA(formula::Formula *phi, formula::FormulaPool &pool);
 
     /**
      * @brief Get initial DFA state
      */
-    TableauState* initial_state() const { return initial_state_; }
+    TableauState *initial_state() const { return initial_state_; }
 
     /**
      * @brief Get or compute successor state
@@ -268,13 +272,15 @@ public:
      * @param assignment Variable assignment
      * @return Next state (cached after first computation)
      */
-    TableauState* successor(TableauState* q, const Assignment& assignment) const;
+    TableauState *successor(TableauState *q, const Assignment &assignment) const;
 
     /**
      * @brief Get all states that have been expanded so far
      */
-    const std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual>&
-    expanded_states() const { return expanded_states_; }
+    const std::unordered_set<TableauState *, TableauStateHash, TableauStateEqual> &expanded_states() const
+    {
+        return expanded_states_;
+    }
 
     /**
      * @brief Get number of expanded states
@@ -286,37 +292,40 @@ public:
      */
     size_t cache_size() const { return transition_cache_.size(); }
 
-private:
-    formula::FormulaPool& pool_;
+  private:
+    formula::FormulaPool &pool_;
     mutable TableauStatePool state_pool_;
-    TableauState* initial_state_;
+    TableauState *initial_state_;
 
     // Transition cache: (state, assignment) -> next_state
-    using CacheKey = std::pair<TableauState*, Assignment>;
+    using CacheKey = std::pair<TableauState *, Assignment>;
     struct CacheKeyHash {
-        size_t operator()(const CacheKey& k) const {
-            size_t h = TableauStateHash{}(k.first);
-            h ^= AssignmentHash{}(k.second) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        size_t operator()(const CacheKey &k) const
+        {
+            size_t h = TableauStateHash {}(k.first);
+            h ^= AssignmentHash {}(k.second) + 0x9e3779b9 + (h << 6) + (h >> 2);
             return h;
         }
     };
     struct CacheKeyEqual {
-        bool operator()(const CacheKey& a, const CacheKey& b) const {
-            return TableauStateEqual{}(a.first, b.first) && a.second == b.second;
+        bool operator()(const CacheKey &a, const CacheKey &b) const
+        {
+            return TableauStateEqual {}(a.first, b.first) && a.second == b.second;
         }
     };
 
-    mutable std::unordered_map<CacheKey, TableauState*, CacheKeyHash, CacheKeyEqual> transition_cache_;
+    mutable std::unordered_map<CacheKey, TableauState *, CacheKeyHash, CacheKeyEqual> transition_cache_;
 
     // Set of states that have been expanded (successors computed)
-    mutable std::unordered_set<TableauState*, TableauStateHash, TableauStateEqual> expanded_states_;
+    mutable std::unordered_set<TableauState *, TableauStateHash, TableauStateEqual> expanded_states_;
 };
 
 /**
  * @brief Generate all possible assignments for a set of variables
  */
-class AssignmentGenerator {
-public:
+class AssignmentGenerator
+{
+  public:
     /**
      * @brief Create assignment generator
      * @param num_variables Number of variables (generates 2^n assignments)
@@ -342,7 +351,7 @@ public:
      * @param pool Formula pool for variable name lookup
      * @return String representation with actual variable names (e.g., "{p1=1, p2=0}")
      */
-    static std::string to_string(const Assignment& a, const formula::FormulaPool& pool);
+    static std::string to_string(const Assignment &a, const formula::FormulaPool &pool);
 
     /**
      * @brief Number of variables
@@ -357,9 +366,9 @@ public:
      *
      * Example: var_indices = {0, 2} returns {{}, {0}, {2}, {0, 2}}
      */
-    std::vector<Assignment> all_assignments_for_subset(const std::vector<int>& var_indices) const;
+    std::vector<Assignment> all_assignments_for_subset(const std::vector<int> &var_indices) const;
 
-private:
+  private:
     int num_variables_;
 };
 

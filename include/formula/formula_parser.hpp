@@ -3,6 +3,7 @@
 
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
+
 #include <string>
 #include <vector>
 
@@ -42,9 +43,10 @@ namespace formula {
  *   primary       ::= literal | '(' formula ')'
  *   literal       ::= identifier | 'true' | 'false'
  */
-class FormulaParser {
-public:
-    explicit FormulaParser(FormulaPool& pool);
+class FormulaParser
+{
+  public:
+    explicit FormulaParser(FormulaPool &pool);
     ~FormulaParser() = default;
 
     /**
@@ -54,13 +56,13 @@ public:
      *
      * Use error() to get error message on failure.
      */
-    Formula* parse(const std::string& input);
+    Formula *parse(const std::string &input);
 
     /**
      * @brief Get last error message
      * @return Error description, empty if no error
      */
-    const std::string& error() const { return error_; }
+    const std::string &error() const { return error_; }
 
     /**
      * @brief Check if last parse had error
@@ -75,26 +77,27 @@ public:
      * By default, single-letter variables are recognized.
      * Call this to support multi-character variable names.
      */
-    void set_variables(const std::vector<std::string>& var_names);
+    void set_variables(const std::vector<std::string> &var_names);
 
-private:
+  private:
     // Token types
-    enum class TokenType {
+    enum class TokenType
+    {
         Identifier,
         True,
         False,
-        Not,         // !
-        And,         // &
-        Or,          // |
-        Implies,     // ->
-        Next,        // X - weak next
-        StrongNext,  // X[!] - strong next
-        Until,       // U
-        Release,     // R
-        Finally,     // F (eventually, syntactic sugar for true U ...)
-        Globally,    // G (globally, syntactic sugar for false R ...)
-        LParen,      // (
-        RParen,      // )
+        Not,        // !
+        And,        // &
+        Or,         // |
+        Implies,    // ->
+        Next,       // X - weak next
+        StrongNext, // X[!] - strong next
+        Until,      // U
+        Release,    // R
+        Finally,    // F (eventually, syntactic sugar for true U ...)
+        Globally,   // G (globally, syntactic sugar for false R ...)
+        LParen,     // (
+        RParen,     // )
         End,
         Error
     };
@@ -106,26 +109,26 @@ private:
     };
 
     // Lexer
-    void tokenize(const std::string& input);
+    void tokenize(const std::string &input);
     Token peek() const;
     Token consume();
     bool match(TokenType type);
-    void set_error(const std::string& msg);
+    void set_error(const std::string &msg);
 
     // Parser functions (recursive descent)
-    Formula* parse_formula();
-    Formula* parse_implies_expr();
-    Formula* parse_or_expr();
-    Formula* parse_and_expr();
-    Formula* parse_binary_op();
-    Formula* parse_unary_op();
-    Formula* parse_postfix();
-    Formula* parse_primary();
+    Formula *parse_formula();
+    Formula *parse_implies_expr();
+    Formula *parse_or_expr();
+    Formula *parse_and_expr();
+    Formula *parse_binary_op();
+    Formula *parse_unary_op();
+    Formula *parse_postfix();
+    Formula *parse_primary();
 
     // Variable lookup
-    Formula* lookup_variable(const std::string& name);
+    Formula *lookup_variable(const std::string &name);
 
-    FormulaPool& pool_;
+    FormulaPool &pool_;
     std::vector<Token> tokens_;
     size_t pos_;
     std::string error_;

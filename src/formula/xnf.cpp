@@ -1,5 +1,6 @@
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
+
 #include <stdexcept>
 
 namespace formula {
@@ -28,60 +29,61 @@ namespace formula {
  *
  * See docs/ARCHITECTURE/xnf_detailed.md for complete specification.
  */
-Formula* Formula::xnf_with_end_marker(FormulaPool& pool) const {
+Formula *Formula::xnf_with_end_marker(FormulaPool &pool) const
+{
     // Base cases: already in XNF
     // X(φ) is a base case: Next formulas are already in XNF (◦-formulas)
     // See docs/ARCHITECTURE/xnf_detailed.md for definition
-    if (is_true() || is_false() || is_literal() || is_end() || is_not() || is_next()) {
-        return const_cast<Formula*>(this);
+    if (is_true() || is_false() || is_literal() || is_end() || is_not() || is_next())
+    {
+        return const_cast<Formula *>(this);
     }
 
-    switch (op_) {
-        case Formula::OpType::Next: {
+    switch (op_)
+    {
+        case Formula::OpType::Next:
+        {
             // Unreachable - handled in base cases above
             // X(φ) stays as X(φ), no recursion needed
-            return const_cast<Formula*>(this);
+            return const_cast<Formula *>(this);
         }
 
-        case Formula::OpType::And: {
+        case Formula::OpType::And:
+        {
             // Distribute over And
-            return pool.create_and(
-                left_->xnf_with_end_marker(pool),
-                right_->xnf_with_end_marker(pool)
-            );
+            return pool.create_and(left_->xnf_with_end_marker(pool), right_->xnf_with_end_marker(pool));
         }
 
-        case Formula::OpType::Or: {
+        case Formula::OpType::Or:
+        {
             // Distribute over Or
-            return pool.create_or(
-                left_->xnf_with_end_marker(pool),
-                right_->xnf_with_end_marker(pool)
-            );
+            return pool.create_or(left_->xnf_with_end_marker(pool), right_->xnf_with_end_marker(pool));
         }
 
-        case Formula::OpType::Until: {
+        case Formula::OpType::Until:
+        {
             // KEY TRANSFORMATION:
             // xnf(φ₁ U φ₂) = xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))
             //
             // Where X is strong next (implicitly !End)
             // And the inner φ₁ U φ₂ is NOT recursively transformed!
 
-            Formula* left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
-            Formula* right_xnf = right_->xnf_with_end_marker(pool);  // xnf(φ₂)
+            Formula *left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
+            Formula *right_xnf = right_->xnf_with_end_marker(pool); // xnf(φ₂)
 
             // xnf(φ₁) ∧ X(φ₁ U φ₂)
             // NOTE: Keep original Until formula, do NOT recurse!
-            Formula* next_until = pool.create_next(
-                const_cast<Formula*>(this)  // Original φ₁ U φ₂
+            Formula *next_until = pool.create_next(const_cast<Formula *>(this) // Original φ₁ U φ₂
             );
-            Formula* left_part = pool.create_and(left_xnf, next_until);
+            Formula *left_part = pool.create_and(left_xnf, next_until);
 
             // xnf(φ₂) ∨ (xnf(φ₁) ∧ X(φ₁ U φ₂))
             // No ¬End constraint needed - X implicitly enforces !End
             return pool.create_or(right_xnf, left_part);
         }
 
-        case Formula::OpType::Release: {
+        case Formula::OpType::Release:
+        {
             // DUAL TRANSFORMATION:
             // xnf(φ₁ R φ₂) = xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
             //
@@ -89,15 +91,14 @@ Formula* Formula::xnf_with_end_marker(FormulaPool& pool) const {
             // Empty string check is done during transition generation
             // And the inner φ₁ R φ₂ is NOT recursively transformed!
 
-            Formula* left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
-            Formula* right_xnf = right_->xnf_with_end_marker(pool);  // xnf(φ₂)
+            Formula *left_xnf = left_->xnf_with_end_marker(pool);   // xnf(φ₁)
+            Formula *right_xnf = right_->xnf_with_end_marker(pool); // xnf(φ₂)
 
             // xnf(φ₁) ∨ X(φ₁ R φ₂)
             // NOTE: Keep original Release formula, do NOT recurse!
-            Formula* next_release = pool.create_next(
-                const_cast<Formula*>(this)  // Original φ₁ R φ₂
+            Formula *next_release = pool.create_next(const_cast<Formula *>(this) // Original φ₁ R φ₂
             );
-            Formula* left_part = pool.create_or(left_xnf, next_release);
+            Formula *left_part = pool.create_or(left_xnf, next_release);
 
             // xnf(φ₂) ∧ (xnf(φ₁) ∨ X(φ₁ R φ₂))
             // No explicit End marker - empty string acceptance is implicit

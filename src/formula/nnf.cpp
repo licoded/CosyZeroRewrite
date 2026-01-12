@@ -1,5 +1,6 @@
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
+
 #include <stdexcept>
 
 namespace formula {
@@ -20,12 +21,15 @@ namespace {
  *
  * See NNF_TRANSFORMATION.md for complete specification.
  */
-Formula* to_nnf_not(FormulaPool& pool, Formula* f) {
-    if (!f) {
+Formula *to_nnf_not(FormulaPool &pool, Formula *f)
+{
+    if (!f)
+    {
         return pool.create_false();
     }
 
-    switch (f->op()) {
+    switch (f->op())
+    {
         case Formula::OpType::True:
             return pool.create_false();
 
@@ -48,41 +52,26 @@ Formula* to_nnf_not(FormulaPool& pool, Formula* f) {
 
         case Formula::OpType::And:
             // De Morgan: Not(φ ∧ ψ) → (!φ) ∨ (!ψ)
-            return pool.create_or(
-                to_nnf_not(pool, f->left()),
-                to_nnf_not(pool, f->right())
-            );
+            return pool.create_or(to_nnf_not(pool, f->left()), to_nnf_not(pool, f->right()));
 
         case Formula::OpType::Or:
             // De Morgan: Not(φ ∨ ψ) → (!φ) ∧ (!ψ)
-            return pool.create_and(
-                to_nnf_not(pool, f->left()),
-                to_nnf_not(pool, f->right())
-            );
+            return pool.create_and(to_nnf_not(pool, f->left()), to_nnf_not(pool, f->right()));
 
         case Formula::OpType::Next:
             // LTLf finite trace: Not(X(φ)) → X(!φ) ∨ End
             // This is the ONLY rule that differs from standard LTL!
-            return pool.create_or(
-                pool.create_next(
-                    to_nnf_not(pool, f->left())
-                ),
-                pool.create_end_marker()  // End marker for finite traces
+            return pool.create_or(pool.create_next(to_nnf_not(pool, f->left())),
+                                  pool.create_end_marker() // End marker for finite traces
             );
 
         case Formula::OpType::Until:
             // Duality: Not(φ U ψ) → (!φ) R (!ψ)
-            return pool.create_release(
-                to_nnf_not(pool, f->left()),
-                to_nnf_not(pool, f->right())
-            );
+            return pool.create_release(to_nnf_not(pool, f->left()), to_nnf_not(pool, f->right()));
 
         case Formula::OpType::Release:
             // Duality: Not(φ R ψ) → (!φ) U (!ψ)
-            return pool.create_until(
-                to_nnf_not(pool, f->left()),
-                to_nnf_not(pool, f->right())
-            );
+            return pool.create_until(to_nnf_not(pool, f->left()), to_nnf_not(pool, f->right()));
     }
 
     // Should never reach here
@@ -93,14 +82,18 @@ Formula* to_nnf_not(FormulaPool& pool, Formula* f) {
 
 // ========== Main NNF Transformation ==========
 
-Formula* Formula::nnf(FormulaPool& pool) const {
+Formula *Formula::nnf(FormulaPool &pool) const
+{
     // Base cases: already in NNF
-    if (is_true() || is_false() || is_literal() || is_end()) {
-        return const_cast<Formula*>(this);
+    if (is_true() || is_false() || is_literal() || is_end())
+    {
+        return const_cast<Formula *>(this);
     }
 
-    switch (op_) {
-        case Formula::OpType::Not: {
+    switch (op_)
+    {
+        case Formula::OpType::Not:
+        {
             // Handle negation using helper function
             return to_nnf_not(pool, left_);
         }
@@ -110,11 +103,7 @@ Formula* Formula::nnf(FormulaPool& pool) const {
         case Formula::OpType::Until:
         case Formula::OpType::Release:
             // Structure-preserving: recurse on children
-            return pool.create(
-                op_,
-                left_->nnf(pool),
-                right_->nnf(pool)
-            );
+            return pool.create(op_, left_->nnf(pool), right_->nnf(pool));
 
         case Formula::OpType::Next:
             // Structure-preserving: recurse on child
@@ -122,7 +111,7 @@ Formula* Formula::nnf(FormulaPool& pool) const {
 
         default:
             // Should not reach here for constants/literals
-            return const_cast<Formula*>(this);
+            return const_cast<Formula *>(this);
     }
 }
 

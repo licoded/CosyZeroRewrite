@@ -5,17 +5,18 @@
 
 #define CATCH_CONFIG_MAIN
 #include "catch.hpp"
-
-#include "synthesis/on_the_fly_solver.hpp"
-#include "formula/formula_pool.hpp"
 #include "formula/formula_parser.hpp"
+#include "formula/formula_pool.hpp"
+#include "synthesis/on_the_fly_solver.hpp"
+
 #include <fstream>
 
 using namespace formula;
 using namespace synthesis;
 
 // Helper function to check realizability using OnTheFlyGameSolver
-static bool check_realizable(Formula* phi, FormulaPool& pool) {
+static bool check_realizable(Formula *phi, FormulaPool &pool)
+{
     OnTheFlyGameSolver solver(phi, pool);
     return solver.is_realizable();
 }
@@ -24,7 +25,8 @@ static bool check_realizable(Formula* phi, FormulaPool& pool) {
 // Partition File Tests
 //==============================================================================
 
-TEST_CASE("Partition file parsing", "[io_separation]") {
+TEST_CASE("Partition file parsing", "[io_separation]")
+{
     FormulaPool pool;
 
     // Create a temporary .part file
@@ -41,10 +43,10 @@ TEST_CASE("Partition file parsing", "[io_separation]") {
     REQUIRE(pool.num_variables() == 4);
 
     // Check variable IDs
-    REQUIRE(pool.get_variable_id("p0") == 2);  // First input, after outputs
-    REQUIRE(pool.get_variable_id("p1") == 3);  // Second input
-    REQUIRE(pool.get_variable_id("p2") == 0);  // First output
-    REQUIRE(pool.get_variable_id("p3") == 1);  // Second output
+    REQUIRE(pool.get_variable_id("p0") == 2); // First input, after outputs
+    REQUIRE(pool.get_variable_id("p1") == 3); // Second input
+    REQUIRE(pool.get_variable_id("p2") == 0); // First output
+    REQUIRE(pool.get_variable_id("p3") == 1); // Second output
 
     // Check type checks
     REQUIRE(pool.is_output_variable(0));
@@ -53,7 +55,8 @@ TEST_CASE("Partition file parsing", "[io_separation]") {
     REQUIRE(pool.is_input_variable(3));
 }
 
-TEST_CASE("Partition file synthesis simple", "[io_separation]") {
+TEST_CASE("Partition file synthesis simple", "[io_separation]")
+{
     // Test with simple formula: p2 (output must be true)
     FormulaPool pool;
 
@@ -66,13 +69,14 @@ TEST_CASE("Partition file synthesis simple", "[io_separation]") {
     pool.load_from_partition(part_file);
 
     // Formula: p2 (output must be true)
-    Formula* p2 = pool.create_variable("p2");
+    Formula *p2 = pool.create_variable("p2");
     bool result = check_realizable(p2, pool);
 
-    REQUIRE(result);  // System can set p2 = true
+    REQUIRE(result); // System can set p2 = true
 }
 
-TEST_CASE("Partition file synthesis response", "[io_separation]") {
+TEST_CASE("Partition file synthesis response", "[io_separation]")
+{
     // Test implies formula: p2 -> p3 = !p2 | p3
     // Environment controls p2 (input), system controls p3 (output)
     // Verified with Cosy reference: Realizable
@@ -81,28 +85,29 @@ TEST_CASE("Partition file synthesis response", "[io_separation]") {
 
     std::string part_file = "/tmp/test_io3.part";
     std::ofstream f(part_file);
-    f << ".inputs: p0 p2" << std::endl;   // p2 is input (request)
-    f << ".outputs: p1 p3" << std::endl;  // p3 is output (response)
+    f << ".inputs: p0 p2" << std::endl;  // p2 is input (request)
+    f << ".outputs: p1 p3" << std::endl; // p3 is output (response)
     f.close();
 
     pool.load_from_partition(part_file);
 
     // p2 -> p3 = !p2 | p3
-    Formula* p2 = pool.create_variable("p2");  // Input
-    Formula* p3 = pool.create_variable("p3");  // Output
-    Formula* not_p2 = pool.create_not(p2);
-    Formula* implies = pool.create_or(not_p2, p3);  // !p2 | p3
+    Formula *p2 = pool.create_variable("p2"); // Input
+    Formula *p3 = pool.create_variable("p3"); // Output
+    Formula *not_p2 = pool.create_not(p2);
+    Formula *implies = pool.create_or(not_p2, p3); // !p2 | p3
 
     bool result = check_realizable(implies, pool);
 
-    REQUIRE(result);  // Realizable: verified with Cosy reference
+    REQUIRE(result); // Realizable: verified with Cosy reference
 }
 
 //==============================================================================
 // Variable ID Assignment Tests
 //==============================================================================
 
-TEST_CASE("Variable ID ordering", "[io_separation]") {
+TEST_CASE("Variable ID ordering", "[io_separation]")
+{
     FormulaPool pool;
 
     // Declare outputs first, then inputs

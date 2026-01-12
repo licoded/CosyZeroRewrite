@@ -21,14 +21,14 @@ namespace formula {
  * }
  * @endcode
  */
-class FormulaException : public std::runtime_error {
-public:
+class FormulaException : public std::runtime_error
+{
+  public:
     /**
      * @brief Construct a formula exception with a message
      * @param msg Error message describing the exception
      */
-    explicit FormulaException(const std::string& msg)
-        : std::runtime_error(msg) {}
+    explicit FormulaException(const std::string &msg) : std::runtime_error(msg) {}
 
     /**
      * @brief Virtual destructor for proper inheritance
@@ -45,14 +45,14 @@ public:
  * - Unexpected end of input
  * - Unrecognized operators
  */
-class ParseException : public FormulaException {
-public:
+class ParseException : public FormulaException
+{
+  public:
     /**
      * @brief Construct a parse exception
      * @param msg Error message describing the parse error
      */
-    explicit ParseException(const std::string& msg)
-        : FormulaException("Parse error: " + msg) {}
+    explicit ParseException(const std::string &msg) : FormulaException("Parse error: " + msg) {}
 };
 
 /**
@@ -64,14 +64,14 @@ public:
  * - Duplicate variable declarations
  * - Invalid formula structure
  */
-class ValidationException : public FormulaException {
-public:
+class ValidationException : public FormulaException
+{
+  public:
     /**
      * @brief Construct a validation exception
      * @param msg Error message describing the validation error
      */
-    explicit ValidationException(const std::string& msg)
-        : FormulaException("Validation error: " + msg) {}
+    explicit ValidationException(const std::string &msg) : FormulaException("Validation error: " + msg) {}
 };
 
 /**
@@ -82,14 +82,16 @@ public:
  * - Parse a formula containing undeclared variables
  * - Get the ID of a variable that doesn't exist
  */
-class UndeclaredVariableException : public ValidationException {
-public:
+class UndeclaredVariableException : public ValidationException
+{
+  public:
     /**
      * @brief Construct an exception for an undeclared variable
      * @param name The name of the undeclared variable
      */
-    explicit UndeclaredVariableException(const std::string& name)
-        : ValidationException("Undeclared variable: " + name) {}
+    explicit UndeclaredVariableException(const std::string &name) : ValidationException("Undeclared variable: " + name)
+    {
+    }
 };
 
 /**
@@ -99,14 +101,14 @@ public:
  * - Declare the same variable name twice
  * - Declare a name that conflicts with a reserved keyword
  */
-class DuplicateVariableException : public ValidationException {
-public:
+class DuplicateVariableException : public ValidationException
+{
+  public:
     /**
      * @brief Construct an exception for a duplicate variable
      * @param name The name of the duplicate variable
      */
-    explicit DuplicateVariableException(const std::string& name)
-        : ValidationException("Duplicate variable: " + name) {}
+    explicit DuplicateVariableException(const std::string &name) : ValidationException("Duplicate variable: " + name) {}
 };
 
 /**
@@ -118,22 +120,27 @@ public:
  * - Is a reserved keyword
  * - Is empty
  */
-class InvalidVariableNameException : public ValidationException {
-public:
+class InvalidVariableNameException : public ValidationException
+{
+  public:
     /**
      * @brief Construct an exception for an invalid variable name
      * @param name The invalid variable name
      * @param reason Explanation of why the name is invalid
      */
-    InvalidVariableNameException(const std::string& name, const std::string& reason)
-        : ValidationException("Invalid variable name '" + name + "': " + reason) {}
+    InvalidVariableNameException(const std::string &name, const std::string &reason)
+        : ValidationException("Invalid variable name '" + name + "': " + reason)
+    {
+    }
 
     /**
      * @brief Construct an exception for an invalid variable name (simple)
      * @param name The invalid variable name
      */
-    explicit InvalidVariableNameException(const std::string& name)
-        : InvalidVariableNameException(name, "does not match naming rules") {}
+    explicit InvalidVariableNameException(const std::string &name)
+        : InvalidVariableNameException(name, "does not match naming rules")
+    {
+    }
 };
 
 /**
@@ -144,14 +151,14 @@ public:
  * - Malformed formulas that violate invariants
  * - Resource constraints during transformation
  */
-class TransformationException : public FormulaException {
-public:
+class TransformationException : public FormulaException
+{
+  public:
     /**
      * @brief Construct a transformation exception
      * @param msg Error message describing the transformation error
      */
-    explicit TransformationException(const std::string& msg)
-        : FormulaException("Transformation error: " + msg) {}
+    explicit TransformationException(const std::string &msg) : FormulaException("Transformation error: " + msg) {}
 };
 
 /**
@@ -162,14 +169,14 @@ public:
  * - SMT solver errors
  * - Resource exhaustion
  */
-class EquivalenceException : public FormulaException {
-public:
+class EquivalenceException : public FormulaException
+{
+  public:
     /**
      * @brief Construct an equivalence exception
      * @param msg Error message describing the equivalence check error
      */
-    explicit EquivalenceException(const std::string& msg)
-        : FormulaException("Equivalence check error: " + msg) {}
+    explicit EquivalenceException(const std::string &msg) : FormulaException("Equivalence check error: " + msg) {}
 };
 
 } // namespace formula

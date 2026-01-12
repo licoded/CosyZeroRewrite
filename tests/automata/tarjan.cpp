@@ -7,9 +7,9 @@
  */
 
 #define CATCH_CONFIG_MAIN
-#include "synthesis/on_the_fly_solver.hpp"
-#include "formula/formula_pool.hpp"
 #include "catch.hpp"
+#include "formula/formula_pool.hpp"
+#include "synthesis/on_the_fly_solver.hpp"
 
 using namespace synthesis;
 using namespace formula;
@@ -28,47 +28,50 @@ struct MockDFAState {
     size_t hash() const { return hash_val; }
 
     // Equality comparison
-    bool operator==(const MockDFAState& other) const {
-        return id == other.id;
-    }
+    bool operator==(const MockDFAState &other) const { return id == other.id; }
 };
 
 // Hash function for MockDFAState
 struct MockDFAStateHash {
-    size_t operator()(const MockDFAState& s) const {
-        return s.hash();
-    }
+    size_t operator()(const MockDFAState &s) const { return s.hash(); }
 };
 
 // Pool of mock states
 static std::vector<MockDFAState> mock_states;
 
 // Helper to create a test game state
-GameState make_state(int dfa_id, Player player, const std::optional<Assignment>& out = std::nullopt) {
+GameState make_state(int dfa_id, Player player, const std::optional<Assignment> &out = std::nullopt)
+{
     // Ensure we have enough mock states
-    while (dfa_id >= static_cast<int>(mock_states.size())) {
+    while (dfa_id >= static_cast<int>(mock_states.size()))
+    {
         mock_states.push_back(MockDFAState(mock_states.size()));
     }
     // Create a pointer wrapper (using reinterpret_cast for test purposes)
-    auto* ptr = reinterpret_cast<TableauState*>(&mock_states[dfa_id]);
+    auto *ptr = reinterpret_cast<TableauState *>(&mock_states[dfa_id]);
     return GameState(ptr, player, out);
 }
 
 // Helper to count SCCs of each size
-std::map<size_t, size_t> count_scc_sizes(const std::vector<std::vector<GameState>>& sccs) {
+std::map<size_t, size_t> count_scc_sizes(const std::vector<std::vector<GameState>> &sccs)
+{
     std::map<size_t, size_t> result;
-    for (const auto& scc : sccs) {
+    for (const auto &scc : sccs)
+    {
         result[scc.size()]++;
     }
     return result;
 }
 
 // Helper to check if two states are in the same SCC
-bool same_scc(const GameState& a, const GameState& b, const std::vector<std::vector<GameState>>& sccs) {
-    for (const auto& scc : sccs) {
+bool same_scc(const GameState &a, const GameState &b, const std::vector<std::vector<GameState>> &sccs)
+{
+    for (const auto &scc : sccs)
+    {
         bool has_a = std::find(scc.begin(), scc.end(), a) != scc.end();
         bool has_b = std::find(scc.begin(), scc.end(), b) != scc.end();
-        if (has_a && has_b) return true;
+        if (has_a && has_b)
+            return true;
     }
     return false;
 }
@@ -78,7 +81,8 @@ bool same_scc(const GameState& a, const GameState& b, const std::vector<std::vec
 //==============================================================================
 // Test Case 1: Single Node
 //==============================================================================
-TEST_CASE("Tarjan SCC: Single Node", "[tarjan][scc][basic]") {
+TEST_CASE("Tarjan SCC: Single Node", "[tarjan][scc][basic]")
+{
     // Graph: a
     // Expected: 1 SCC of size 1
 
@@ -87,7 +91,7 @@ TEST_CASE("Tarjan SCC: Single Node", "[tarjan][scc][basic]") {
 
     // Manually build a simple graph with one state
     auto s0 = make_state(0, Player::System);
-    solver.add_test_transition(s0, {s0});  // Self-loop
+    solver.add_test_transition(s0, {s0}); // Self-loop
 
     auto sccs = solver.find_sccs_for_testing();
 
@@ -99,7 +103,8 @@ TEST_CASE("Tarjan SCC: Single Node", "[tarjan][scc][basic]") {
 //==============================================================================
 // Test Case 2: Linear Chain
 //==============================================================================
-TEST_CASE("Tarjan SCC: Linear Chain", "[tarjan][scc][basic]") {
+TEST_CASE("Tarjan SCC: Linear Chain", "[tarjan][scc][basic]")
+{
     // Graph: a → b → c → d
     // Expected: 4 SCCs of size 1 (each node is its own SCC)
 
@@ -114,20 +119,21 @@ TEST_CASE("Tarjan SCC: Linear Chain", "[tarjan][scc][basic]") {
     solver.add_test_transition(s0, {s1});
     solver.add_test_transition(s1, {s2});
     solver.add_test_transition(s2, {s3});
-    solver.add_test_transition(s3, {});  // Terminal
+    solver.add_test_transition(s3, {}); // Terminal
 
     auto sccs = solver.find_sccs_for_testing();
 
     REQUIRE(sccs.size() == 4);
 
     auto sizes = count_scc_sizes(sccs);
-    REQUIRE(sizes[1] == 4);  // 4 SCCs of size 1
+    REQUIRE(sizes[1] == 4); // 4 SCCs of size 1
 }
 
 //==============================================================================
 // Test Case 3: Simple Cycle
 //==============================================================================
-TEST_CASE("Tarjan SCC: Simple Cycle", "[tarjan][scc][cycle]") {
+TEST_CASE("Tarjan SCC: Simple Cycle", "[tarjan][scc][cycle]")
+{
     // Graph: a → b → c → a
     // Expected: 1 SCC of size 3
 
@@ -156,7 +162,8 @@ TEST_CASE("Tarjan SCC: Simple Cycle", "[tarjan][scc][cycle]") {
 //==============================================================================
 // Test Case 4: Two Connected Cycles
 //==============================================================================
-TEST_CASE("Tarjan SCC: Two Connected Cycles", "[tarjan][scc][cycle]") {
+TEST_CASE("Tarjan SCC: Two Connected Cycles", "[tarjan][scc][cycle]")
+{
     // Graph: a ↔ b, c ↔ d, b → c
     //        a→b→a and c→d→c are separate SCCs
     // Expected: 2 SCCs of size 2
@@ -164,23 +171,23 @@ TEST_CASE("Tarjan SCC: Two Connected Cycles", "[tarjan][scc][cycle]") {
     FormulaPool pool;
     OnTheFlyGameSolver solver(pool.create_true(), pool);
 
-    auto s0 = make_state(0, Player::System);    // a
+    auto s0 = make_state(0, Player::System);      // a
     auto s1 = make_state(1, Player::Environment); // b
-    auto s2 = make_state(2, Player::System);    // c
+    auto s2 = make_state(2, Player::System);      // c
     auto s3 = make_state(3, Player::Environment); // d
 
-    solver.add_test_transition(s0, {s1});  // a → b
-    solver.add_test_transition(s1, {s0});  // b → a (cycle 1)
-    solver.add_test_transition(s1, {s2});  // b → c (connecting edge)
-    solver.add_test_transition(s2, {s3});  // c → d
-    solver.add_test_transition(s3, {s2});  // d → c (cycle 2)
+    solver.add_test_transition(s0, {s1}); // a → b
+    solver.add_test_transition(s1, {s0}); // b → a (cycle 1)
+    solver.add_test_transition(s1, {s2}); // b → c (connecting edge)
+    solver.add_test_transition(s2, {s3}); // c → d
+    solver.add_test_transition(s3, {s2}); // d → c (cycle 2)
 
     auto sccs = solver.find_sccs_for_testing();
 
     REQUIRE(sccs.size() == 2);
 
     auto sizes = count_scc_sizes(sccs);
-    REQUIRE(sizes[2] == 2);  // 2 SCCs of size 2
+    REQUIRE(sizes[2] == 2); // 2 SCCs of size 2
 
     // a and b should be in the same SCC
     REQUIRE(same_scc(s0, s1, sccs));
@@ -195,7 +202,8 @@ TEST_CASE("Tarjan SCC: Two Connected Cycles", "[tarjan][scc][cycle]") {
 //==============================================================================
 // Test Case 5: Self-Loop
 //==============================================================================
-TEST_CASE("Tarjan SCC: Self-Loop", "[tarjan][scc][basic]") {
+TEST_CASE("Tarjan SCC: Self-Loop", "[tarjan][scc][basic]")
+{
     // Graph: a → a
     // Expected: 1 SCC of size 1
 
@@ -214,7 +222,8 @@ TEST_CASE("Tarjan SCC: Self-Loop", "[tarjan][scc][basic]") {
 //==============================================================================
 // Test Case 6: Complex DAG
 //==============================================================================
-TEST_CASE("Tarjan SCC: Complex DAG", "[tarjan][scc][dag]") {
+TEST_CASE("Tarjan SCC: Complex DAG", "[tarjan][scc][dag]")
+{
     // Graph:     e
     //          / | \
     //         d  b  c
@@ -242,13 +251,14 @@ TEST_CASE("Tarjan SCC: Complex DAG", "[tarjan][scc][dag]") {
     REQUIRE(sccs.size() == 5);
 
     auto sizes = count_scc_sizes(sccs);
-    REQUIRE(sizes[1] == 5);  // 5 SCCs of size 1
+    REQUIRE(sizes[1] == 5); // 5 SCCs of size 1
 }
 
 //==============================================================================
 // Test Case 7: Cross Pattern
 //==============================================================================
-TEST_CASE("Tarjan SCC: Cross Pattern", "[tarjan][scc][dag]") {
+TEST_CASE("Tarjan SCC: Cross Pattern", "[tarjan][scc][dag]")
+{
     // Graph: a → b
     //        c → d
     //        a → c
@@ -272,13 +282,14 @@ TEST_CASE("Tarjan SCC: Cross Pattern", "[tarjan][scc][dag]") {
     REQUIRE(sccs.size() == 4);
 
     auto sizes = count_scc_sizes(sccs);
-    REQUIRE(sizes[1] == 4);  // 4 SCCs of size 1
+    REQUIRE(sizes[1] == 4); // 4 SCCs of size 1
 }
 
 //==============================================================================
 // Test Case 8: Diamond with Cycle Inside
 //==============================================================================
-TEST_CASE("Tarjan SCC: Diamond with Cycle Inside", "[tarjan][scc][complex]") {
+TEST_CASE("Tarjan SCC: Diamond with Cycle Inside", "[tarjan][scc][complex]")
+{
     // Graph: a → b → d
     //        |    ↑
     //        v    |
@@ -304,7 +315,7 @@ TEST_CASE("Tarjan SCC: Diamond with Cycle Inside", "[tarjan][scc][complex]") {
     solver.add_test_transition(sa, {sb, sc});
     solver.add_test_transition(sb, {sd});
     solver.add_test_transition(sc, {sd});
-    solver.add_test_transition(sd, {sb});  // Creates cycle: b→d→b
+    solver.add_test_transition(sd, {sb}); // Creates cycle: b→d→b
 
     auto sccs = solver.find_sccs_for_testing();
 
@@ -324,7 +335,8 @@ TEST_CASE("Tarjan SCC: Diamond with Cycle Inside", "[tarjan][scc][complex]") {
 //==============================================================================
 // Test Case 9: Multiple Roots
 //==============================================================================
-TEST_CASE("Tarjan SCC: Multiple Roots", "[tarjan][scc][basic]") {
+TEST_CASE("Tarjan SCC: Multiple Roots", "[tarjan][scc][basic]")
+{
     // Graph: a → b
     //        c → d
     //        e → f
@@ -356,7 +368,8 @@ TEST_CASE("Tarjan SCC: Multiple Roots", "[tarjan][scc][basic]") {
 //==============================================================================
 // Test Case 10: Large Cycle
 //==============================================================================
-TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]") {
+TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]")
+{
     // Graph: a → b → c → d → e → f → a
     // Expected: 1 SCC of size 6
 
@@ -364,13 +377,15 @@ TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]") {
     OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     std::vector<GameState> states;
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 6; i++)
+    {
         Player p = (i % 2 == 0) ? Player::System : Player::Environment;
         states.push_back(make_state(i, p));
     }
 
     // Create cycle
-    for (size_t i = 0; i < states.size(); i++) {
+    for (size_t i = 0; i < states.size(); i++)
+    {
         solver.add_test_transition(states[i], {states[(i + 1) % states.size()]});
     }
 
@@ -380,7 +395,8 @@ TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]") {
     REQUIRE(sccs[0].size() == 6);
 
     // All states should be in the same SCC
-    for (size_t i = 0; i < states.size() - 1; i++) {
+    for (size_t i = 0; i < states.size() - 1; i++)
+    {
         REQUIRE(same_scc(states[i], states[i + 1], sccs));
     }
 }
@@ -388,7 +404,8 @@ TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]") {
 //==============================================================================
 // Test Case 11: SCC with Incoming and Outgoing Edges
 //==============================================================================
-TEST_CASE("Tarjan SCC: SCC with Incoming and Outgoing Edges", "[tarjan][scc][complex]") {
+TEST_CASE("Tarjan SCC: SCC with Incoming and Outgoing Edges", "[tarjan][scc][complex]")
+{
     // Graph: a → SCC(b→c→b) → d
     // Expected: 3 SCCs: {a}, {b, c}, {d}
 
@@ -409,8 +426,8 @@ TEST_CASE("Tarjan SCC: SCC with Incoming and Outgoing Edges", "[tarjan][scc][com
     REQUIRE(sccs.size() == 3);
 
     auto sizes = count_scc_sizes(sccs);
-    REQUIRE(sizes[1] == 2);  // {a} and {d}
-    REQUIRE(sizes[2] == 1);  // {b, c}
+    REQUIRE(sizes[1] == 2); // {a} and {d}
+    REQUIRE(sizes[2] == 1); // {b, c}
 
     // b and c should be in the same SCC
     REQUIRE(same_scc(sb, sc, sccs));
@@ -419,7 +436,8 @@ TEST_CASE("Tarjan SCC: SCC with Incoming and Outgoing Edges", "[tarjan][scc][com
 //==============================================================================
 // Test Case 12: Empty Graph
 //==============================================================================
-TEST_CASE("Tarjan SCC: Empty Graph", "[tarjan][scc][edge]") {
+TEST_CASE("Tarjan SCC: Empty Graph", "[tarjan][scc][edge]")
+{
     // Graph: (no states)
     // Expected: 0 SCCs
 
@@ -434,7 +452,8 @@ TEST_CASE("Tarjan SCC: Empty Graph", "[tarjan][scc][edge]") {
 //==============================================================================
 // Test Case 13: Topological Order Property
 //==============================================================================
-TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]") {
+TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]")
+{
     // Tarjan should find SCCs in reverse topological order
     // Graph: SCC1 → SCC2 → SCC3
     // Found order should be: SCC3, SCC2, SCC1
@@ -468,15 +487,16 @@ TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]") {
     solver.add_test_transition(s6, {s5});
 
     // Connecting edges: SCC1 → SCC2 → SCC3
-    solver.add_test_transition(s2, {s3});  // SCC1 → SCC2
-    solver.add_test_transition(s4, {s5});  // SCC2 → SCC3
+    solver.add_test_transition(s2, {s3}); // SCC1 → SCC2
+    solver.add_test_transition(s4, {s5}); // SCC2 → SCC3
 
     auto sccs = solver.find_sccs_for_testing();
 
     REQUIRE(sccs.size() == 3);
 
     // Verify each SCC
-    for (const auto& scc : sccs) {
+    for (const auto &scc : sccs)
+    {
         REQUIRE(scc.size() == 2);
     }
 
@@ -486,10 +506,14 @@ TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]") {
 
     // Find which SCC contains which states
     int s1_scc_idx = -1, s3_scc_idx = -1, s5_scc_idx = -1;
-    for (size_t i = 0; i < sccs.size(); i++) {
-        if (std::find(sccs[i].begin(), sccs[i].end(), s1) != sccs[i].end()) s1_scc_idx = i;
-        if (std::find(sccs[i].begin(), sccs[i].end(), s3) != sccs[i].end()) s3_scc_idx = i;
-        if (std::find(sccs[i].begin(), sccs[i].end(), s5) != sccs[i].end()) s5_scc_idx = i;
+    for (size_t i = 0; i < sccs.size(); i++)
+    {
+        if (std::find(sccs[i].begin(), sccs[i].end(), s1) != sccs[i].end())
+            s1_scc_idx = i;
+        if (std::find(sccs[i].begin(), sccs[i].end(), s3) != sccs[i].end())
+            s3_scc_idx = i;
+        if (std::find(sccs[i].begin(), sccs[i].end(), s5) != sccs[i].end())
+            s5_scc_idx = i;
     }
 
     REQUIRE(s1_scc_idx >= 0);

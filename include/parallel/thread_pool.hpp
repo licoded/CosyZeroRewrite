@@ -24,14 +24,14 @@
 #ifndef THREAD_POOL_HPP
 #define THREAD_POOL_HPP
 
-#include <future>
-#include <queue>
-#include <mutex>
+#include <atomic>
 #include <condition_variable>
 #include <functional>
-#include <vector>
-#include <atomic>
+#include <future>
+#include <mutex>
+#include <queue>
 #include <thread>
+#include <vector>
 
 namespace parallel {
 
@@ -42,8 +42,9 @@ namespace parallel {
  * Tasks are submitted and immediately launched via std::async, but the
  * semaphore ensures only N tasks run concurrently.
  */
-class ThreadPool {
-public:
+class ThreadPool
+{
+  public:
     using Task = std::function<void()>;
 
     /**
@@ -51,17 +52,15 @@ public:
      * @param max_concurrent Maximum number of concurrent tasks
      */
     explicit ThreadPool(size_t max_concurrent = std::thread::hardware_concurrency())
-        : max_concurrent_(max_concurrent)
-        , stopped_(false)
+        : max_concurrent_(max_concurrent), stopped_(false)
     {
-        if (max_concurrent_ == 0) {
+        if (max_concurrent_ == 0)
+        {
             max_concurrent_ = 1;
         }
     }
 
-    ~ThreadPool() {
-        stop();
-    }
+    ~ThreadPool() { stop(); }
 
     /**
      * @brief Submit a task to the pool
@@ -71,22 +70,24 @@ public:
      * @param args Arguments to pass to the function
      * @return std::future for the result
      */
-    template<typename F, typename... Args>
-    auto submit(F&& f, Args&&... args) -> std::future<decltype(f(args...))> {
+    template <typename F, typename... Args> auto submit(F &&f, Args &&...args) -> std::future<decltype(f(args...))>
+    {
         using ReturnType = decltype(f(args...));
 
         // Create a packaged task
         auto task = std::make_shared<std::packaged_task<ReturnType()>>(
-            std::bind(std::forward<F>(f), std::forward<Args>(args)...)
-        );
+            std::bind(std::forward<F>(f), std::forward<Args>(args)...));
 
         std::future<ReturnType> result = task->get_future();
 
         // Submit as void task
         submit_void([task]() {
-            try {
+            try
+            {
                 (*task)();
-            } catch (...) {
+            }
+            catch (...)
+            {
                 // Exception is captured in the future
             }
         });
@@ -97,7 +98,8 @@ public:
     /**
      * @brief Submit a void task
      */
-    void submit_void(Task task) {
+    void submit_void(Task task)
+    {
         std::lock_guard<std::mutex> lock(mutex_);
 
         // Enqueue the task
@@ -111,7 +113,8 @@ public:
     /**
      * @brief Wait for all submitted tasks to complete
      */
-    void wait() {
+    void wait()
+    {
         std::unique_lock<std::mutex> lock(mutex_);
         cv_.wait(lock, [this]() {
             return stopped_ || (pending_tasks_.empty() && active_workers_ == 0);
@@ -121,14 +124,13 @@ public:
     /**
      * @brief Get number of active workers
      */
-    size_t active_count() const {
-        return active_workers_.load();
-    }
+    size_t active_count() const { return active_workers_.load(); }
 
     /**
      * @brief Get number of pending tasks
      */
-    size_t pending_count() const {
+    size_t pending_count() const
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         return pending_tasks_.size();
     }
@@ -136,14 +138,13 @@ public:
     /**
      * @brief Get max concurrency
      */
-    size_t max_concurrency() const {
-        return max_concurrent_;
-    }
+    size_t max_concurrency() const { return max_concurrent_; }
 
     /**
      * @brief Stop accepting new tasks and wait for active tasks
      */
-    void stop() {
+    void stop()
+    {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             stopped_ = true;
@@ -151,10 +152,12 @@ public:
         cv_.notify_all();
     }
 
-private:
-    void try_spawn_worker() {
+  private:
+    void try_spawn_worker()
+    {
         // Only spawn if we haven't reached max concurrency
-        while (active_workers_ < max_concurrent_ && !pending_tasks_.empty() && !stopped_) {
+        while (active_workers_ < max_concurrent_ && !pending_tasks_.empty() && !stopped_)
+        {
             Task task = std::move(pending_tasks_.front());
             pending_tasks_.pop();
             active_workers_++;
@@ -162,11 +165,15 @@ private:
             // Spawn a worker thread for this task
             std::thread worker([this, task = std::move(task)]() mutable {
                 // Execute the task
-                try {
-                    if (task) {
+                try
+                {
+                    if (task)
+                    {
                         task();
                     }
-                } catch (...) {
+                }
+                catch (...)
+                {
                     // Swallow exceptions
                 }
 
@@ -186,14 +193,15 @@ private:
     }
 
     // Separate function to be called from worker thread context
-    void try_spawn_worker_impl() {
+    void try_spawn_worker_impl()
+    {
         std::lock_guard<std::mutex> lock(mutex_);
         try_spawn_worker();
     }
 
     size_t max_concurrent_;
     std::atomic<bool> stopped_;
-    std::atomic<size_t> active_workers_{0};
+    std::atomic<size_t> active_workers_ {0};
     std::queue<Task> pending_tasks_;
     mutable std::mutex mutex_;
     std::condition_variable cv_;

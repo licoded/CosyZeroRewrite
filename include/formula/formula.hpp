@@ -25,25 +25,27 @@ class FormulaPool;
  * - Cached hash: Computed once for efficient comparisons
  * - Private constructor: Only FormulaPool can create formulas
  */
-class Formula {
-public:
+class Formula
+{
+  public:
     /**
      * @brief Operator types for LTLf formulas
      *
      * Note: Next represents Strong Next (X[!]), which requires a next state.
      * The End marker handles finite trace semantics.
      */
-    enum class OpType {
-        True,       // True constant
-        False,      // False constant
-        Not,        // Negation
-        And,        // Conjunction
-        Or,         // Disjunction
-        Next,       // Strong Next (X[!])
-        Until,      // Until (U)
-        Release,    // Release (R)
-        End,        // End marker for finite traces
-        Literal     // Variable reference
+    enum class OpType
+    {
+        True,    // True constant
+        False,   // False constant
+        Not,     // Negation
+        And,     // Conjunction
+        Or,      // Disjunction
+        Next,    // Strong Next (X[!])
+        Until,   // Until (U)
+        Release, // Release (R)
+        End,     // End marker for finite traces
+        Literal  // Variable reference
     };
 
     // ========== Immutable Accessors ==========
@@ -54,10 +56,10 @@ public:
     OpType op() const { return op_; }
 
     /** @brief Get left child (for binary/unary operators) */
-    Formula* left() const { return left_; }
+    Formula *left() const { return left_; }
 
     /** @brief Get right child (for binary operators) */
-    Formula* right() const { return right_; }
+    Formula *right() const { return right_; }
 
     /** @brief Get variable ID (only for Literal) */
     int var_id() const { return var_id_; }
@@ -84,27 +86,19 @@ public:
     // ========== Structure Predicates ==========
 
     /** @brief Check if this is a binary operator (And, Or, Until, Release) */
-    bool is_binary() const {
-        return op_ == OpType::And || op_ == OpType::Or ||
-               op_ == OpType::Until || op_ == OpType::Release;
+    bool is_binary() const
+    {
+        return op_ == OpType::And || op_ == OpType::Or || op_ == OpType::Until || op_ == OpType::Release;
     }
 
     /** @brief Check if this is a unary operator (Not, Next) */
-    bool is_unary() const {
-        return op_ == OpType::Not || op_ == OpType::Next;
-    }
+    bool is_unary() const { return op_ == OpType::Not || op_ == OpType::Next; }
 
     /** @brief Check if this is a temporal operator (Next, Until, Release) */
-    bool is_temporal() const {
-        return op_ == OpType::Next || op_ == OpType::Until ||
-               op_ == OpType::Release;
-    }
+    bool is_temporal() const { return op_ == OpType::Next || op_ == OpType::Until || op_ == OpType::Release; }
 
     /** @brief Check if this is a constant (True, False, End) */
-    bool is_constant() const {
-        return op_ == OpType::True || op_ == OpType::False ||
-               op_ == OpType::End;
-    }
+    bool is_constant() const { return op_ == OpType::True || op_ == OpType::False || op_ == OpType::End; }
 
     // ========== Operations (return NEW Formula) ==========
 
@@ -116,7 +110,7 @@ public:
      * NNF: All negations appear only directly in front of literals.
      * Time complexity: O(n) where n is formula size.
      */
-    Formula* nnf(FormulaPool& pool) const;
+    Formula *nnf(FormulaPool &pool) const;
 
     /**
      * @brief Simplify formula using algebraic rules
@@ -131,7 +125,7 @@ public:
      *
      * Time complexity: O(n) using HashSet for deduplication.
      */
-    Formula* simplify(FormulaPool& pool) const;
+    Formula *simplify(FormulaPool &pool) const;
 
     /**
      * @brief Convert to neXt Normal Form (XNF)
@@ -143,7 +137,7 @@ public:
      *
      * Time complexity: O(n) - single pass expansion.
      */
-    Formula* xnf_with_end_marker(FormulaPool& pool) const;
+    Formula *xnf_with_end_marker(FormulaPool &pool) const;
 
     /**
      * @brief Replace all Strong Next (X[!]) subformulas with True
@@ -159,7 +153,7 @@ public:
      *
      * Time complexity: O(n) where n is formula size.
      */
-    Formula* replaceNext2True(FormulaPool& pool) const;
+    Formula *replaceNext2True(FormulaPool &pool) const;
 
     // ========== Utilities ==========
 
@@ -173,7 +167,7 @@ public:
      *
      * Time complexity: O(n) where n is formula size.
      */
-    static std::unordered_set<int> collect_variables(Formula* f);
+    static std::unordered_set<int> collect_variables(Formula *f);
 
     // ========== String Representation ==========
 
@@ -182,13 +176,13 @@ public:
      * @param pool The FormulaPool for variable name lookup
      * @return String representation with original variable names (e.g., "p1", "p2")
      */
-    std::string to_string(const FormulaPool& pool) const;
+    std::string to_string(const FormulaPool &pool) const;
 
     /**
      * @brief Get operator name as string
      * @return String representation of the operator
      */
-    const char* op_name() const;
+    const char *op_name() const;
 
     // ========== Comparison (for sorting in simplify) ==========
     /**
@@ -199,9 +193,7 @@ public:
      *
      * See HASH_CONSING_ANALYSIS.md section 11.2.5 for details.
      */
-    bool operator<(const Formula& other) const {
-        return pool_index_ < other.pool_index_;
-    }
+    bool operator<(const Formula &other) const { return pool_index_ < other.pool_index_; }
 
     /**
      * @brief Clear the simplify cache
@@ -211,7 +203,7 @@ public:
      */
     void clear_simplify_cache() const { simp_ = nullptr; }
 
-private:
+  private:
     /**
      * @brief Type for resolving variable names to strings
      *
@@ -226,8 +218,7 @@ private:
      * @param end_marker String to use for End marker (e.g., "End")
      * @return String representation of the formula
      */
-    std::string to_string_impl(const VarNameResolver& resolver,
-                               const char* end_marker) const;
+    std::string to_string_impl(const VarNameResolver &resolver, const char *end_marker) const;
     /**
      * @brief Private constructor (only FormulaPool can create)
      *
@@ -238,16 +229,15 @@ private:
      * @param hash Cached hash value
      * @param pool_index Index in FormulaPool (for sorting)
      */
-    Formula(OpType op, Formula* left, Formula* right,
-            int var_id, size_t hash, size_t pool_index);
+    Formula(OpType op, Formula *left, Formula *right, int var_id, size_t hash, size_t pool_index);
 
     // ========== Immutable Fields ==========
-    OpType op_;           // Operator type
-    Formula* left_;       // Left child (or operand for unary)
-    Formula* right_;      // Right child (null for unary/constant)
-    int var_id_;          // Variable ID (only for Literal)
-    size_t hash_;         // Cached hash value
-    size_t pool_index_;   // Index in FormulaPool (for sorting)
+    OpType op_;         // Operator type
+    Formula *left_;     // Left child (or operand for unary)
+    Formula *right_;    // Right child (null for unary/constant)
+    int var_id_;        // Variable ID (only for Literal)
+    size_t hash_;       // Cached hash value
+    size_t pool_index_; // Index in FormulaPool (for sorting)
 
     // ========== Simplify Cache ==========
     /**
@@ -261,7 +251,7 @@ private:
      * - Works correctly even if formula is used with multiple pools
      * - Automatically invalidated when formula is destroyed
      */
-    mutable Formula* simp_ = nullptr;  // Simplify cache (like aalta's _simp)
+    mutable Formula *simp_ = nullptr; // Simplify cache (like aalta's _simp)
 
     // FormulaPool needs access to private constructor and members
     friend class FormulaPool;

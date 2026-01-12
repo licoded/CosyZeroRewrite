@@ -16,9 +16,10 @@
 #ifndef SYNTHESIS_BDD_MANAGER_HPP
 #define SYNTHESIS_BDD_MANAGER_HPP
 
+#include "automata/tableau.hpp"
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
-#include "automata/tableau.hpp"
+
 #include <cudd.h>
 #include <memory>
 #include <set>
@@ -48,8 +49,9 @@ using Assignment = std::unordered_set<int>;
  * Key change: Instead of enumerating all moves and filtering,
  * we directly enumerate only the safe moves from the BDD.
  */
-class BddManager {
-public:
+class BddManager
+{
+  public:
     /**
      * @brief Construct BDD manager
      * @param num_variables Total number of variables (inputs + outputs)
@@ -72,8 +74,7 @@ public:
      * @param pool Formula pool for creating intermediate formulas
      * @return true if BDD is ready for use
      */
-    bool get_or_build_bdd_for_state(automata::TableauState* state,
-                                    formula::FormulaPool& pool);
+    bool get_or_build_bdd_for_state(automata::TableauState *state, formula::FormulaPool &pool);
 
     /**
      * @brief Directly enumerate all safe system moves for a state
@@ -89,17 +90,16 @@ public:
      * @param pool Formula pool
      * @return List of safe system output assignments
      */
-    std::vector<Assignment> enumerate_safe_sys_moves(
-        automata::TableauState* state,
-        const std::set<int>& relevant_output_var_ids,
-        formula::FormulaPool& pool);
+    std::vector<Assignment> enumerate_safe_sys_moves(automata::TableauState *state,
+                                                     const std::set<int> &relevant_output_var_ids,
+                                                     formula::FormulaPool &pool);
 
     /**
      * @brief Get the rm_next formula for a state (for debugging)
      *
      * Returns the formula after removing Next operators.
      */
-    formula::Formula* get_rmnext_formula(automata::TableauState* state) const;
+    formula::Formula *get_rmnext_formula(automata::TableauState *state) const;
 
     /**
      * @brief Clear the BDD cache
@@ -115,10 +115,10 @@ public:
         int num_cache_hits = 0;
         int num_cache_misses = 0;
     };
-    const Stats& get_stats() const { return stats_; }
+    const Stats &get_stats() const { return stats_; }
     void reset_stats() { stats_ = {}; }
 
-private:
+  private:
     /**
      * @brief CUDD manager (opaque pointer, defined in cpp)
      */
@@ -141,19 +141,19 @@ private:
      * Maps state pointer to its rm_next formula.
      * This allows different states to share/cache their formulas.
      */
-    std::unordered_map<automata::TableauState*, formula::Formula*> state_formula_cache_;
+    std::unordered_map<automata::TableauState *, formula::Formula *> state_formula_cache_;
 
     /**
      * @brief Current active formula (for fallback operations)
      */
-    formula::Formula* current_formula_;
+    formula::Formula *current_formula_;
 
     /**
      * @brief BDD cache per TableauState (actual BDD nodes)
      *
      * Maps state pointer to its BDD representation.
      */
-    std::unordered_map<automata::TableauState*, DdNode*> state_bdd_cache_;
+    std::unordered_map<automata::TableauState *, DdNode *> state_bdd_cache_;
 
     /**
      * @brief Build BDD from a boolean formula
@@ -162,7 +162,7 @@ private:
      * @param pool Formula pool
      * @return BDD node (referenced, caller must deref)
      */
-    DdNode* build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool);
+    DdNode *build_bdd_from_formula(formula::Formula *f, formula::FormulaPool &pool);
 
     /**
      * @brief Enumerate all satisfying assignments of a BDD
@@ -171,9 +171,8 @@ private:
      * @param relevant_var_ids Only consider these variables
      * @return List of assignments (each is a set of variable IDs set to TRUE)
      */
-    std::vector<Assignment> enumerate_bdd_satisfying_assignments(
-        DdNode* bdd,
-        const std::set<int>& relevant_var_ids) const;
+    std::vector<Assignment> enumerate_bdd_satisfying_assignments(DdNode *bdd,
+                                                                 const std::set<int> &relevant_var_ids) const;
 
     /**
      * @brief Statistics

@@ -1,26 +1,26 @@
 #include "formula/formula_parser.hpp"
+
+#include <algorithm>
 #include <cctype>
 #include <sstream>
-#include <algorithm>
 
 namespace formula {
 
-FormulaParser::FormulaParser(FormulaPool& pool)
-    : pool_(pool)
-    , pos_(0)
-    , use_multi_char_vars_(false)
+FormulaParser::FormulaParser(FormulaPool &pool) : pool_(pool), pos_(0), use_multi_char_vars_(false)
 {
     // Auto-load variable names from pool for multi-char variable support
     var_names_ = pool_.get_all_variable_names();
     use_multi_char_vars_ = !var_names_.empty();
 }
 
-void FormulaParser::set_variables(const std::vector<std::string>& var_names) {
+void FormulaParser::set_variables(const std::vector<std::string> &var_names)
+{
     var_names_ = var_names;
     use_multi_char_vars_ = true;
 }
 
-Formula* FormulaParser::parse(const std::string& input) {
+Formula *FormulaParser::parse(const std::string &input)
+{
     // Reset state
     tokens_.clear();
     pos_ = 0;
@@ -28,34 +28,38 @@ Formula* FormulaParser::parse(const std::string& input) {
 
     // Skip leading whitespace
     size_t start = 0;
-    while (start < input.size() && std::isspace(static_cast<unsigned char>(input[start]))) {
+    while (start < input.size() && std::isspace(static_cast<unsigned char>(input[start])))
+    {
         ++start;
     }
 
     // Skip trailing whitespace
     size_t end = input.size();
-    while (end > start && std::isspace(static_cast<unsigned char>(input[end - 1]))) {
+    while (end > start && std::isspace(static_cast<unsigned char>(input[end - 1])))
+    {
         --end;
     }
 
     std::string trimmed = input.substr(start, end - start);
-    if (trimmed.empty()) {
+    if (trimmed.empty())
+    {
         set_error("Empty input");
         return nullptr;
     }
 
     // Tokenize
     tokenize(trimmed);
-    if (has_error()) {
+    if (has_error())
+    {
         return nullptr;
     }
 
     // Parse
-    Formula* result = parse_formula();
+    Formula *result = parse_formula();
 
-    if (!has_error() && !match(TokenType::End)) {
-        set_error("Unexpected token at position " +
-                  std::to_string(tokens_[pos_].position));
+    if (!has_error() && !match(TokenType::End))
+    {
+        set_error("Unexpected token at position " + std::to_string(tokens_[pos_].position));
         return nullptr;
     }
 
@@ -66,13 +70,16 @@ Formula* FormulaParser::parse(const std::string& input) {
 // Lexer
 // =============================================================================
 
-void FormulaParser::tokenize(const std::string& input) {
+void FormulaParser::tokenize(const std::string &input)
+{
     size_t i = 0;
-    while (i < input.size()) {
+    while (i < input.size())
+    {
         char c = input[i];
 
         // Skip whitespace
-        if (std::isspace(static_cast<unsigned char>(c))) {
+        if (std::isspace(static_cast<unsigned char>(c)))
+        {
             ++i;
             continue;
         }
@@ -81,7 +88,8 @@ void FormulaParser::tokenize(const std::string& input) {
         token.position = i;
 
         // Single character tokens
-        switch (c) {
+        switch (c)
+        {
             case '!':
                 token.type = TokenType::Not;
                 token.value = "!";
@@ -91,7 +99,8 @@ void FormulaParser::tokenize(const std::string& input) {
 
             case '&':
                 // Check for && (alternative And syntax)
-                if (i + 1 < input.size() && input[i + 1] == '&') {
+                if (i + 1 < input.size() && input[i + 1] == '&')
+                {
                     token.type = TokenType::And;
                     token.value = "&&";
                     tokens_.push_back(token);
@@ -107,7 +116,8 @@ void FormulaParser::tokenize(const std::string& input) {
 
             case '|':
                 // Check for || (alternative Or syntax)
-                if (i + 1 < input.size() && input[i + 1] == '|') {
+                if (i + 1 < input.size() && input[i + 1] == '|')
+                {
                     token.type = TokenType::Or;
                     token.value = "||";
                     tokens_.push_back(token);
@@ -123,7 +133,8 @@ void FormulaParser::tokenize(const std::string& input) {
 
             case '-':
                 // Check for -> (implies)
-                if (i + 1 < input.size() && input[i + 1] == '>') {
+                if (i + 1 < input.size() && input[i + 1] == '>')
+                {
                     token.type = TokenType::Implies;
                     token.value = "->";
                     tokens_.push_back(token);
@@ -149,16 +160,16 @@ void FormulaParser::tokenize(const std::string& input) {
 
             case 'X':
                 // Check for X[!] (strong next) vs X (weak next)
-                if (i + 3 < input.size() &&
-                    input[i + 1] == '[' &&
-                    input[i + 2] == '!' &&
-                    input[i + 3] == ']') {
+                if (i + 3 < input.size() && input[i + 1] == '[' && input[i + 2] == '!' && input[i + 3] == ']')
+                {
                     // Strong next: X[!]
                     token.type = TokenType::StrongNext;
                     token.value = "X[!]";
                     tokens_.push_back(token);
-                    i += 4;  // Skip X[!]
-                } else {
+                    i += 4; // Skip X[!]
+                }
+                else
+                {
                     // Weak next: X (will be converted to X[!](...) | end)
                     token.type = TokenType::Next;
                     token.value = "X";
@@ -174,7 +185,6 @@ void FormulaParser::tokenize(const std::string& input) {
                 tokens_.push_back(token);
                 ++i;
                 continue;
-
         }
 
         // Handle ambiguous single-char operators that could start identifiers
@@ -182,49 +192,64 @@ void FormulaParser::tokenize(const std::string& input) {
         // 'G' could be Globally or start of identifier
         // 'R' could be Release or start of identifier
         // Peek ahead: if followed by another letter, it's an identifier start
-        if ((c == 'R' || c == 'F' || c == 'G') &&
-            i + 1 < input.size() &&
-            std::isalpha(static_cast<unsigned char>(input[i + 1]))) {
+        if ((c == 'R' || c == 'F' || c == 'G') && i + 1 < input.size()
+            && std::isalpha(static_cast<unsigned char>(input[i + 1])))
+        {
             // This is the start of a multi-character identifier, fall through to identifier handling
-        } else if (c == 'R') {
+        }
+        else if (c == 'R')
+        {
             token.type = TokenType::Release;
             token.value = "R";
             tokens_.push_back(token);
             ++i;
             continue;
-        } else if (c == 'F') {
+        }
+        else if (c == 'F')
+        {
             // F is handled in the identifier section for syntactic sugar consistency
             // Fall through to identifier handling
-        } else if (c == 'G') {
+        }
+        else if (c == 'G')
+        {
             // G is handled in the identifier section for syntactic sugar consistency
             // Fall through to identifier handling
         }
 
         // Keywords and identifiers
-        if (std::isalpha(static_cast<unsigned char>(c))) {
+        if (std::isalpha(static_cast<unsigned char>(c)))
+        {
             size_t start = i;
-            while (i < input.size() &&
-                   (std::isalnum(static_cast<unsigned char>(input[i])) ||
-                    input[i] == '_')) {
+            while (i < input.size() && (std::isalnum(static_cast<unsigned char>(input[i])) || input[i] == '_'))
+            {
                 ++i;
             }
             std::string value = input.substr(start, i - start);
 
             // Check for keywords (case-sensitive: only uppercase F/G are operators)
-            if (value == "true") {
+            if (value == "true")
+            {
                 token.type = TokenType::True;
-            } else if (value == "false") {
+            }
+            else if (value == "false")
+            {
                 token.type = TokenType::False;
-            } else if (value == "F") {
+            }
+            else if (value == "F")
+            {
                 // F (finally/eventually) is syntactic sugar for true U ...
                 token.type = TokenType::Finally;
-            } else if (value == "G") {
+            }
+            else if (value == "G")
+            {
                 // G (globally) is syntactic sugar for false R ...
                 token.type = TokenType::Globally;
-            } else {
+            }
+            else
+            {
                 token.type = TokenType::Identifier;
             }
-            token.value = value;  // Keep original case
+            token.value = value; // Keep original case
             tokens_.push_back(token);
             continue;
         }
@@ -245,30 +270,38 @@ void FormulaParser::tokenize(const std::string& input) {
     tokens_.push_back(end);
 }
 
-FormulaParser::Token FormulaParser::peek() const {
-    if (pos_ < tokens_.size()) {
+FormulaParser::Token FormulaParser::peek() const
+{
+    if (pos_ < tokens_.size())
+    {
         return tokens_[pos_];
     }
-    return Token{TokenType::End, "", 0};
+    return Token {TokenType::End, "", 0};
 }
 
-FormulaParser::Token FormulaParser::consume() {
-    if (pos_ < tokens_.size()) {
+FormulaParser::Token FormulaParser::consume()
+{
+    if (pos_ < tokens_.size())
+    {
         return tokens_[pos_++];
     }
-    return Token{TokenType::End, "", 0};
+    return Token {TokenType::End, "", 0};
 }
 
-bool FormulaParser::match(TokenType type) {
-    if (peek().type == type) {
+bool FormulaParser::match(TokenType type)
+{
+    if (peek().type == type)
+    {
         ++pos_;
         return true;
     }
     return false;
 }
 
-void FormulaParser::set_error(const std::string& msg) {
-    if (error_.empty()) {
+void FormulaParser::set_error(const std::string &msg)
+{
+    if (error_.empty())
+    {
         error_ = msg;
     }
 }
@@ -278,35 +311,41 @@ void FormulaParser::set_error(const std::string& msg) {
 // =============================================================================
 
 // formula ::= implies_expr
-Formula* FormulaParser::parse_formula() {
+Formula *FormulaParser::parse_formula()
+{
     return parse_implies_expr();
 }
 
 // implies_expr ::= or_expr ('->' or_expr)*
 // Implies is right-associative and has lower precedence than Or
 // a -> b -> c is parsed as a -> (b -> c), which becomes !a | (!b | c)
-Formula* FormulaParser::parse_implies_expr() {
+Formula *FormulaParser::parse_implies_expr()
+{
     // Parse left side (or_expr)
-    Formula* left = parse_or_expr();
-    if (has_error()) return nullptr;
+    Formula *left = parse_or_expr();
+    if (has_error())
+        return nullptr;
 
     // Collect all implies in a list (for right-associativity)
-    std::vector<Formula*> operands;
+    std::vector<Formula *> operands;
     operands.push_back(left);
 
-    while (match(TokenType::Implies)) {
-        Formula* right = parse_or_expr();
-        if (has_error()) return nullptr;
+    while (match(TokenType::Implies))
+    {
+        Formula *right = parse_or_expr();
+        if (has_error())
+            return nullptr;
         operands.push_back(right);
     }
 
     // Build right-associative tree: a -> b -> c = !a | (!b | c)
     // Process from right to left
-    for (size_t i = operands.size() - 1; i > 0; --i) {
-        Formula* lhs = operands[i - 1];
-        Formula* rhs = operands[i];
+    for (size_t i = operands.size() - 1; i > 0; --i)
+    {
+        Formula *lhs = operands[i - 1];
+        Formula *rhs = operands[i];
         // lhs -> rhs = !lhs | rhs
-        Formula* negated_lhs = pool_.create_not(lhs);
+        Formula *negated_lhs = pool_.create_not(lhs);
         operands[i - 1] = pool_.create_or(negated_lhs, rhs);
     }
 
@@ -314,13 +353,17 @@ Formula* FormulaParser::parse_implies_expr() {
 }
 
 // or_expr ::= and_expr ('|' and_expr)*
-Formula* FormulaParser::parse_or_expr() {
-    Formula* left = parse_and_expr();
-    if (has_error()) return nullptr;
+Formula *FormulaParser::parse_or_expr()
+{
+    Formula *left = parse_and_expr();
+    if (has_error())
+        return nullptr;
 
-    while (match(TokenType::Or)) {
-        Formula* right = parse_and_expr();
-        if (has_error()) return nullptr;
+    while (match(TokenType::Or))
+    {
+        Formula *right = parse_and_expr();
+        if (has_error())
+            return nullptr;
         left = pool_.create_or(left, right);
     }
 
@@ -328,13 +371,17 @@ Formula* FormulaParser::parse_or_expr() {
 }
 
 // and_expr ::= binary_op ('&' binary_op)*
-Formula* FormulaParser::parse_and_expr() {
-    Formula* left = parse_binary_op();
-    if (has_error()) return nullptr;
+Formula *FormulaParser::parse_and_expr()
+{
+    Formula *left = parse_binary_op();
+    if (has_error())
+        return nullptr;
 
-    while (match(TokenType::And)) {
-        Formula* right = parse_binary_op();
-        if (has_error()) return nullptr;
+    while (match(TokenType::And))
+    {
+        Formula *right = parse_binary_op();
+        if (has_error())
+            return nullptr;
         left = pool_.create_and(left, right);
     }
 
@@ -342,20 +389,30 @@ Formula* FormulaParser::parse_and_expr() {
 }
 
 // binary_op ::= unary_op ('U' | 'R' unary_op)*
-Formula* FormulaParser::parse_binary_op() {
-    Formula* left = parse_unary_op();
-    if (has_error()) return nullptr;
+Formula *FormulaParser::parse_binary_op()
+{
+    Formula *left = parse_unary_op();
+    if (has_error())
+        return nullptr;
 
-    while (true) {
-        if (match(TokenType::Until)) {
-            Formula* right = parse_unary_op();
-            if (has_error()) return nullptr;
+    while (true)
+    {
+        if (match(TokenType::Until))
+        {
+            Formula *right = parse_unary_op();
+            if (has_error())
+                return nullptr;
             left = pool_.create_until(left, right);
-        } else if (match(TokenType::Release)) {
-            Formula* right = parse_unary_op();
-            if (has_error()) return nullptr;
+        }
+        else if (match(TokenType::Release))
+        {
+            Formula *right = parse_unary_op();
+            if (has_error())
+                return nullptr;
             left = pool_.create_release(left, right);
-        } else {
+        }
+        else
+        {
             break;
         }
     }
@@ -368,47 +425,68 @@ Formula* FormulaParser::parse_binary_op() {
 // This allows parsing formulas like !X(a) correctly
 // X is weak next (converted to X[!](...) | end)
 // X[!] is strong next (direct)
-Formula* FormulaParser::parse_unary_op() {
+Formula *FormulaParser::parse_unary_op()
+{
     // Collect prefix operators (they are right-associative)
     // We need to track weak (X) vs strong (X[!]) next separately
     // because they have different semantics
     struct PrefixOp {
-        enum Type { Not, WeakNext, StrongNext };
+        enum Type
+        {
+            Not,
+            WeakNext,
+            StrongNext
+        };
         Type type;
     };
     std::vector<PrefixOp> ops;
 
     // Consume all !, X, and X[!] tokens
-    while (true) {
-        if (match(TokenType::Not)) {
+    while (true)
+    {
+        if (match(TokenType::Not))
+        {
             ops.push_back({PrefixOp::Not});
-        } else if (match(TokenType::Next)) {
+        }
+        else if (match(TokenType::Next))
+        {
             ops.push_back({PrefixOp::WeakNext});
-        } else if (match(TokenType::StrongNext)) {
+        }
+        else if (match(TokenType::StrongNext))
+        {
             ops.push_back({PrefixOp::StrongNext});
-        } else {
+        }
+        else
+        {
             break;
         }
     }
 
     // Parse the primary expression
-    Formula* expr = parse_primary();
-    if (has_error()) return nullptr;
+    Formula *expr = parse_primary();
+    if (has_error())
+        return nullptr;
 
     // Apply operators from right to left (right-associative)
     // Process in reverse order (last operator applied first)
-    for (auto it = ops.rbegin(); it != ops.rend(); ++it) {
-        if (it->type == PrefixOp::StrongNext) {
+    for (auto it = ops.rbegin(); it != ops.rend(); ++it)
+    {
+        if (it->type == PrefixOp::StrongNext)
+        {
             // Strong next: X[!](expr)
             expr = pool_.create_next(expr);
-        } else if (it->type == PrefixOp::WeakNext) {
+        }
+        else if (it->type == PrefixOp::WeakNext)
+        {
             // Weak next: X(expr) = X[!](expr) | end
             // This means: either next state exists and satisfies expr,
             // or this is the last state
-            Formula* strong_next = pool_.create_next(expr);
-            Formula* end_marker = pool_.create_end_marker();
+            Formula *strong_next = pool_.create_next(expr);
+            Formula *end_marker = pool_.create_end_marker();
             expr = pool_.create_or(strong_next, end_marker);
-        } else { // Not
+        }
+        else
+        { // Not
             expr = pool_.create_not(expr);
         }
     }
@@ -418,34 +496,42 @@ Formula* FormulaParser::parse_unary_op() {
 
 // postfix ::= '!' postfix | primary
 // DEPRECATED: Now merged into unary_op
-Formula* FormulaParser::parse_postfix() {
+Formula *FormulaParser::parse_postfix()
+{
     return parse_unary_op();
 }
 
 // primary ::= literal | '(' formula ')' | 'F' '(' formula ')' | 'G' '(' formula ')'
-Formula* FormulaParser::parse_primary() {
+Formula *FormulaParser::parse_primary()
+{
     Token tok = peek();
 
-    if (tok.type == TokenType::True) {
+    if (tok.type == TokenType::True)
+    {
         consume();
         return pool_.create_true();
     }
 
-    if (tok.type == TokenType::False) {
+    if (tok.type == TokenType::False)
+    {
         consume();
         return pool_.create_false();
     }
 
     // Handle F(expr) - syntactic sugar for true U expr
-    if (tok.type == TokenType::Finally) {
-        consume();  // consume F
-        if (!match(TokenType::LParen)) {
+    if (tok.type == TokenType::Finally)
+    {
+        consume(); // consume F
+        if (!match(TokenType::LParen))
+        {
             set_error("Expected '(' after F");
             return nullptr;
         }
-        Formula* expr = parse_formula();
-        if (has_error()) return nullptr;
-        if (!match(TokenType::RParen)) {
+        Formula *expr = parse_formula();
+        if (has_error())
+            return nullptr;
+        if (!match(TokenType::RParen))
+        {
             set_error("Expected ')' after F(...)");
             return nullptr;
         }
@@ -454,15 +540,19 @@ Formula* FormulaParser::parse_primary() {
     }
 
     // Handle G(expr) - syntactic sugar for false R expr
-    if (tok.type == TokenType::Globally) {
-        consume();  // consume G
-        if (!match(TokenType::LParen)) {
+    if (tok.type == TokenType::Globally)
+    {
+        consume(); // consume G
+        if (!match(TokenType::LParen))
+        {
             set_error("Expected '(' after G");
             return nullptr;
         }
-        Formula* expr = parse_formula();
-        if (has_error()) return nullptr;
-        if (!match(TokenType::RParen)) {
+        Formula *expr = parse_formula();
+        if (has_error())
+            return nullptr;
+        if (!match(TokenType::RParen))
+        {
             set_error("Expected ')' after G(...)");
             return nullptr;
         }
@@ -470,16 +560,20 @@ Formula* FormulaParser::parse_primary() {
         return pool_.create_release(pool_.create_false(), expr);
     }
 
-    if (tok.type == TokenType::Identifier) {
+    if (tok.type == TokenType::Identifier)
+    {
         consume();
         return lookup_variable(tok.value);
     }
 
-    if (match(TokenType::LParen)) {
-        Formula* expr = parse_formula();
-        if (has_error()) return nullptr;
+    if (match(TokenType::LParen))
+    {
+        Formula *expr = parse_formula();
+        if (has_error())
+            return nullptr;
 
-        if (!match(TokenType::RParen)) {
+        if (!match(TokenType::RParen))
+        {
             set_error("Expected ')'");
             return nullptr;
         }
@@ -495,7 +589,8 @@ Formula* FormulaParser::parse_primary() {
 // Variable Lookup
 // =============================================================================
 
-Formula* FormulaParser::lookup_variable(const std::string& name) {
+Formula *FormulaParser::lookup_variable(const std::string &name)
+{
     // Use get_or_create_variable for auto-declaration
     int var_id = pool_.get_or_create_variable(name);
     return pool_.create(Formula::OpType::Literal, nullptr, nullptr, var_id);

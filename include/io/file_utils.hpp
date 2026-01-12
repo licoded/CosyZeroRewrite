@@ -11,10 +11,10 @@
 #ifndef COSY_ZERO_IO_FILE_UTILS_HPP
 #define COSY_ZERO_IO_FILE_UTILS_HPP
 
-#include <string>
-#include <vector>
 #include <optional>
+#include <string>
 #include <tl/expected.hpp>
+#include <vector>
 
 namespace io {
 
@@ -27,21 +27,21 @@ namespace io {
  * @param filename Path to the file
  * @return File content as string, or empty string on error
  */
-std::string read_file(const std::string& filename);
+std::string read_file(const std::string &filename);
 
 /**
  * @brief Read entire file content, returning optional
  * @param filename Path to the file
  * @return File content, or std::nullopt on error
  */
-std::optional<std::string> read_file_opt(const std::string& filename);
+std::optional<std::string> read_file_opt(const std::string &filename);
 
 /**
  * @brief Read file line by line
  * @param filename Path to the file
  * @return Vector of lines (without newline characters), empty on error
  */
-std::vector<std::string> read_lines(const std::string& filename);
+std::vector<std::string> read_lines(const std::string &filename);
 
 //==============================================================================
 // Partition File Parsing
@@ -55,8 +55,8 @@ std::vector<std::string> read_lines(const std::string& filename);
  *   .inputs: i1 i2
  */
 struct Partition {
-    std::vector<std::string> outputs;  // Output variables (controlled)
-    std::vector<std::string> inputs;   // Input variables (uncontrolled)
+    std::vector<std::string> outputs; // Output variables (controlled)
+    std::vector<std::string> inputs;  // Input variables (uncontrolled)
 };
 
 /**
@@ -64,7 +64,7 @@ struct Partition {
  * @param filename Path to the partition file
  * @return Parsed partition, or error message on failure
  */
-tl::expected<Partition, std::string> parse_partition_file(const std::string& filename);
+tl::expected<Partition, std::string> parse_partition_file(const std::string &filename);
 
 //==============================================================================
 // String Cleaning
@@ -80,14 +80,14 @@ tl::expected<Partition, std::string> parse_partition_file(const std::string& fil
  * @param raw Raw formula string (possibly with comments)
  * @return Cleaned formula string
  */
-std::string clean_formula(const std::string& raw);
+std::string clean_formula(const std::string &raw);
 
 /**
  * @brief Trim leading and trailing whitespace from a string
  * @param s Input string
  * @return Trimmed string
  */
-std::string trim(const std::string& s);
+std::string trim(const std::string &s);
 
 } // namespace io
 

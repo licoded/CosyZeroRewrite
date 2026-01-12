@@ -10,18 +10,19 @@
 #ifndef SYNTHESIS_TRACE_EXPORTER_HPP
 #define SYNTHESIS_TRACE_EXPORTER_HPP
 
-#include "synthesis/on_the_fly_solver.hpp"
 #include "formula/formula_pool.hpp"
+#include "synthesis/on_the_fly_solver.hpp"
+
+#include <chrono>
+#include <fstream>
+#include <functional>
+#include <iostream>
 #include <nlohmann/json.hpp>
+#include <sstream>
 #include <string>
-#include <vector>
 #include <unordered_map>
 #include <unordered_set>
-#include <fstream>
-#include <iostream>
-#include <sstream>
-#include <chrono>
-#include <functional>
+#include <vector>
 
 namespace synthesis {
 
@@ -32,13 +33,14 @@ namespace synthesis {
 /**
  * @brief Type of trace highlight
  */
-enum class HighlightType {
-    NewNode,       // Newly added node
-    NewEdge,       // Newly added edge
-    SCCNode,       // Node in current SCC
-    PendingNode,   // Node pending processing
-    UpdatedNode,   // Node whose classification changed
-    AttractorNode  // Node in attractor set
+enum class HighlightType
+{
+    NewNode,      // Newly added node
+    NewEdge,      // Newly added edge
+    SCCNode,      // Node in current SCC
+    PendingNode,  // Node pending processing
+    UpdatedNode,  // Node whose classification changed
+    AttractorNode // Node in attractor set
 };
 
 /**
@@ -48,12 +50,13 @@ struct TraceEdge {
     std::string from;
     std::string to;
     std::string label;
-    std::string type;  // "sys_move" or "env_move"
+    std::string type; // "sys_move" or "env_move"
 
     TraceEdge() = default;
-    TraceEdge(const std::string& f, const std::string& t,
-              const std::string& l = "", const std::string& tp = "")
-        : from(f), to(t), label(l), type(tp) {}
+    TraceEdge(const std::string &f, const std::string &t, const std::string &l = "", const std::string &tp = "")
+        : from(f), to(t), label(l), type(tp)
+    {
+    }
 };
 
 /**
@@ -66,7 +69,7 @@ struct SubStepHighlights {
     std::vector<std::string> pending_nodes;
     std::vector<std::string> updated_nodes;
     std::vector<std::string> attractor_nodes;
-    std::string scc_id;  // Optional SCC identifier
+    std::string scc_id; // Optional SCC identifier
 };
 
 /**
@@ -93,13 +96,13 @@ struct SubStepMetrics {
  * Matches the format used in game_graph HTML visualization
  */
 struct StateData {
-    std::string id;                  // e.g., "S0", "E1"
-    StateClass classification = StateClass::Unknown;  // Swin, Ewin, Unknown
-    Player type = Player::System;    // System or Environment
+    std::string id;                                  // e.g., "S0", "E1"
+    StateClass classification = StateClass::Unknown; // Swin, Ewin, Unknown
+    Player type = Player::System;                    // System or Environment
     bool is_initial = false;
-    std::string phi;                 // Formula string
-    std::string xnf_phi;             // XNF Formula string
-    std::vector<std::string> prop_atoms;  // Propositional atoms
+    std::string phi;                     // Formula string
+    std::string xnf_phi;                 // XNF Formula string
+    std::vector<std::string> prop_atoms; // Propositional atoms
 };
 
 /**
@@ -109,14 +112,14 @@ struct SubStepGraphData {
     std::string dot;
     size_t num_nodes = 0;
     size_t num_edges = 0;
-    std::unordered_map<std::string, StateData> state_data;  // state_id -> StateData
+    std::unordered_map<std::string, StateData> state_data; // state_id -> StateData
 };
 
 /**
  * @brief A single sub-step in the trace
  */
 struct SubStep {
-    std::string step_id;              // e.g., "step_001"
+    std::string step_id; // e.g., "step_001"
     std::string description;
     SubStepGraphData graph_data;
     SubStepHighlights highlights;
@@ -128,8 +131,8 @@ struct SubStep {
  * @brief A stage in the trace (expand, scc, fixed_point, etc.)
  */
 struct TraceStage {
-    std::string stage_id;             // e.g., "stage_000"
-    std::string stage_type;           // "expand", "scc", "fixed_point", "attractor"
+    std::string stage_id;   // e.g., "stage_000"
+    std::string stage_type; // "expand", "scc", "fixed_point", "attractor"
     std::string description;
     std::vector<SubStep> sub_steps;
 };
@@ -143,7 +146,7 @@ struct TraceSummary {
     int total_sccs = 0;
     bool realizable = false;
     double duration_ms = 0.0;
-    std::vector<std::pair<std::string, int>> stages_summary;  // (type, count)
+    std::vector<std::pair<std::string, int>> stages_summary; // (type, count)
 };
 
 //==============================================================================
@@ -161,8 +164,9 @@ struct TraceSummary {
  * Output format: JSON file conforming to the schema in
  * docs/TRACE_VISUALIZATION/json_schema.md
  */
-class TraceExporter {
-public:
+class TraceExporter
+{
+  public:
     /**
      * @brief Construct a trace exporter
      *
@@ -170,9 +174,7 @@ public:
      * @param pool Formula pool for string conversion
      * @param output_dir Directory to write trace files
      */
-    TraceExporter(formula::Formula* formula,
-                  formula::FormulaPool& pool,
-                  const std::string& output_dir);
+    TraceExporter(formula::Formula *formula, formula::FormulaPool &pool, const std::string &output_dir);
 
     /**
      * @brief Destructor - finalizes and writes the trace file
@@ -180,10 +182,10 @@ public:
     ~TraceExporter();
 
     // Disable copy/move
-    TraceExporter(const TraceExporter&) = delete;
-    TraceExporter& operator=(const TraceExporter&) = delete;
-    TraceExporter(TraceExporter&&) = delete;
-    TraceExporter& operator=(TraceExporter&&) = delete;
+    TraceExporter(const TraceExporter &) = delete;
+    TraceExporter &operator=(const TraceExporter &) = delete;
+    TraceExporter(TraceExporter &&) = delete;
+    TraceExporter &operator=(TraceExporter &&) = delete;
 
     //==========================================================================
     // Stage Management
@@ -194,8 +196,7 @@ public:
      * @param stage_type Type of stage ("expand", "scc", "fixed_point", "attractor")
      * @param description Human-readable description
      */
-    void begin_stage(const std::string& stage_type,
-                     const std::string& description = "");
+    void begin_stage(const std::string &stage_type, const std::string &description = "");
 
     /**
      * @brief End the current stage
@@ -210,7 +211,7 @@ public:
      * @brief Begin a new sub-step within the current stage
      * @param description Human-readable description
      */
-    void begin_sub_step(const std::string& description = "");
+    void begin_sub_step(const std::string &description = "");
 
     /**
      * @brief End the current sub-step
@@ -231,25 +232,21 @@ public:
      * @param num_nodes Number of nodes in the graph
      * @param num_edges Number of edges in the graph
      */
-    void set_graph_dot(const std::string& dot,
-                       size_t num_nodes = 0,
-                       size_t num_edges = 0);
+    void set_graph_dot(const std::string &dot, size_t num_nodes = 0, size_t num_edges = 0);
 
     /**
      * @brief Add a highlighted node
      * @param node_id State ID string (e.g., "S0", "E1")
      * @param type Type of highlight
      */
-    void add_highlight_node(const std::string& node_id,
-                            HighlightType type);
+    void add_highlight_node(const std::string &node_id, HighlightType type);
 
     /**
      * @brief Add multiple highlighted nodes
      * @param node_ids List of state IDs
      * @param type Type of highlight
      */
-    void add_highlight_nodes(const std::vector<std::string>& node_ids,
-                             HighlightType type);
+    void add_highlight_nodes(const std::vector<std::string> &node_ids, HighlightType type);
 
     /**
      * @brief Add a highlighted edge
@@ -258,10 +255,10 @@ public:
      * @param label Edge label (output assignment)
      * @param type "sys_move" or "env_move"
      */
-    void add_highlight_edge(const std::string& from,
-                            const std::string& to,
-                            const std::string& label = "",
-                            const std::string& type = "");
+    void add_highlight_edge(const std::string &from,
+                            const std::string &to,
+                            const std::string &label = "",
+                            const std::string &type = "");
 
     /**
      * @brief Set state info for the current sub-step
@@ -271,7 +268,7 @@ public:
     /**
      * @brief Set the current SCC ID for highlighting
      */
-    void set_scc_id(const std::string& scc_id);
+    void set_scc_id(const std::string &scc_id);
 
     //==========================================================================
     // Direct Recording Methods (convenience wrappers)
@@ -289,9 +286,9 @@ public:
      * @param solver Reference to the solver
      * @param highlights Optional highlights to apply
      */
-    void capture_state(const std::string& description,
-                       const OnTheFlyGameSolver& solver,
-                       const SubStepHighlights* highlights = nullptr);
+    void capture_state(const std::string &description,
+                       const OnTheFlyGameSolver &solver,
+                       const SubStepHighlights *highlights = nullptr);
 
     /**
      * @brief Record state expansion
@@ -302,9 +299,9 @@ public:
      * @param successors Successors of the expanded state
      * @param solver Reference to the solver
      */
-    void record_expansion(const GameState& state,
-                          const std::vector<GameState>& successors,
-                          const OnTheFlyGameSolver& solver);
+    void record_expansion(const GameState &state,
+                          const std::vector<GameState> &successors,
+                          const OnTheFlyGameSolver &solver);
 
     /**
      * @brief Record SCC discovery
@@ -315,9 +312,7 @@ public:
      * @param scc_id SCC identifier
      * @param solver Reference to the solver
      */
-    void record_scc(const std::vector<GameState>& scc,
-                    const std::string& scc_id,
-                    const OnTheFlyGameSolver& solver);
+    void record_scc(const std::vector<GameState> &scc, const std::string &scc_id, const OnTheFlyGameSolver &solver);
 
     /**
      * @brief Record classification change
@@ -329,10 +324,10 @@ public:
      * @param new_class New classification
      * @param solver Reference to the solver
      */
-    void record_classification_change(const GameState& state,
-                                       StateClass old_class,
-                                       StateClass new_class,
-                                       const OnTheFlyGameSolver& solver);
+    void record_classification_change(const GameState &state,
+                                      StateClass old_class,
+                                      StateClass new_class,
+                                      const OnTheFlyGameSolver &solver);
 
     //==========================================================================
     // Finalization
@@ -355,7 +350,7 @@ public:
      * @param realizable Whether the formula is realizable
      * @param solver Reference to the solver for capturing final state
      */
-    void finalize(bool realizable, const OnTheFlyGameSolver& solver);
+    void finalize(bool realizable, const OnTheFlyGameSolver &solver);
 
     /**
      * @brief Check if tracing is enabled
@@ -365,12 +360,12 @@ public:
     /**
      * @brief Get the output file path
      */
-    const std::string& output_path() const { return output_path_; }
+    const std::string &output_path() const { return output_path_; }
 
-private:
+  private:
     // Configuration
-    formula::Formula* formula_;
-    formula::FormulaPool& pool_;
+    formula::Formula *formula_;
+    formula::FormulaPool &pool_;
     std::string output_dir_;
     std::string output_path_;
     bool enabled_;
@@ -385,7 +380,7 @@ private:
     std::vector<TraceStage> stages_;
     int stage_counter_;
     int step_counter_;
-    int current_stage_index_;  // -1 if no current stage
+    int current_stage_index_; // -1 if no current stage
 
     /**
      * @brief Cached pointer to the current active SubStep
@@ -397,7 +392,7 @@ private:
      * nullptr means no active sub_step (either disabled, not in a stage,
      * or not between begin/end_sub_step calls).
      */
-    SubStep* current_sub_step_ = nullptr;
+    SubStep *current_sub_step_ = nullptr;
 
     // State ID mapping - uses shared StateIdMap definition
     StateIdMap id_map_;
@@ -410,8 +405,7 @@ private:
      * @brief Collect state data from solver for tooltip display
      * Populates the state_data map in graph_data with phi, xnf_phi, prop_atoms
      */
-    void collect_state_data(SubStepGraphData& graph_data,
-                           const OnTheFlyGameSolver& solver);
+    void collect_state_data(SubStepGraphData &graph_data, const OnTheFlyGameSolver &solver);
 
     /**
      * @brief Format edge label showing all relevant variables (implicit false shown as !var)
@@ -419,14 +413,13 @@ private:
      * @param succ Successor game state (for assignment access)
      * @return Formatted label like "sys={p1, !p5}" or "env={!p2, p3}"
      */
-    std::string format_assignment_label(const GameState& state,
-                                        const GameState& succ);
+    std::string format_assignment_label(const GameState &state, const GameState &succ);
 
     // JSON writing helpers
-    nlohmann::json state_to_json(const StateData& data) const;
-    nlohmann::json highlights_to_json(const SubStepHighlights& h) const;
-    nlohmann::json step_to_json(const SubStep& step) const;
-    nlohmann::json stage_to_json(const TraceStage& stage) const;
+    nlohmann::json state_to_json(const StateData &data) const;
+    nlohmann::json highlights_to_json(const SubStepHighlights &h) const;
+    nlohmann::json step_to_json(const SubStep &step) const;
+    nlohmann::json stage_to_json(const TraceStage &stage) const;
     nlohmann::json summary_to_json() const;
     void write_json();
 };

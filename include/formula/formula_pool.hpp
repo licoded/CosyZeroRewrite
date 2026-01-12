@@ -3,6 +3,7 @@
 
 #include "formula/formula.hpp"
 #include "formula/formula_exception.hpp"
+
 #include <memory>
 #include <regex>
 #include <string>
@@ -26,20 +27,21 @@ namespace formula {
  * - Canonicalization: unique_table_ ensures structural uniqueness
  * - Pre-allocated variables: BDD-ready with fixed ordering
  */
-class FormulaPool {
-public:
+class FormulaPool
+{
+  public:
     // ========== Construction ==========
 
     FormulaPool();
     ~FormulaPool();
 
     // Non-copyable
-    FormulaPool(const FormulaPool&) = delete;
-    FormulaPool& operator=(const FormulaPool&) = delete;
+    FormulaPool(const FormulaPool &) = delete;
+    FormulaPool &operator=(const FormulaPool &) = delete;
 
     // Movable (for std::vector)
-    FormulaPool(FormulaPool&& other) noexcept;
-    FormulaPool& operator=(FormulaPool&& other) noexcept;
+    FormulaPool(FormulaPool &&other) noexcept;
+    FormulaPool &operator=(FormulaPool &&other) noexcept;
 
     // ========== Variable Management ==========
 
@@ -53,7 +55,7 @@ public:
      *
      * Throws std::runtime_error if file cannot be read.
      */
-    void load_from_partition(const std::string& partition_file);
+    void load_from_partition(const std::string &partition_file);
 
     /**
      * @brief Declare all variables at once
@@ -67,20 +69,19 @@ public:
      * - Duplicate names in outputs or inputs
      * - Overlap between outputs and inputs
      */
-    void declare_variables(const std::vector<std::string>& outputs,
-                          const std::vector<std::string>& inputs);
+    void declare_variables(const std::vector<std::string> &outputs, const std::vector<std::string> &inputs);
 
     /**
      * @brief Declare output variables
      * @param outputs Output variable names
      */
-    void declare_outputs(const std::vector<std::string>& outputs);
+    void declare_outputs(const std::vector<std::string> &outputs);
 
     /**
      * @brief Declare input variables
      * @param inputs Input variable names
      */
-    void declare_inputs(const std::vector<std::string>& inputs);
+    void declare_inputs(const std::vector<std::string> &inputs);
 
     /**
      * @brief Auto-extract variables from a formula
@@ -94,15 +95,13 @@ public:
      * - No inputs declared
      * - is_fully_declared() == true
      */
-    void extract_variables_from_formula(Formula* root);
+    void extract_variables_from_formula(Formula *root);
 
     /**
      * @brief Check if all variables are declared
      * @return true if both outputs and inputs are declared
      */
-    bool is_fully_declared() const {
-        return outputs_declared_ && inputs_declared_;
-    }
+    bool is_fully_declared() const { return outputs_declared_ && inputs_declared_; }
 
     /**
      * @brief Get total number of variables
@@ -130,7 +129,7 @@ public:
      * @return Variable ID
      * @throws std::runtime_error if variable not declared
      */
-    int get_variable_id(const std::string& name) const;
+    int get_variable_id(const std::string &name) const;
 
     /**
      * @brief Get variable name by ID
@@ -145,25 +144,21 @@ public:
      * @param var_id Variable ID
      * @return true if variable is an output
      */
-    bool is_output_variable(int var_id) const {
-        return var_id >= 0 && var_id < num_outputs_;
-    }
+    bool is_output_variable(int var_id) const { return var_id >= 0 && var_id < num_outputs_; }
 
     /**
      * @brief Check if variable is an input
      * @param var_id Variable ID
      * @return true if variable is an input
      */
-    bool is_input_variable(int var_id) const {
-        return var_id >= num_outputs_ && var_id < num_variables();
-    }
+    bool is_input_variable(int var_id) const { return var_id >= num_outputs_ && var_id < num_variables(); }
 
     /**
      * @brief Check if variable exists
      * @param name Variable name
      * @return true if variable is declared
      */
-    bool has_variable(const std::string& name) const;
+    bool has_variable(const std::string &name) const;
 
     /**
      * @brief Get all declared variable names in order
@@ -172,9 +167,7 @@ public:
      * This is used by FormulaParser to initialize its lexer with
      * multi-character variable names.
      */
-    const std::vector<std::string>& get_all_variable_names() const {
-        return var_names_;
-    }
+    const std::vector<std::string> &get_all_variable_names() const { return var_names_; }
 
     /**
      * @brief Get variable partition (outputs and inputs)
@@ -182,7 +175,8 @@ public:
      *
      * Variables are indexed: outputs (0 to num_outputs-1), inputs (num_outputs to num_outputs+num_inputs-1)
      */
-    std::pair<std::vector<std::string>, std::vector<std::string>> get_variable_partition() const {
+    std::pair<std::vector<std::string>, std::vector<std::string>> get_variable_partition() const
+    {
         std::vector<std::string> outputs;
         std::vector<std::string> inputs;
 
@@ -191,11 +185,13 @@ public:
         const int n_vars = static_cast<int>(var_names_.size());
 
         // Outputs are first (0 to num_outputs-1)
-        for (int i = 0; i < n_outputs && i < n_vars; ++i) {
+        for (int i = 0; i < n_outputs && i < n_vars; ++i)
+        {
             outputs.push_back(var_names_[i]);
         }
         // Inputs come after outputs (num_outputs to num_outputs+num_inputs-1)
-        for (int i = n_outputs; i < n_outputs + n_inputs && i < n_vars; ++i) {
+        for (int i = n_outputs; i < n_outputs + n_inputs && i < n_vars; ++i)
+        {
             inputs.push_back(var_names_[i]);
         }
 
@@ -210,7 +206,7 @@ public:
      * This method is primarily for the parser to auto-declare variables.
      * Variables are auto-declared as outputs.
      */
-    int get_or_create_variable(const std::string& name);
+    int get_or_create_variable(const std::string &name);
 
     // ========== Formula Creation (Canonicalized) ==========
 
@@ -225,8 +221,7 @@ public:
      * If a structurally identical formula exists, returns the existing one.
      * Otherwise creates a new formula and adds it to the unique table.
      */
-    Formula* create(Formula::OpType op, Formula* left,
-                   Formula* right = nullptr, int var_id = -1);
+    Formula *create(Formula::OpType op, Formula *left, Formula *right = nullptr, int var_id = -1);
 
     /**
      * @brief Create a literal formula (variable reference)
@@ -234,31 +229,31 @@ public:
      * @return Formula* with OpType::Literal
      * @throws std::runtime_error if variable not declared
      */
-    Formula* create_variable(const std::string& name);
+    Formula *create_variable(const std::string &name);
 
     /** @brief Create True constant */
-    Formula* create_true();
+    Formula *create_true();
 
     /** @brief Create False constant */
-    Formula* create_false();
+    Formula *create_false();
 
     /** @brief Create Not formula */
-    Formula* create_not(Formula* operand);
+    Formula *create_not(Formula *operand);
 
     /** @brief Create And formula */
-    Formula* create_and(Formula* left, Formula* right);
+    Formula *create_and(Formula *left, Formula *right);
 
     /** @brief Create Or formula */
-    Formula* create_or(Formula* left, Formula* right);
+    Formula *create_or(Formula *left, Formula *right);
 
     /** @brief Create Next formula */
-    Formula* create_next(Formula* operand);
+    Formula *create_next(Formula *operand);
 
     /** @brief Create Until formula */
-    Formula* create_until(Formula* left, Formula* right);
+    Formula *create_until(Formula *left, Formula *right);
 
     /** @brief Create Release formula */
-    Formula* create_release(Formula* left, Formula* right);
+    Formula *create_release(Formula *left, Formula *right);
 
     /**
      * @brief Create or get End marker (singleton)
@@ -267,7 +262,7 @@ public:
      * The End marker is a special atomic proposition representing
      * "this is the last position in the finite trace".
      */
-    Formula* create_end_marker();
+    Formula *create_end_marker();
 
     // ========== Resource Management ==========
 
@@ -306,13 +301,12 @@ public:
      * Values closer to 1.0 indicate good deduplication.
      * Lower values indicate more structural sharing.
      */
-    double deduplication_ratio() const {
-        return total_count() > 0
-            ? static_cast<double>(unique_count()) / total_count()
-            : 0.0;
+    double deduplication_ratio() const
+    {
+        return total_count() > 0 ? static_cast<double>(unique_count()) / total_count() : 0.0;
     }
 
-private:
+  private:
     // ========== Variable Name Validation ==========
 
     /**
@@ -325,18 +319,43 @@ private:
      *
      * Includes logical operators and special constants.
      */
-    static const std::unordered_set<std::string>& reserved_keywords() {
-        static const std::unordered_set<std::string> keywords = {
-            // Constants
-            "true", "false", "TRUE", "FALSE",
-            // Operators
-            "not", "and", "or", "next", "until", "release",
-            "NOT", "AND", "OR", "NEXT", "UNTIL", "RELEASE",
-            "X[!]", "X", "U", "R", "G", "F", "W",  // Single-letter operators
-            // Special
-            "end", "End", "END", "last", "Last", "LAST",
-            "tail", "Tail", "TAIL"
-        };
+    static const std::unordered_set<std::string> &reserved_keywords()
+    {
+        static const std::unordered_set<std::string> keywords = {// Constants
+                                                                 "true",
+                                                                 "false",
+                                                                 "TRUE",
+                                                                 "FALSE",
+                                                                 // Operators
+                                                                 "not",
+                                                                 "and",
+                                                                 "or",
+                                                                 "next",
+                                                                 "until",
+                                                                 "release",
+                                                                 "NOT",
+                                                                 "AND",
+                                                                 "OR",
+                                                                 "NEXT",
+                                                                 "UNTIL",
+                                                                 "RELEASE",
+                                                                 "X[!]",
+                                                                 "X",
+                                                                 "U",
+                                                                 "R",
+                                                                 "G",
+                                                                 "F",
+                                                                 "W", // Single-letter operators
+                                                                 // Special
+                                                                 "end",
+                                                                 "End",
+                                                                 "END",
+                                                                 "last",
+                                                                 "Last",
+                                                                 "LAST",
+                                                                 "tail",
+                                                                 "Tail",
+                                                                 "TAIL"};
         return keywords;
     }
 
@@ -351,14 +370,14 @@ private:
      * - Cannot be a reserved keyword
      * - Cannot be empty
      */
-    static void validate_variable_name(const std::string& name);
+    static void validate_variable_name(const std::string &name);
 
     /**
      * @brief Check if a string is a valid variable name
      * @param name String to check
      * @return true if valid, false otherwise
      */
-    static bool is_valid_variable_name(const std::string& name);
+    static bool is_valid_variable_name(const std::string &name);
 
     // ========== Canonicalization ==========
 
@@ -366,9 +385,7 @@ private:
      * @brief Hash function for formulas
      */
     struct FormulaHash {
-        size_t operator()(Formula* f) const noexcept {
-            return f ? f->hash() : 0;
-        }
+        size_t operator()(Formula *f) const noexcept { return f ? f->hash() : 0; }
     };
 
     /**
@@ -379,10 +396,10 @@ private:
      * - Core logic: structural comparison (hash + op + children + var_id)
      */
     struct FormulaEqual {
-        bool operator()(Formula* a, Formula* b) const noexcept;
+        bool operator()(Formula *a, Formula *b) const noexcept;
     };
 
-    using UniqueTable = std::unordered_set<Formula*, FormulaHash, FormulaEqual>;
+    using UniqueTable = std::unordered_set<Formula *, FormulaHash, FormulaEqual>;
 
     /**
      * @brief Compute hash for a formula specification
@@ -392,15 +409,13 @@ private:
      * @param var_id Variable ID
      * @return Hash value
      */
-    static size_t compute_hash(Formula::OpType op, Formula* left,
-                               Formula* right, int var_id);
+    static size_t compute_hash(Formula::OpType op, Formula *left, Formula *right, int var_id);
 
     /**
      * @brief Validate formula arguments
      * @throws std::invalid_argument if arguments are invalid
      */
-    static void validate_create(Formula::OpType op, Formula* left,
-                               Formula* right, int var_id);
+    static void validate_create(Formula::OpType op, Formula *left, Formula *right, int var_id);
 
     // ========== Member Variables ==========
 
@@ -411,20 +426,20 @@ private:
     std::vector<std::unique_ptr<Formula>> formulas_;
 
     // Variable management
-    std::vector<std::string> var_names_;     // var_names_[id] = name
-    std::unordered_map<std::string, int> var_ids_;  // var_ids_[name] = id
+    std::vector<std::string> var_names_;           // var_names_[id] = name
+    std::unordered_map<std::string, int> var_ids_; // var_ids_[name] = id
     int num_outputs_;
     int num_inputs_;
     bool outputs_declared_;
     bool inputs_declared_;
 
     // Singleton markers
-    Formula* true_marker_;
-    Formula* false_marker_;
-    Formula* end_marker_;
+    Formula *true_marker_;
+    Formula *false_marker_;
+    Formula *end_marker_;
 
     // Pool state
-    bool moved_from_;  // True if this pool was moved from
+    bool moved_from_; // True if this pool was moved from
 };
 
 } // namespace formula

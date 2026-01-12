@@ -7,25 +7,26 @@
  *   Cosy2 "G (req -> F ack)"
  */
 
-#include "synthesis/on_the_fly_solver.hpp"
+#include "CLI/CLI.hpp"
 #include "formula/formula_parser.hpp"
 #include "formula/formula_pool.hpp"
-#include "log/logger.hpp"
 #include "io/file_utils.hpp"
-#include "CLI/CLI.hpp"
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <memory>
-#include <chrono>
-#include <iomanip>
-#include <ctime>
-#include <csignal>
-#include <atomic>
-#include <unistd.h>
+#include "log/logger.hpp"
+#include "synthesis/on_the_fly_solver.hpp"
 
 #include <spdlog/fmt/fmt.h>
+
+#include <atomic>
+#include <chrono>
+#include <csignal>
+#include <ctime>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <memory>
+#include <sstream>
 #include <tl/expected.hpp>
+#include <unistd.h>
 
 using namespace formula;
 using namespace synthesis;
@@ -35,17 +36,26 @@ using namespace io;
 // Signal Handling
 //==============================================================================
 
-void signal_handler(int signal) {
-    const char* signal_name = nullptr;
-    switch (signal) {
-        case SIGTERM: signal_name = "SIGTERM"; break;
-        case SIGINT:  signal_name = "SIGINT"; break;
-        case SIGHUP:  signal_name = "SIGHUP"; break;
-        default:       signal_name = "UNKNOWN"; break;
+void signal_handler(int signal)
+{
+    const char *signal_name = nullptr;
+    switch (signal)
+    {
+        case SIGTERM:
+            signal_name = "SIGTERM";
+            break;
+        case SIGINT:
+            signal_name = "SIGINT";
+            break;
+        case SIGHUP:
+            signal_name = "SIGHUP";
+            break;
+        default:
+            signal_name = "UNKNOWN";
+            break;
     }
 
-    std::cerr << "\n[TIMEOUT] Received signal " << signal_name
-              << " - synthesis interrupted (TIMEOUT)" << std::endl;
+    std::cerr << "\n[TIMEOUT] Received signal " << signal_name << " - synthesis interrupted (TIMEOUT)" << std::endl;
     std::cerr << "[TIMEOUT] Result: TIMEOUT" << std::endl;
     std::cerr << std::flush;
 
@@ -69,17 +79,19 @@ struct Config {
 //==============================================================================
 
 // Parse command line arguments (returns nullptr on parse error)
-std::unique_ptr<Config> parse_command_line(int argc, char* argv[]) {
+std::unique_ptr<Config> parse_command_line(int argc, char *argv[])
+{
     auto config = std::make_unique<Config>();
-    CLI::App app{"CosyZero LTLf Synthesis Tool - LTLf to Automata Synthesis"};
+    CLI::App app {"CosyZero LTLf Synthesis Tool - LTLf to Automata Synthesis"};
     app.set_version_flag("--version", "CosyZero v2.0");
 
-    app.add_option("-f,--file", config->formula_file, "Read formula from file")
-        ->check(CLI::ExistingFile);
+    app.add_option("-f,--file", config->formula_file, "Read formula from file")->check(CLI::ExistingFile);
     app.add_option("-p,--partition", config->partition_file, "Read variable partition from file")
         ->check(CLI::ExistingFile);
     app.add_option("--trace", config->trace_dir, "Enable trace recording for visualization")
-        ->default_str("")->expected(0, 1)->capture_default_str();
+        ->default_str("")
+        ->expected(0, 1)
+        ->capture_default_str();
     app.add_flag("-q,--quiet", config->quiet, "Suppress non-essential output");
     app.add_option("formula", config->formula_str, "LTLf formula string (if -f not specified)");
 
@@ -93,9 +105,12 @@ Examples:
 For more information, see: https://github.com/licoded/CosyZeroRewrite
 )xx"));
 
-    try {
+    try
+    {
         app.parse(argc, argv);
-    } catch (const CLI::ParseError& e) {
+    }
+    catch (const CLI::ParseError &e)
+    {
         // CLI11 already printed the error/help message
         // Exit with the appropriate error code
         std::exit(app.exit(e));
@@ -105,29 +120,36 @@ For more information, see: https://github.com/licoded/CosyZeroRewrite
 }
 
 // Print application banner
-void print_banner() {
+void print_banner()
+{
     NOP_LOG_INFO("========================================");
     NOP_LOG_INFO("   CosyZero LTLf Synthesis Tool v2.0");
     NOP_LOG_INFO("========================================");
 }
 
 // Read formula from file or use provided string
-std::string read_formula(const Config& config) {
+std::string read_formula(const Config &config)
+{
     std::string formula_str;
 
-    if (!config.formula_file.empty()) {
+    if (!config.formula_file.empty())
+    {
         std::string raw = read_file(config.formula_file);
-        if (raw.empty()) {
+        if (raw.empty())
+        {
             NOP_LOG_ERROR("Error: Failed to read formula file: {}", config.formula_file);
             return "";
         }
         formula_str = clean_formula(raw);
         NOP_LOG_INFO("Formula from file: {}", config.formula_file);
-    } else {
+    }
+    else
+    {
         formula_str = config.formula_str;
     }
 
-    if (formula_str.empty()) {
+    if (formula_str.empty())
+    {
         NOP_LOG_ERROR("Error: No formula provided");
         NOP_LOG_ERROR("Run 'Cosy2 --help' for usage information.");
         return "";
@@ -138,35 +160,38 @@ std::string read_formula(const Config& config) {
 }
 
 // Load partition from file
-tl::expected<Partition, std::string> load_partition(const Config& config) {
-    if (config.partition_file.empty()) {
+tl::expected<Partition, std::string> load_partition(const Config &config)
+{
+    if (config.partition_file.empty())
+    {
         return tl::unexpected(fmt::format("Must specify partition file!"));
     }
 
     auto part_result = parse_partition_file(config.partition_file);
-    if (!part_result) {
+    if (!part_result)
+    {
         return tl::unexpected(fmt::format("Failed to load partition: {}", part_result.error()));
     }
 
-    NOP_LOG_INFO("Partition loaded: {} outputs, {} inputs",
-               part_result->outputs.size(), part_result->inputs.size());
+    NOP_LOG_INFO("Partition loaded: {} outputs, {} inputs", part_result->outputs.size(), part_result->inputs.size());
     return part_result;
 }
 
 // Parse formula and prepare formula pool (pool must be kept alive)
-Formula* parse_formula(const std::string& formula_str,
-                        FormulaPool& pool,
-                        const Config& config) {
+Formula *parse_formula(const std::string &formula_str, FormulaPool &pool, const Config &config)
+{
     FormulaParser parser(pool);
-    Formula* phi = parser.parse(formula_str);
+    Formula *phi = parser.parse(formula_str);
 
-    if (!phi) {
+    if (!phi)
+    {
         NOP_LOG_ERROR("Error: Failed to parse formula");
         NOP_LOG_ERROR("Parser error: {}", parser.error());
         return nullptr;
     }
 
-    if (!config.quiet) {
+    if (!config.quiet)
+    {
         LOG_DEBUG("Parsed: {}", phi->to_string(pool));
     }
 
@@ -174,12 +199,14 @@ Formula* parse_formula(const std::string& formula_str,
 }
 
 // Run synthesis
-bool run_synthesis(Formula* phi, FormulaPool& pool, const Config& config) {
+bool run_synthesis(Formula *phi, FormulaPool &pool, const Config &config)
+{
     NOP_LOG_INFO("Running on-the-fly synthesis...");
 
     OnTheFlyGameSolver solver(phi, pool);
 
-    if (!config.trace_dir.empty()) {
+    if (!config.trace_dir.empty())
+    {
         solver.enable_trace(config.trace_dir);
         NOP_LOG_INFO("Trace recording enabled...");
     }
@@ -188,15 +215,19 @@ bool run_synthesis(Formula* phi, FormulaPool& pool, const Config& config) {
 }
 
 // Print synthesis result
-void print_result(bool realizable, const Config& config) {
-    constexpr const char* sep = "========================================";
-    const char* result = realizable ? "REALIZABLE" : "UNREALIZABLE";
+void print_result(bool realizable, const Config &config)
+{
+    constexpr const char *sep = "========================================";
+    const char *result = realizable ? "REALIZABLE" : "UNREALIZABLE";
 
-    if (!config.quiet) {
+    if (!config.quiet)
+    {
         NOP_LOG_INFO(sep);
         NOP_LOG_INFO(result);
         NOP_LOG_INFO(sep);
-    } else {
+    }
+    else
+    {
         NOP_LOG_INFO(result);
     }
 }
@@ -205,7 +236,8 @@ void print_result(bool realizable, const Config& config) {
 // Main Entry Point
 //==============================================================================
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[])
+{
     logger::Logger::initialize();
 
     std::signal(SIGTERM, signal_handler);
@@ -214,18 +246,22 @@ int main(int argc, char* argv[]) {
 
     // Parse command line
     auto config = parse_command_line(argc, argv);
-    if (!config) return 1;
+    if (!config)
+        return 1;
 
     // Print banner
-    if (!config->quiet) print_banner();
+    if (!config->quiet)
+        print_banner();
 
     // Read formula
     std::string formula_str = read_formula(*config);
-    if (formula_str.empty()) return 1;
+    if (formula_str.empty())
+        return 1;
 
     // Load partition
     auto partition_result = load_partition(*config);
-    if (!partition_result) {
+    if (!partition_result)
+    {
         NOP_LOG_ERROR("{}", partition_result.error());
         return 1;
     }
@@ -235,8 +271,9 @@ int main(int argc, char* argv[]) {
     pool.declare_variables(partition.outputs, partition.inputs);
 
     // Parse formula (pool must stay alive)
-    Formula* phi = parse_formula(formula_str, pool, *config);
-    if (!phi) return 1;
+    Formula *phi = parse_formula(formula_str, pool, *config);
+    if (!phi)
+        return 1;
 
     // Run synthesis
     bool realizable = run_synthesis(phi, pool, *config);

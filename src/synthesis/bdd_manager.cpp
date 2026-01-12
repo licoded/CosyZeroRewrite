@@ -4,13 +4,15 @@
  */
 
 #include "synthesis/bdd_manager.hpp"
+
 #include "formula/formula_pool.hpp"
 #include "log/logger.hpp"
+
 #include <algorithm>
 #include <cassert>
 #include <functional>
-#include <stdexcept>
 #include <set>
+#include <stdexcept>
 
 namespace synthesis {
 
@@ -26,18 +28,22 @@ namespace synthesis {
  * For now, we use a simplified implementation that just tracks availability.
  */
 struct BddManager::CuddManager {
-    DdManager* mgr = nullptr;
+    DdManager *mgr = nullptr;
 
-    CuddManager(int num_vars) {
+    CuddManager(int num_vars)
+    {
         mgr = Cudd_Init(num_vars, 0, CUDD_UNIQUE_SLOTS, CUDD_CACHE_SLOTS, 0);
-        if (!mgr) {
+        if (!mgr)
+        {
             throw std::runtime_error("Failed to initialize CUDD manager");
         }
         Cudd_AutodynEnable(mgr, CUDD_REORDER_SIFT);
     }
 
-    ~CuddManager() {
-        if (mgr) {
+    ~CuddManager()
+    {
+        if (mgr)
+        {
             Cudd_Quit(mgr);
         }
     }
@@ -54,14 +60,16 @@ namespace {
  * @param var_ids List of variable indices to OR together
  * @return Referenced BDD node (caller must deref)
  */
-DdNode* build_or_cube(DdManager* mgr, const std::vector<int>& var_ids) {
+DdNode *build_or_cube(DdManager *mgr, const std::vector<int> &var_ids)
+{
     // Start with LogicZero (identity for OR)
-    DdNode* cube = Cudd_ReadLogicZero(mgr);
+    DdNode *cube = Cudd_ReadLogicZero(mgr);
     Cudd_Ref(cube);
 
-    for (int var_id : var_ids) {
-        DdNode* var = Cudd_bddIthVar(mgr, var_id);
-        DdNode* new_cube = Cudd_bddOr(mgr, cube, var);
+    for (int var_id : var_ids)
+    {
+        DdNode *var = Cudd_bddIthVar(mgr, var_id);
+        DdNode *new_cube = Cudd_bddOr(mgr, cube, var);
         Cudd_Ref(new_cube);
         Cudd_RecursiveDeref(mgr, cube);
         cube = new_cube;
@@ -79,14 +87,16 @@ DdNode* build_or_cube(DdManager* mgr, const std::vector<int>& var_ids) {
  * @param var_ids List of variable indices to AND together
  * @return Referenced BDD node (caller must deref)
  */
-DdNode* build_and_cube(DdManager* mgr, const std::vector<int>& var_ids) {
+DdNode *build_and_cube(DdManager *mgr, const std::vector<int> &var_ids)
+{
     // Start with One (identity for AND)
-    DdNode* cube = Cudd_ReadOne(mgr);
+    DdNode *cube = Cudd_ReadOne(mgr);
     Cudd_Ref(cube);
 
-    for (int var_id : var_ids) {
-        DdNode* var = Cudd_bddIthVar(mgr, var_id);
-        DdNode* new_cube = Cudd_bddAnd(mgr, cube, var);
+    for (int var_id : var_ids)
+    {
+        DdNode *var = Cudd_bddIthVar(mgr, var_id);
+        DdNode *new_cube = Cudd_bddAnd(mgr, cube, var);
         Cudd_Ref(new_cube);
         Cudd_RecursiveDeref(mgr, cube);
         cube = new_cube;
@@ -105,9 +115,9 @@ DdNode* build_and_cube(DdManager* mgr, const std::vector<int>& var_ids) {
  * @param op The binary operation to apply
  * @return Referenced result BDD node (caller must deref)
  */
-template<typename BinOp>
-DdNode* apply_binary_bdd_op(DdManager* mgr, DdNode* left, DdNode* right, BinOp&& op) {
-    DdNode* result = op(mgr, left, right);
+template <typename BinOp> DdNode *apply_binary_bdd_op(DdManager *mgr, DdNode *left, DdNode *right, BinOp &&op)
+{
+    DdNode *result = op(mgr, left, right);
     Cudd_Ref(result);
     Cudd_RecursiveDeref(mgr, left);
     Cudd_RecursiveDeref(mgr, right);
@@ -117,30 +127,35 @@ DdNode* apply_binary_bdd_op(DdManager* mgr, DdNode* left, DdNode* right, BinOp&&
 } // anonymous namespace
 
 BddManager::BddManager(int num_variables, int num_outputs)
-    : num_variables_(num_variables)
-    , num_outputs_(num_outputs)
-    , current_formula_(nullptr)
-    , stats_{}
+    : num_variables_(num_variables), num_outputs_(num_outputs), current_formula_(nullptr), stats_ {}
 {
-    try {
+    try
+    {
         cudd_ = std::make_unique<CuddManager>(num_variables);
         LOG_INFO("BddManager: CUDD BDD optimization available");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception &e)
+    {
         LOG_WARN("BddManager: CUDD initialization failed: ", e.what());
         cudd_.reset();
     }
 }
 
-BddManager::~BddManager() {
+BddManager::~BddManager()
+{
     clear_cache();
 }
 
-void BddManager::clear_cache() {
+void BddManager::clear_cache()
+{
     state_formula_cache_.clear();
     // Dereference and clear BDD cache
-    if (cudd_) {
-        for (auto& entry : state_bdd_cache_) {
-            if (entry.second) {
+    if (cudd_)
+    {
+        for (auto &entry : state_bdd_cache_)
+        {
+            if (entry.second)
+            {
                 Cudd_RecursiveDeref(cudd_->mgr, entry.second);
             }
         }
@@ -149,11 +164,12 @@ void BddManager::clear_cache() {
     current_formula_ = nullptr;
 }
 
-bool BddManager::get_or_build_bdd_for_state(automata::TableauState* state,
-                                            formula::FormulaPool& pool) {
+bool BddManager::get_or_build_bdd_for_state(automata::TableauState *state, formula::FormulaPool &pool)
+{
     // Check cache first
     auto it = state_formula_cache_.find(state);
-    if (it != state_formula_cache_.end()) {
+    if (it != state_formula_cache_.end())
+    {
         current_formula_ = it->second;
         stats_.num_cache_hits++;
         LOG_DEBUG("BddManager: cache hit for state");
@@ -162,7 +178,7 @@ bool BddManager::get_or_build_bdd_for_state(automata::TableauState* state,
 
     stats_.num_cache_misses++;
 
-    formula::Formula* xnf_phi = state->xnf_phi();
+    formula::Formula *xnf_phi = state->xnf_phi();
     current_formula_ = xnf_phi->replaceNext2True(pool);
     current_formula_ = current_formula_->simplify(pool);
     state_formula_cache_[state] = current_formula_;
@@ -171,18 +187,19 @@ bool BddManager::get_or_build_bdd_for_state(automata::TableauState* state,
     return true;
 }
 
-formula::Formula* BddManager::get_rmnext_formula(automata::TableauState* state) const {
+formula::Formula *BddManager::get_rmnext_formula(automata::TableauState *state) const
+{
     auto it = state_formula_cache_.find(state);
     return (it != state_formula_cache_.end()) ? it->second : nullptr;
 }
 
-std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
-    automata::TableauState* state,
-    const std::set<int>& relevant_output_var_ids,
-    formula::FormulaPool& pool) {
-
+std::vector<Assignment> BddManager::enumerate_safe_sys_moves(automata::TableauState *state,
+                                                             const std::set<int> &relevant_output_var_ids,
+                                                             formula::FormulaPool &pool)
+{
     // Get or build the rm_next formula for this state
-    if (!get_or_build_bdd_for_state(state, pool)) {
+    if (!get_or_build_bdd_for_state(state, pool))
+    {
         LOG_WARN("BddManager: failed to get BDD for state");
         // Return all moves as safe (conservative)
         std::vector<Assignment> all_moves = {{}};
@@ -191,14 +208,17 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
 
     // Check BDD cache first
     auto bdd_it = state_bdd_cache_.find(state);
-    DdNode* bdd = nullptr;
+    DdNode *bdd = nullptr;
 
-    if (bdd_it != state_bdd_cache_.end()) {
+    if (bdd_it != state_bdd_cache_.end())
+    {
         bdd = bdd_it->second;
         stats_.num_cache_hits++;
-    } else {
+    }
+    else
+    {
         // Build BDD from rm_next formula
-        formula::Formula* rmnext_formula = get_rmnext_formula(state);
+        formula::Formula *rmnext_formula = get_rmnext_formula(state);
         // get_or_build_bdd_for_state just returned true, so this must be non-null
         assert(rmnext_formula != nullptr && "rmnext_formula should be in cache after successful build");
 
@@ -218,20 +238,20 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
     // env_cube = e1 ∨ e2 ∨ ... ∨ em (OR of all input variables)
     // Note: CUDD's cube for abstraction uses OR
     std::vector<int> input_var_ids;
-    for (int i = num_outputs_; i < num_variables_; ++i) {
+    for (int i = num_outputs_; i < num_variables_; ++i)
+    {
         input_var_ids.push_back(i);
     }
-    DdNode* env_cube = build_or_cube(cudd_->mgr, input_var_ids);
+    DdNode *env_cube = build_or_cube(cudd_->mgr, input_var_ids);
 
     // Apply universal abstraction: ∀ env_vars. phi(sys, env)
     // Result is a BDD over sys variables only
-    DdNode* safe_sys = Cudd_bddUnivAbstract(cudd_->mgr, bdd, env_cube);
+    DdNode *safe_sys = Cudd_bddUnivAbstract(cudd_->mgr, bdd, env_cube);
     Cudd_Ref(safe_sys);
     Cudd_RecursiveDeref(cudd_->mgr, env_cube);
 
     // Enumerate all satisfying assignments for output variables
-    std::vector<Assignment> safe_moves =
-        enumerate_bdd_satisfying_assignments(safe_sys, relevant_output_var_ids);
+    std::vector<Assignment> safe_moves = enumerate_bdd_satisfying_assignments(safe_sys, relevant_output_var_ids);
 
     Cudd_RecursiveDeref(cudd_->mgr, safe_sys);
 
@@ -245,59 +265,68 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
 // BDD-based Implementation (CUDD)
 //==============================================================================
 
-DdNode* BddManager::build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool) {
-    if (!f || !cudd_) {
-        return Cudd_ReadLogicZero(cudd_->mgr);  // Return FALSE (referenced)
+DdNode *BddManager::build_bdd_from_formula(formula::Formula *f, formula::FormulaPool &pool)
+{
+    if (!f || !cudd_)
+    {
+        return Cudd_ReadLogicZero(cudd_->mgr); // Return FALSE (referenced)
     }
 
     using OpType = formula::Formula::OpType;
 
-    switch (f->op()) {
+    switch (f->op())
+    {
         case OpType::True:
             return Cudd_ReadOne(cudd_->mgr);
 
         case OpType::False:
             return Cudd_ReadLogicZero(cudd_->mgr);
 
-        case OpType::Literal: {
+        case OpType::Literal:
+        {
             // Variable index in BDD
             int var_id = f->var_id();
-            DdNode* var = Cudd_bddIthVar(cudd_->mgr, var_id);
-            Cudd_Ref(var);  // Reference for caller
+            DdNode *var = Cudd_bddIthVar(cudd_->mgr, var_id);
+            Cudd_Ref(var); // Reference for caller
             return var;
         }
 
-        case OpType::Not: {
-            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
-            DdNode* result = Cudd_Not(left_bdd);
+        case OpType::Not:
+        {
+            DdNode *left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode *result = Cudd_Not(left_bdd);
             Cudd_Ref(result);
             Cudd_RecursiveDeref(cudd_->mgr, left_bdd);
             return result;
         }
 
-        case OpType::And: {
-            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
-            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+        case OpType::And:
+        {
+            DdNode *left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode *right_bdd = build_bdd_from_formula(f->right(), pool);
             return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddAnd);
         }
 
-        case OpType::Or: {
-            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
-            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+        case OpType::Or:
+        {
+            DdNode *left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode *right_bdd = build_bdd_from_formula(f->right(), pool);
             return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddOr);
         }
 
-        case OpType::Until: {
+        case OpType::Until:
+        {
             // Boolean Until: φ U ψ ≡ ψ ∨ φ
-            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
-            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode *left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode *right_bdd = build_bdd_from_formula(f->right(), pool);
             return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddOr);
         }
 
-        case OpType::Release: {
+        case OpType::Release:
+        {
             // Boolean Release: φ R ψ ≡ ψ ∧ φ
-            DdNode* left_bdd = build_bdd_from_formula(f->left(), pool);
-            DdNode* right_bdd = build_bdd_from_formula(f->right(), pool);
+            DdNode *left_bdd = build_bdd_from_formula(f->left(), pool);
+            DdNode *right_bdd = build_bdd_from_formula(f->right(), pool);
             return apply_binary_bdd_op(cudd_->mgr, left_bdd, right_bdd, Cudd_bddAnd);
         }
 
@@ -310,13 +339,13 @@ DdNode* BddManager::build_bdd_from_formula(formula::Formula* f, formula::Formula
     }
 }
 
-std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
-    DdNode* bdd,
-    const std::set<int>& relevant_var_ids) const {
-
+std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(DdNode *bdd,
+                                                                         const std::set<int> &relevant_var_ids) const
+{
     std::vector<Assignment> assignments;
 
-    if (!cudd_ || !bdd) {
+    if (!cudd_ || !bdd)
+    {
         return assignments;
     }
 
@@ -330,25 +359,31 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
 
     // Build cube of irrelevant variables (using AND)
     std::vector<int> irrelevant_var_ids;
-    for (int i = 0; i < num_variables_; ++i) {
-        if (relevant_var_ids.find(i) == relevant_var_ids.end()) {
+    for (int i = 0; i < num_variables_; ++i)
+    {
+        if (relevant_var_ids.find(i) == relevant_var_ids.end())
+        {
             irrelevant_var_ids.push_back(i);
         }
     }
-    DdNode* cube = build_and_cube(cudd_->mgr, irrelevant_var_ids);
+    DdNode *cube = build_and_cube(cudd_->mgr, irrelevant_var_ids);
 
     // Abstract away irrelevant variables
-    DdNode* abstracted = Cudd_bddExistAbstract(cudd_->mgr, bdd, cube);
+    DdNode *abstracted = Cudd_bddExistAbstract(cudd_->mgr, bdd, cube);
     Cudd_Ref(abstracted);
     Cudd_RecursiveDeref(cudd_->mgr, cube);
 
     // After abstraction, check result
-    if (n == 0) {
+    if (n == 0)
+    {
         // No relevant variables: abstracted must be TRUE or FALSE
         // (since we abstracted all variables)
-        if (abstracted == Cudd_ReadOne(cudd_->mgr)) {
+        if (abstracted == Cudd_ReadOne(cudd_->mgr))
+        {
             assignments.push_back({});
-        } else if (abstracted != Cudd_ReadLogicZero(cudd_->mgr)) {
+        }
+        else if (abstracted != Cudd_ReadLogicZero(cudd_->mgr))
+        {
             // Should never happen: after abstracting all variables,
             // result must be a constant (TRUE or FALSE)
             assert(false && "BDD after full abstraction must be TRUE or FALSE");
@@ -363,12 +398,13 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
     // Key insight: var_idx >= n is a NORMAL termination condition, not an error.
     // It means we've processed all relevant variables (var_ids[0..n-1]), so the
     // current assignment is complete and should be saved.
-    std::function<void(DdNode*, int, Assignment&)> enumerate =
-        [&](DdNode* node, int var_idx, Assignment& current) {
-        if (node == Cudd_ReadLogicZero(cudd_->mgr)) {
-            return;  // False branch - unsatisfiable
+    std::function<void(DdNode *, int, Assignment &)> enumerate = [&](DdNode *node, int var_idx, Assignment &current) {
+        if (node == Cudd_ReadLogicZero(cudd_->mgr))
+        {
+            return; // False branch - unsatisfiable
         }
-        if (node == Cudd_ReadOne(cudd_->mgr) || var_idx >= n) {
+        if (node == Cudd_ReadOne(cudd_->mgr) || var_idx >= n)
+        {
             // Terminated successfully: reached TRUE terminal OR processed all relevant vars
             assignments.push_back(current);
             return;
@@ -378,7 +414,8 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
         int bdd_var = Cudd_NodeReadIndex(node);
 
         // Find next relevant variable to process
-        while (var_idx < n && var_ids[var_idx] < bdd_var) {
+        while (var_idx < n && var_ids[var_idx] < bdd_var)
+        {
             // Variable var_ids[var_idx] doesn't appear in BDD (free variable)
             // It can be either 0 or 1 - enumerate both possibilities
             // First: try 0 (don't add to assignment)
@@ -392,16 +429,18 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
 
         // After while loop, either var_idx >= n (all vars processed, NORMAL)
         // or var_ids[var_idx] >= bdd_var (need to match BDD structure)
-        if (var_idx >= n) {
+        if (var_idx >= n)
+        {
             // All relevant variables processed - current assignment is complete
             assignments.push_back(current);
             return;
         }
 
-        if (var_ids[var_idx] == bdd_var) {
+        if (var_ids[var_idx] == bdd_var)
+        {
             // This variable is in the BDD
-            DdNode* then_branch = Cudd_T(node);
-            DdNode* else_branch = Cudd_E(node);
+            DdNode *then_branch = Cudd_T(node);
+            DdNode *else_branch = Cudd_E(node);
 
             // Try FALSE branch (else)
             enumerate(else_branch, var_idx + 1, current);
@@ -410,7 +449,9 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
             current.insert(var_ids[var_idx]);
             enumerate(then_branch, var_idx + 1, current);
             current.erase(var_ids[var_idx]);
-        } else {
+        }
+        else
+        {
             // var_ids[var_idx] > bdd_var, meaning bdd_var is not in relevant set
             // Skip it and continue with the then branch (since else would be 0)
             enumerate(node, var_idx, current);

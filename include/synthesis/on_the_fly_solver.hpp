@@ -13,14 +13,15 @@
 
 #include "automata/tableau.hpp"
 #include "formula/formula_pool.hpp"
-#include <unordered_map>
-#include <unordered_set>
-#include <vector>
+
 #include <functional>
+#include <memory>
 #include <optional>
 #include <sstream>
 #include <string>
-#include <memory>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
 
 namespace synthesis {
 
@@ -31,30 +32,38 @@ class BddManager;
 /**
  * @brief Player in the synthesis game
  */
-enum class Player {
-    System,      // System controls output variables
-    Environment  // Environment controls input variables
+enum class Player
+{
+    System,     // System controls output variables
+    Environment // Environment controls input variables
 };
 
 /**
  * @brief Classification of game states
  */
-enum class StateClass {
-    Unknown,  // Not yet classified
-    Swin,     // System winning (system can force a win)
-    Ewin,     // Environment winning (environment can force system loss)
-    Draw      // Not applicable for LTLf (finite traces)
+enum class StateClass
+{
+    Unknown, // Not yet classified
+    Swin,    // System winning (system can force a win)
+    Ewin,    // Environment winning (environment can force system loss)
+    Draw     // Not applicable for LTLf (finite traces)
 };
 
 /**
  * @brief Convert StateClass to string
  */
-inline const char* to_string(StateClass cls) {
-    switch (cls) {
-        case StateClass::Unknown: return "Unknown";
-        case StateClass::Swin: return "Swin";
-        case StateClass::Ewin: return "Ewin";
-        case StateClass::Draw: return "Draw";
+inline const char *to_string(StateClass cls)
+{
+    switch (cls)
+    {
+        case StateClass::Unknown:
+            return "Unknown";
+        case StateClass::Swin:
+            return "Swin";
+        case StateClass::Ewin:
+            return "Ewin";
+        case StateClass::Draw:
+            return "Draw";
     }
     return "?";
 }
@@ -62,10 +71,14 @@ inline const char* to_string(StateClass cls) {
 /**
  * @brief Convert Player to string
  */
-inline const char* to_string(Player player) {
-    switch (player) {
-        case Player::System: return "System";
-        case Player::Environment: return "Environment";
+inline const char *to_string(Player player)
+{
+    switch (player)
+    {
+        case Player::System:
+            return "System";
+        case Player::Environment:
+            return "Environment";
     }
     return "?";
 }
@@ -84,7 +97,7 @@ inline const char* to_string(Player player) {
  * - When player == Environment: system_chosen_output has value, environment_chosen_input is nullopt
  */
 struct GameState {
-    automata::TableauState* dfa_state;
+    automata::TableauState *dfa_state;
     Player player;
 
     // For environment turn, track the output assignment chosen by system
@@ -97,25 +110,30 @@ struct GameState {
 
     // Default constructor (for uninitialized states)
     GameState()
-        : dfa_state(nullptr), player(Player::System),
-          system_chosen_output(std::nullopt), environment_chosen_input(std::nullopt) {}
+        : dfa_state(nullptr),
+          player(Player::System),
+          system_chosen_output(std::nullopt),
+          environment_chosen_input(std::nullopt)
+    {
+    }
 
-    GameState(automata::TableauState* q, Player p,
-              const std::optional<automata::Assignment>& out = std::nullopt,
-              const std::optional<automata::Assignment>& in = std::nullopt)
-        : dfa_state(q), player(p), system_chosen_output(out), environment_chosen_input(in) {}
+    GameState(automata::TableauState *q,
+              Player p,
+              const std::optional<automata::Assignment> &out = std::nullopt,
+              const std::optional<automata::Assignment> &in = std::nullopt)
+        : dfa_state(q), player(p), system_chosen_output(out), environment_chosen_input(in)
+    {
+    }
 
-    bool operator==(const GameState& other) const {
+    bool operator==(const GameState &other) const
+    {
         // Note: environment_chosen_input is NOT part of identity
         // It's only stored for labeling the env move edge in DOT output
-        return dfa_state == other.dfa_state &&
-               player == other.player &&
-               system_chosen_output == other.system_chosen_output;
+        return dfa_state == other.dfa_state && player == other.player
+               && system_chosen_output == other.system_chosen_output;
     }
 
-    bool operator!=(const GameState& other) const {
-        return !(*this == other);
-    }
+    bool operator!=(const GameState &other) const { return !(*this == other); }
 
     std::string to_string() const;
 };
@@ -127,13 +145,16 @@ struct GameState {
  * It's only stored for labeling the env move edge in DOT output.
  */
 struct GameStateHash {
-    size_t operator()(const GameState& s) const {
+    size_t operator()(const GameState &s) const
+    {
         size_t h = reinterpret_cast<size_t>(s.dfa_state);
         h ^= (static_cast<size_t>(s.player) << 1);
         // Hash the output assignment if present
-        if (s.system_chosen_output.has_value()) {
-            for (int v : s.system_chosen_output.value()) {
-                h ^= std::hash<int>{}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        if (s.system_chosen_output.has_value())
+        {
+            for (int v : s.system_chosen_output.value())
+            {
+                h ^= std::hash<int> {}(v) + 0x9e3779b9 + (h << 6) + (h >> 2);
             }
         }
         // Note: environment_chosen_input is NOT hashed (not part of identity)
@@ -145,9 +166,7 @@ struct GameStateHash {
  * @brief Equality function for GameState
  */
 struct GameStateEqual {
-    bool operator()(const GameState& a, const GameState& b) const {
-        return a == b;
-    }
+    bool operator()(const GameState &a, const GameState &b) const { return a == b; }
 };
 
 /**
@@ -163,18 +182,23 @@ struct StateIdMap {
     std::unordered_map<std::string, GameState> from_id;
     size_t sys_count = 0;
     size_t env_count = 0;
-    formula::FormulaPool* pool = nullptr;  // For variable name lookup
+    formula::FormulaPool *pool = nullptr; // For variable name lookup
 
-    std::string get_id(const GameState& s) {
+    std::string get_id(const GameState &s)
+    {
         auto it = to_id.find(s);
-        if (it != to_id.end()) {
+        if (it != to_id.end())
+        {
             return it->second;
         }
 
         std::string id;
-        if (s.player == Player::System) {
+        if (s.player == Player::System)
+        {
             id = "S" + std::to_string(sys_count++);
-        } else {
+        }
+        else
+        {
             id = "E" + std::to_string(env_count++);
         }
 
@@ -197,11 +221,14 @@ struct StateIdMap {
      * @param prop_atoms Optional pointer to prop_atoms set to filter relevant variables
      * @return Label string with variable names
      */
-    std::string get_assignment_label(const automata::Assignment& a, bool is_output,
-                                     const automata::TableauState::FormulaSet* prop_atoms = nullptr) const {
-        if (!pool) return "{}";
+    std::string get_assignment_label(const automata::Assignment &a,
+                                     bool is_output,
+                                     const automata::TableauState::FormulaSet *prop_atoms = nullptr) const
+    {
+        if (!pool)
+            return "{}";
 
-        const auto& var_names = pool->get_all_variable_names();
+        const auto &var_names = pool->get_all_variable_names();
         int num_outputs = pool->num_outputs();
 
         // Build set of true variables for quick lookup
@@ -210,27 +237,37 @@ struct StateIdMap {
         // Collect relevant variable indices
         std::vector<int> relevant_vars;
 
-        if (prop_atoms && !prop_atoms->empty()) {
+        if (prop_atoms && !prop_atoms->empty())
+        {
             // Use prop_atoms to filter relevant variables
-            for (const auto* phi : *prop_atoms) {
-                if (phi && phi->op() == formula::Formula::OpType::Literal) {
+            for (const auto *phi : *prop_atoms)
+            {
+                if (phi && phi->op() == formula::Formula::OpType::Literal)
+                {
                     int var_id = phi->var_id();
                     // Check if this variable belongs to the correct category
-                    if (is_output && var_id >= 0 && var_id < num_outputs) {
+                    if (is_output && var_id >= 0 && var_id < num_outputs)
+                    {
                         // Output variable for sys move
                         relevant_vars.push_back(var_id);
-                    } else if (!is_output && var_id >= num_outputs && var_id < static_cast<int>(var_names.size())) {
+                    }
+                    else if (!is_output && var_id >= num_outputs && var_id < static_cast<int>(var_names.size()))
+                    {
                         // Input variable for env move
                         relevant_vars.push_back(var_id);
                     }
                 }
             }
-        } else {
+        }
+        else
+        {
             // Fallback: use all variables in the range (old behavior)
             int start_idx = is_output ? 0 : num_outputs;
             int end_idx = is_output ? num_outputs : static_cast<int>(var_names.size());
-            for (int idx : a) {
-                if (idx >= start_idx && idx < end_idx) {
+            for (int idx : a)
+            {
+                if (idx >= start_idx && idx < end_idx)
+                {
                     relevant_vars.push_back(idx);
                 }
             }
@@ -244,12 +281,17 @@ struct StateIdMap {
         oss << "{";
 
         bool first = true;
-        for (int idx : relevant_vars) {
-            if (!first) oss << ", ";
-            if (true_vars.count(idx)) {
-                oss << var_names[idx];  // TRUE: just variable name
-            } else {
-                oss << "!" << var_names[idx];  // FALSE: !variable name
+        for (int idx : relevant_vars)
+        {
+            if (!first)
+                oss << ", ";
+            if (true_vars.count(idx))
+            {
+                oss << var_names[idx]; // TRUE: just variable name
+            }
+            else
+            {
+                oss << "!" << var_names[idx]; // FALSE: !variable name
             }
             first = false;
         }
@@ -258,7 +300,8 @@ struct StateIdMap {
         return oss.str();
     }
 
-    void clear() {
+    void clear()
+    {
         to_id.clear();
         from_id.clear();
         sys_count = 0;
@@ -277,8 +320,9 @@ struct StateIdMap {
  * 5. Propagate classification backward
  * 6. Early exit if initial state is classified
  */
-class OnTheFlyGameSolver {
-public:
+class OnTheFlyGameSolver
+{
+  public:
     /**
      * @brief Construct solver
      * @param phi LTLf formula to synthesize
@@ -286,8 +330,7 @@ public:
      * @param num_outputs Number of output variables
      * @param num_inputs Number of input variables
      */
-    OnTheFlyGameSolver(formula::Formula* phi,
-                       formula::FormulaPool& pool);
+    OnTheFlyGameSolver(formula::Formula *phi, formula::FormulaPool &pool);
 
     /**
      * @brief Destructor (needed for unique_ptr<TraceExporter>)
@@ -303,7 +346,8 @@ public:
     /**
      * @brief Get classification of a state
      */
-    StateClass get_classification(const GameState& s) const {
+    StateClass get_classification(const GameState &s) const
+    {
         auto it = classification_.find(s);
         return it != classification_.end() ? it->second : StateClass::Unknown;
     }
@@ -321,28 +365,25 @@ public:
     /**
      * @brief Get the DFA
      */
-    const automata::OnTheFlyDFA& dfa() const { return dfa_; }
+    const automata::OnTheFlyDFA &dfa() const { return dfa_; }
 
     /**
      * @brief Get initial state
      */
-    const GameState& get_initial_state() const { return initial_state_; }
+    const GameState &get_initial_state() const { return initial_state_; }
 
     /**
      * @brief Get assignment generators (for strategy extraction)
      */
-    const automata::AssignmentGenerator& get_output_generator() const {
-        return output_gen_;
-    }
-    const automata::AssignmentGenerator& get_input_generator() const {
-        return input_gen_;
-    }
+    const automata::AssignmentGenerator &get_output_generator() const { return output_gen_; }
+    const automata::AssignmentGenerator &get_input_generator() const { return input_gen_; }
 
     /**
      * @brief Get successors of a state (for strategy extraction)
      * Returns nullptr if state not expanded
      */
-    const std::vector<GameState>* get_successors(const GameState& state) const {
+    const std::vector<GameState> *get_successors(const GameState &state) const
+    {
         auto it = successors_.find(state);
         return (it != successors_.end()) ? &it->second : nullptr;
     }
@@ -350,30 +391,38 @@ public:
     /**
      * @brief Get all successors map (for strategy extraction)
      */
-    const std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>&
-    get_all_successors() const { return successors_; }
+    const std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual> &get_all_successors()
+        const
+    {
+        return successors_;
+    }
 
     /**
      * @brief Get classification map (for strategy extraction)
      */
-    const std::unordered_map<GameState, StateClass, GameStateHash, GameStateEqual>&
-    get_classification() const { return classification_; }
+    const std::unordered_map<GameState, StateClass, GameStateHash, GameStateEqual> &get_classification() const
+    {
+        return classification_;
+    }
 
     /**
      * @brief Test interface: add a test transition (for unit testing SCC)
      * Allows building custom graph structures for testing the Tarjan algorithm.
      * Note: This appends to existing successors rather than replacing them.
      */
-    void add_test_transition(const GameState& from, const std::vector<GameState>& to) {
-        auto& existing = successors_[from];
+    void add_test_transition(const GameState &from, const std::vector<GameState> &to)
+    {
+        auto &existing = successors_[from];
         existing.insert(existing.end(), to.begin(), to.end());
     }
 
     /**
      * @brief Test interface: get all successors map
      */
-    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>&
-    get_successors_map() { return successors_; }
+    std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual> &get_successors_map()
+    {
+        return successors_;
+    }
 
     /**
      * @brief Test interface: run Tarjan SCC algorithm on current graph
@@ -404,7 +453,7 @@ public:
      *
      * @param output_dir Directory to write trace files (uses default if empty)
      */
-    void enable_trace(const std::string& output_dir = "");
+    void enable_trace(const std::string &output_dir = "");
 
     /**
      * @brief Check if tracing is enabled
@@ -414,7 +463,7 @@ public:
     /**
      * @brief Get the formula pool (for TraceExporter)
      */
-    formula::FormulaPool& get_pool() const { return pool_; }
+    formula::FormulaPool &get_pool() const { return pool_; }
 
     //==========================================================================
     // Iterators for TraceExporter (internal use)
@@ -423,7 +472,8 @@ public:
     /**
      * @brief Iterator type for state-successor pairs
      */
-    using const_iterator = typename std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>::const_iterator;
+    using const_iterator =
+        typename std::unordered_map<GameState, std::vector<GameState>, GameStateHash, GameStateEqual>::const_iterator;
 
     /**
      * @brief Begin iterator over state->successors map
@@ -435,10 +485,10 @@ public:
      */
     const_iterator end() const { return successors_.end(); }
 
-private:
+  private:
     // Formula and pool
-    formula::FormulaPool& pool_;
-    formula::Formula* original_formula_;
+    formula::FormulaPool &pool_;
+    formula::Formula *original_formula_;
 
     // DFA and assignment generation
     automata::OnTheFlyDFA dfa_;
@@ -475,12 +525,12 @@ private:
     /**
      * @brief Expand a game state (compute successors)
      */
-    void expand_state(const GameState& state);
+    void expand_state(const GameState &state);
 
     /**
      * @brief Get successors of a state (computes if not cached)
      */
-    const std::vector<GameState>& get_successors(const GameState& state);
+    const std::vector<GameState> &get_successors(const GameState &state);
 
     /**
      * @brief Get full-round successors (sys move + env move) from a System state
@@ -494,7 +544,7 @@ private:
      * @param sys_state A System state (asserts player == System)
      * @return Vector of System states after complete sys+env moves
      */
-    std::vector<GameState> get_full_round_successors(const GameState& sys_state);
+    std::vector<GameState> get_full_round_successors(const GameState &sys_state);
 
     /**
      * @brief Run Tarjan SCC algorithm on current graph
@@ -513,7 +563,7 @@ private:
      * @param q The TableauState to check
      * @return true if the state can be satisfied by the empty string
      */
-    bool is_empty_string_accepting(automata::TableauState* q) const;
+    bool is_empty_string_accepting(automata::TableauState *q) const;
 
     /**
      * @brief Classify an SCC using fixed-point iteration
@@ -527,12 +577,13 @@ private:
      * @param scc The SCC to classify (list of states)
      * @return true if all states in SCC were classified
      */
-    bool classify_scc(const std::vector<GameState>& scc);
+    bool classify_scc(const std::vector<GameState> &scc);
 
     /**
      * @brief Check if initial state is classified
      */
-    bool is_initial_classified() const {
+    bool is_initial_classified() const
+    {
         auto it = classification_.find(initial_state_);
         return it != classification_.end();
     }
@@ -540,7 +591,8 @@ private:
     /**
      * @brief Get initial state classification
      */
-    StateClass get_initial_classification() const {
+    StateClass get_initial_classification() const
+    {
         auto it = classification_.find(initial_state_);
         return it != classification_.end() ? it->second : StateClass::Unknown;
     }
@@ -550,16 +602,16 @@ private:
      * @param q DFA state
      * @param in Input assignment chosen by environment (optional, nullopt for initial state)
      */
-    GameState system_state(automata::TableauState* q,
-                          const std::optional<automata::Assignment>& in = std::nullopt) {
+    GameState system_state(automata::TableauState *q, const std::optional<automata::Assignment> &in = std::nullopt)
+    {
         return GameState(q, Player::System, std::nullopt, in);
     }
 
     /**
      * @brief Create environment turn state with output
      */
-    GameState environment_state(automata::TableauState* q,
-                                const automata::Assignment& out) {
+    GameState environment_state(automata::TableauState *q, const automata::Assignment &out)
+    {
         return GameState(q, Player::Environment, out);
     }
 };
