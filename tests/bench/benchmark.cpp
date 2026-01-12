@@ -107,31 +107,33 @@ std::optional<bool> read_expected_result(const std::string& base_dir, int bench_
     return std::nullopt;
 }
 
+struct Benchmark {
+    std::string formula;
+    io::Partition partition;
+};
+
 /**
  * @brief Read benchmark file (formula + partition) from specific directory
+ * @return Benchmark with error message in formula on failure
  */
-bool read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num,
-                              std::string& formula_str,
-                              std::vector<std::string>& outputs,
-                              std::vector<std::string>& inputs) {
+Benchmark read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num) {
     std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
     std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
 
     // Read formula
     auto formula_content = read_file_opt(ltlf_file);
     if (!formula_content) {
-        return false;
+        return Benchmark{/*formula=*/"ERROR: Cannot read " + ltlf_file, /*partition=*/{}};
     }
-    formula_str = trim(*formula_content);
 
-    // Read partition
+    // Read partition (optional - missing partition file is ok)
     auto partition = parse_partition_file(part_file);
-    if (partition) {
-        outputs = partition->outputs;
-        inputs = partition->inputs;
+    if (!partition) {
+        // Missing partition is not an error - use empty partition
+        return Benchmark{trim(*formula_content), {}};
     }
 
-    return true;
+    return Benchmark{trim(*formula_content), *partition};
 }
 
 } // anonymous namespace
@@ -363,22 +365,24 @@ public:
             auto start = std::chrono::high_resolution_clock::now();
 
             // Read benchmark
-            std::string formula_str;
-            std::vector<std::string> outputs, inputs;
-            if (!read_benchmark_from_dir(
-                base_dir_, bench_dir, formula_index, formula_str, outputs, inputs))
-            {
+            Benchmark benchmark = read_benchmark_from_dir(base_dir_, bench_dir, formula_index);
+
+            // Check for error (formula starts with "ERROR:")
+            if (benchmark.formula.substr(0, 5) == "ERROR") {
                 result.success = false;
-                result.error_msg = "file not found";
+                result.error_msg = benchmark.formula;
             } else {
+                const auto& outputs = benchmark.partition.outputs;
+                const auto& inputs = benchmark.partition.inputs;
+
                 // Parse formula
                 FormulaPool pool;
-                Formula* f = parse_formula(formula_str, pool);
+                Formula* f = parse_formula(benchmark.formula, pool);
 
                 if (!f) {
                     auto end = std::chrono::high_resolution_clock::now();
                     result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                    result.formula_str = formula_str;
+                    result.formula_str = benchmark.formula;
                     result.partition_str = make_partition_string(inputs, outputs);
                     result.success = false;
                     result.error_msg = "parse error";
@@ -391,7 +395,7 @@ public:
 
                     auto end = std::chrono::high_resolution_clock::now();
                     result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                    result.formula_str = formula_str;
+                    result.formula_str = benchmark.formula;
                     result.partition_str = make_partition_string(inputs, outputs);
                     result.success = true;
                     result.realizable = realizable;

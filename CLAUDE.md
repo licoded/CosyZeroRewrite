@@ -598,6 +598,32 @@ Cosy 对 `.part` 文件有严格的格式要求：
 - 使用 Cosy 验证边界案例
 - 不要盲目全量跑，浪费时间
 
+### 开发环境配置 (2026-01-12)
+
+**网络代理配置**（用于下载国外资源）：
+
+```bash
+# 临时设置代理（当前终端会话）
+export http_proxy=http://localhost:7897
+export https_proxy=http://localhost:7897
+export all_proxy=socks5://localhost:7897
+
+# 或使用 curl/wget 时指定代理
+curl -x http://localhost:7897 <url>
+wget -e "http_proxy=http://localhost:7897" <url>
+
+# git 代理配置
+git config --global http.proxy http://localhost:7897
+git config --global https.proxy http://localhost:7897
+```
+
+**取消代理**：
+```bash
+unset http_proxy https_proxy all_proxy
+git config --global --unset http.proxy
+git config --global --unset https.proxy
+```
+
 ### 复杂问题协作 (working_issues)
 
 对于需要深入调查的复杂 bug，使用 `docs/working_issues/` 目录进行协作追踪：
