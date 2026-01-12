@@ -707,148 +707,136 @@ std::string TraceExporter::format_assignment_label(const GameState& state,
 // JSON Writing (using nlohmann/json)
 //==============================================================================
 
-void TraceExporter::write_json() {
-    using json = nlohmann::json;
+nlohmann::json TraceExporter::state_to_json(const StateData& data) const {
+    nlohmann::json j;
+    j["id"] = data.id;
+    j["classification"] = to_string(data.classification);
+    j["type"] = to_string(data.type);
+    j["is_initial"] = data.is_initial;
+    j["phi"] = data.phi;
+    j["xnf_phi"] = data.xnf_phi;
+    j["prop_atoms"] = data.prop_atoms;
+    return j;
+}
 
-    // Build root JSON object
-    json root;
+nlohmann::json TraceExporter::highlights_to_json(const SubStepHighlights& h) const {
+    nlohmann::json j;
 
-    // Formula
-    if (formula_) {
-        root["formula"] = formula_->to_string_with_names(pool_);
-    } else {
-        root["formula"] = nullptr;
+    if (!h.new_nodes.empty()) j["new_nodes"] = h.new_nodes;
+    if (!h.scc_nodes.empty()) j["scc_nodes"] = h.scc_nodes;
+    if (!h.pending_nodes.empty()) j["pending_nodes"] = h.pending_nodes;
+    if (!h.updated_nodes.empty()) j["updated_nodes"] = h.updated_nodes;
+    if (!h.attractor_nodes.empty()) j["attractor_nodes"] = h.attractor_nodes;
+    if (!h.scc_id.empty()) j["scc_id"] = h.scc_id;
+
+    if (!h.new_edges.empty()) {
+        nlohmann::json edges = nlohmann::json::array();
+        for (const auto& e : h.new_edges) {
+            nlohmann::json edge;
+            edge["from"] = e.from;
+            edge["to"] = e.to;
+            if (!e.label.empty()) edge["label"] = e.label;
+            if (!e.type.empty()) edge["type"] = e.type;
+            edges.push_back(edge);
+        }
+        j["new_edges"] = edges;
     }
 
-    // Timestamp
+    return j;
+}
+
+nlohmann::json TraceExporter::step_to_json(const SubStep& step) const {
+    nlohmann::json j;
+    j["step_id"] = step.step_id;
+    j["description"] = step.description;
+
+    // Graph data
+    j["graph_data"]["dot"] = step.graph_data.dot;
+    j["graph_data"]["num_nodes"] = step.graph_data.num_nodes;
+    j["graph_data"]["num_edges"] = step.graph_data.num_edges;
+
+    if (!step.graph_data.state_data.empty()) {
+        nlohmann::json state_data;
+        for (const auto& pair : step.graph_data.state_data) {
+            state_data[pair.first] = state_to_json(pair.second);
+        }
+        j["graph_data"]["state_data"] = state_data;
+    }
+
+    // Highlights
+    j["highlights"] = highlights_to_json(step.highlights);
+
+    // State info
+    j["state_info"]["swin_count"] = step.state_info.swin_count;
+    j["state_info"]["ewin_count"] = step.state_info.ewin_count;
+    j["state_info"]["unknown_count"] = step.state_info.unknown_count;
+    j["state_info"]["total_states"] = step.state_info.total_states;
+    if (step.state_info.current_scc >= 0) {
+        j["state_info"]["current_scc"] = step.state_info.current_scc;
+    }
+
+    // Metrics
+    j["metrics"]["duration_ms"] = step.metrics.duration_ms;
+    if (step.metrics.memory_kb > 0) {
+        j["metrics"]["memory_kb"] = step.metrics.memory_kb;
+    }
+
+    return j;
+}
+
+nlohmann::json TraceExporter::stage_to_json(const TraceStage& stage) const {
+    nlohmann::json j;
+    j["stage_id"] = stage.stage_id;
+    j["stage_type"] = stage.stage_type;
+    j["description"] = stage.description;
+
+    nlohmann::json sub_steps = nlohmann::json::array();
+    for (const auto& step : stage.sub_steps) {
+        sub_steps.push_back(step_to_json(step));
+    }
+    j["sub_steps"] = sub_steps;
+
+    return j;
+}
+
+nlohmann::json TraceExporter::summary_to_json() const {
+    nlohmann::json j;
+    j["total_steps"] = step_counter_;
+
+    nlohmann::json stages_summary = nlohmann::json::array();
+    for (const auto& stage : stages_) {
+        nlohmann::json s;
+        s["stage_type"] = stage.stage_type;
+        s["steps_count"] = static_cast<int>(stage.sub_steps.size());
+        stages_summary.push_back(s);
+    }
+    j["stages_summary"] = stages_summary;
+
+    return j;
+}
+
+void TraceExporter::write_json() {
+    nlohmann::json root;
+
+    root["formula"] = formula_ ? formula_->to_string_with_names(pool_) : nullptr;
     root["timestamp"] = get_timestamp();
 
-    // Partition (input/output variable names)
     auto [outputs, inputs] = pool_.get_variable_partition();
     root["partition"] = {{"outputs", outputs}, {"inputs", inputs}};
 
-    // Build stages array
-    json stages_array = json::array();
+    nlohmann::json stages = nlohmann::json::array();
     for (const auto& stage : stages_) {
-        json stage_obj;
-        stage_obj["stage_id"] = stage.stage_id;
-        stage_obj["stage_type"] = stage.stage_type;
-        stage_obj["description"] = stage.description;
-
-        // Build sub_steps array
-        json sub_steps_array = json::array();
-        for (const auto& step : stage.sub_steps) {
-            json step_obj;
-            step_obj["step_id"] = step.step_id;
-            step_obj["description"] = step.description;
-
-            // Graph data
-            json graph_data_obj;
-            graph_data_obj["dot"] = step.graph_data.dot;
-            graph_data_obj["num_nodes"] = step.graph_data.num_nodes;
-            graph_data_obj["num_edges"] = step.graph_data.num_edges;
-
-            // Add state_data only if non-empty
-            if (!step.graph_data.state_data.empty()) {
-                json state_data_obj;
-                for (const auto& pair : step.graph_data.state_data) {
-                    const StateData& data = pair.second;
-                    json data_obj;
-                    data_obj["id"] = data.id;
-                    data_obj["classification"] = to_string(data.classification);
-                    data_obj["type"] = to_string(data.type);
-                    data_obj["is_initial"] = data.is_initial;
-                    data_obj["phi"] = data.phi;
-                    data_obj["xnf_phi"] = data.xnf_phi;
-                    data_obj["prop_atoms"] = data.prop_atoms;
-                    state_data_obj[data.id] = data_obj;
-                }
-                graph_data_obj["state_data"] = state_data_obj;
-            }
-            step_obj["graph_data"] = graph_data_obj;
-
-            // Highlights
-            json highlights_obj;
-            if (!step.highlights.new_nodes.empty()) {
-                highlights_obj["new_nodes"] = step.highlights.new_nodes;
-            }
-            if (!step.highlights.new_edges.empty()) {
-                json edges_array = json::array();
-                for (const auto& e : step.highlights.new_edges) {
-                    json edge_obj;
-                    edge_obj["from"] = e.from;
-                    edge_obj["to"] = e.to;
-                    if (!e.label.empty()) edge_obj["label"] = e.label;
-                    if (!e.type.empty()) edge_obj["type"] = e.type;
-                    edges_array.push_back(edge_obj);
-                }
-                highlights_obj["new_edges"] = edges_array;
-            }
-            if (!step.highlights.scc_nodes.empty()) {
-                highlights_obj["scc_nodes"] = step.highlights.scc_nodes;
-            }
-            if (!step.highlights.pending_nodes.empty()) {
-                highlights_obj["pending_nodes"] = step.highlights.pending_nodes;
-            }
-            if (!step.highlights.updated_nodes.empty()) {
-                highlights_obj["updated_nodes"] = step.highlights.updated_nodes;
-            }
-            if (!step.highlights.attractor_nodes.empty()) {
-                highlights_obj["attractor_nodes"] = step.highlights.attractor_nodes;
-            }
-            if (!step.highlights.scc_id.empty()) {
-                highlights_obj["scc_id"] = step.highlights.scc_id;
-            }
-            step_obj["highlights"] = highlights_obj;
-
-            // State info
-            json state_info_obj;
-            state_info_obj["swin_count"] = step.state_info.swin_count;
-            state_info_obj["ewin_count"] = step.state_info.ewin_count;
-            state_info_obj["unknown_count"] = step.state_info.unknown_count;
-            state_info_obj["total_states"] = step.state_info.total_states;
-            if (step.state_info.current_scc >= 0) {
-                state_info_obj["current_scc"] = step.state_info.current_scc;
-            }
-            step_obj["state_info"] = state_info_obj;
-
-            // Metrics
-            json metrics_obj;
-            metrics_obj["duration_ms"] = step.metrics.duration_ms;
-            if (step.metrics.memory_kb > 0) {
-                metrics_obj["memory_kb"] = step.metrics.memory_kb;
-            }
-            step_obj["metrics"] = metrics_obj;
-
-            sub_steps_array.push_back(step_obj);
-        }
-        stage_obj["sub_steps"] = sub_steps_array;
-        stages_array.push_back(stage_obj);
+        stages.push_back(stage_to_json(stage));
     }
-    root["stages"] = stages_array;
+    root["stages"] = stages;
+    root["summary"] = summary_to_json();
 
-    // Summary
-    json summary_obj;
-    summary_obj["total_steps"] = step_counter_;
-    // Note: realizable is determined from final step's initial state classification
-    json stages_summary_array = json::array();
-    for (const auto& stage : stages_) {
-        json stage_summary;
-        stage_summary["stage_type"] = stage.stage_type;
-        stage_summary["steps_count"] = static_cast<int>(stage.sub_steps.size());
-        stages_summary_array.push_back(stage_summary);
-    }
-    summary_obj["stages_summary"] = stages_summary_array;
-    root["summary"] = summary_obj;
-
-    // Write to file with pretty printing (4-space indent)
     std::ofstream out(output_path_);
     if (!out.is_open()) {
         LOG_ERROR("Failed to open trace file for writing: {}", output_path_);
         return;
     }
     out << root.dump(2) << std::endl;
-    out.close();
 }
 
 //==============================================================================

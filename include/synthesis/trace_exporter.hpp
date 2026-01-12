@@ -12,6 +12,7 @@
 
 #include "synthesis/on_the_fly_solver.hpp"
 #include "formula/formula_pool.hpp"
+#include <nlohmann/json.hpp>
 #include <string>
 #include <vector>
 #include <unordered_map>
@@ -421,7 +422,12 @@ private:
     std::string format_assignment_label(const GameState& state,
                                         const GameState& succ);
 
-    // JSON writing (using nlohmann/json library)
+    // JSON writing helpers
+    nlohmann::json state_to_json(const StateData& data) const;
+    nlohmann::json highlights_to_json(const SubStepHighlights& h) const;
+    nlohmann::json step_to_json(const SubStep& step) const;
+    nlohmann::json stage_to_json(const TraceStage& stage) const;
+    nlohmann::json summary_to_json() const;
     void write_json();
 };
 
