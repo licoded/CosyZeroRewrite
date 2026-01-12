@@ -32,10 +32,6 @@
 
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
-
-// fmt for clean output
-#include <fmt/core.h>
-
 #include <iostream>
 #include <iomanip>
 #include <chrono>
@@ -216,8 +212,6 @@ public:
         std::set<int> active_formula_indexs;
         std::atomic<int> completed{0};
         std::atomic<int> failed{0};
-        std::atomic<int> next_task_index{0};
-
         // Lambda to process a single formula
         auto process_formula = [&](int bench_dir, int formula_index) -> TaskResult {
             TaskResult result;
@@ -275,7 +269,7 @@ public:
             }
 
             // Update progress
-            int c = ++completed;
+            ++completed;
             if (!result.success) {
                 ++failed;
             }
@@ -378,13 +372,13 @@ static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
 // ============================================================================
 
 static void print_banner(const BenchmarkConfig& config) {
-    fmt::print("========================================\n");
-    fmt::print("  SMv2 Benchmark Runner (Parallel)\n");
-    fmt::print("========================================\n");
-    fmt::print("Base directory: {}\n", config.base_dir);
-    fmt::print("Bench directories: {}\n", config.bench_spec);
-    fmt::print("Formula range: f{} to f{}\n", config.start_num, config.end_num);
-    fmt::print("Parallel jobs: {}\n\n", config.num_jobs);
+    NOP_LOG_INFO("========================================");
+    NOP_LOG_INFO("  SMv2 Benchmark Runner (Parallel)");
+    NOP_LOG_INFO("========================================");
+    NOP_LOG_INFO("Base directory: {}", config.base_dir);
+    NOP_LOG_INFO("Bench directories: {}", config.bench_spec);
+    NOP_LOG_INFO("Formula range: f{} to f{}", config.start_num, config.end_num);
+    NOP_LOG_INFO("Parallel jobs: {}", config.num_jobs);
 }
 
 // ============================================================================
@@ -406,26 +400,26 @@ static void print_summary(const BenchmarkStats& stats) {
     const int failed = stats.total_count - stats.parsed;
     const int not_found = stats.total_count - stats.found_results;
 
-    fmt::print("\n========== Summary ==========\n");
-    fmt::print("Parsed: {}\n", stats.parsed);
-    fmt::print("Failed parse: {}\n", failed);
-    fmt::print("Realizable: {}\n", stats.realizable);
-    fmt::print("Unrealizable: {}\n", stats.unrealizable);
-    fmt::print("Results found: {}\n", stats.found_results);
-    fmt::print("Results not found: {}\n", not_found);
-    fmt::print("Total formulas: {}\n", stats.total_count);
-    fmt::print("Wall time: {:.2f}ms\n", stats.wall_time_ms);
-    fmt::print("CPU time: {:.2f}ms\n", stats.total_time_ms);
+    NOP_LOG_INFO("========== Summary ==========");
+    NOP_LOG_INFO("Parsed: {}", stats.parsed);
+    NOP_LOG_INFO("Failed parse: {}", failed);
+    NOP_LOG_INFO("Realizable: {}", stats.realizable);
+    NOP_LOG_INFO("Unrealizable: {}", stats.unrealizable);
+    NOP_LOG_INFO("Results found: {}", stats.found_results);
+    NOP_LOG_INFO("Results not found: {}", not_found);
+    NOP_LOG_INFO("Total formulas: {}", stats.total_count);
+    NOP_LOG_INFO("Wall time: {:.2f}ms", stats.wall_time_ms);
+    NOP_LOG_INFO("CPU time: {:.2f}ms", stats.total_time_ms);
     if (stats.total_count > 0) {
-        fmt::print("Speedup: {:.2f}x\n", stats.total_time_ms / stats.wall_time_ms);
+        NOP_LOG_INFO("Speedup: {:.2f}x", stats.total_time_ms / stats.wall_time_ms);
     }
-    fmt::print("Avg time per formula: {:.3f}ms\n",
+    NOP_LOG_INFO("Avg time per formula: {:.3f}ms",
               stats.total_count > 0 ? stats.total_time_ms / stats.total_count : 0);
 
     if (failed == 0) {
-        fmt::print("Status: ALL TESTS PASSED\n");
+        NOP_LOG_INFO("Status: ALL TESTS PASSED");
     } else {
-        fmt::print("Status: SOME TESTS FAILED\n");
+        NOP_LOG_INFO("Status: SOME TESTS FAILED");
     }
 }
 
@@ -496,14 +490,14 @@ int main(int argc, char* argv[]) {
             if (r.realizable.has_value()) {
                 result_str = r.realizable.value() ? "REALIZABLE" : "UNREALIZABLE";
             }
-            fmt::print("OK: bench{}/f{} ({}ms) {}\n",
+            NOP_LOG_INFO("OK: bench{}/f{} ({}ms) {}",
                        r.bench_dir, r.formula_index, r.elapsed_ms, result_str);
         } else {
-            fmt::print("FAIL: bench{}/f{} ({})\n",
+            NOP_LOG_INFO("FAIL: bench{}/f{} ({})",
                        r.bench_dir, r.formula_index, r.error_msg);
         }
-        fmt::print("  Formula: {}\n", r.formula_str);
-        fmt::print("  Partition: {}\n\n", r.partition_str);
+        NOP_LOG_INFO("  Formula: {}", r.formula_str);
+        NOP_LOG_INFO("  Partition: {}", r.partition_str);
     }
 
     // ============================================================================
@@ -516,5 +510,5 @@ int main(int argc, char* argv[]) {
     logger::Logger::instance().logger()->flush();
     spdlog::shutdown();
 
-    return (stats.total_count > stats.parsed) ? 1 : 0;
+    return (static_cast<int>(stats.total_count) > stats.parsed) ? 1 : 0;
 }
