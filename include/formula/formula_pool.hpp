@@ -177,6 +177,32 @@ public:
     }
 
     /**
+     * @brief Get variable partition (outputs and inputs)
+     * @return Pair of {output_names, input_names}
+     *
+     * Variables are indexed: outputs (0 to num_outputs-1), inputs (num_outputs to num_outputs+num_inputs-1)
+     */
+    std::pair<std::vector<std::string>, std::vector<std::string>> get_variable_partition() const {
+        std::vector<std::string> outputs;
+        std::vector<std::string> inputs;
+
+        const int n_outputs = num_outputs_;
+        const int n_inputs = num_inputs_;
+        const int n_vars = static_cast<int>(var_names_.size());
+
+        // Outputs are first (0 to num_outputs-1)
+        for (int i = 0; i < n_outputs && i < n_vars; ++i) {
+            outputs.push_back(var_names_[i]);
+        }
+        // Inputs come after outputs (num_outputs to num_outputs+num_inputs-1)
+        for (int i = n_outputs; i < n_outputs + n_inputs && i < n_vars; ++i) {
+            inputs.push_back(var_names_[i]);
+        }
+
+        return {outputs, inputs};
+    }
+
+    /**
      * @brief Get or auto-declare a variable (for parser convenience)
      * @param name Variable name
      * @return Variable ID (auto-declared as output if not exists)
