@@ -23,13 +23,7 @@ using namespace synthesis;
 
 // Helper function to check realizability using OnTheFlyGameSolver
 static bool check_realizable(Formula* phi, FormulaPool& pool) {
-    int num_outputs = pool.num_outputs();
-    int num_inputs = pool.num_inputs();
-    // If variables not declared, extract them from the formula
-    if (num_outputs == 0 && num_inputs == 0) {
-        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
-    }
-    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    OnTheFlyGameSolver solver(phi, pool);
     return solver.is_realizable();
 }
 

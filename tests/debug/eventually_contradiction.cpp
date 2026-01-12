@@ -47,7 +47,7 @@ int main() {
         sink->set_level(spdlog::level::debug);
     }
 
-    OnTheFlyGameSolver solver(fand, pool, 1, 0);
+    OnTheFlyGameSolver solver(fand, pool);
     bool result = solver.is_realizable();
 
     std::cout << "\n=== Result ===" << std::endl;

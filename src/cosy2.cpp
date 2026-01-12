@@ -158,11 +158,6 @@ Formula* parse_formula(const std::string& formula_str,
                         FormulaPool& pool,
                         const Partition& partition,
                         const Config& config) {
-    if (!partition.outputs.empty() || !partition.inputs.empty()) {
-        pool.declare_variables(partition.outputs, partition.inputs);
-        NOP_LOG_INFO("Variables declared: {} outputs, {} inputs", pool.num_outputs(), pool.num_inputs());
-    }
-
     FormulaParser parser(pool);
     Formula* phi = parser.parse(formula_str);
 
@@ -171,6 +166,23 @@ Formula* parse_formula(const std::string& formula_str,
         NOP_LOG_ERROR("Parser error: {}", parser.error());
         return nullptr;
     }
+
+    if (partition.outputs.empty() && partition.inputs.empty()) {
+        // No partition provided: collect variables from formula
+        auto var_ids = Formula::collect_variables(phi);
+
+        std::vector<std::string> outputs;
+        outputs.reserve(var_ids.size());
+        std::transform(var_ids.begin(), var_ids.end(),
+                       std::back_inserter(outputs),
+                       [&](int id)
+                       { return pool.get_variable_name(id); });
+
+        pool.declare_variables(outputs, {});
+    } else {
+        pool.declare_variables(partition.outputs, partition.inputs);
+    }
+    NOP_LOG_INFO("Variables declared: {} outputs, {} inputs", pool.num_outputs(), pool.num_inputs());
 
     if (!config.quiet) {
         LOG_DEBUG("Parsed: {}", phi->to_string());
@@ -190,18 +202,11 @@ Formula* parse_formula(const std::string& formula_str,
 bool run_synthesis(Formula* phi, FormulaPool& pool, const Config& config) {
     NOP_LOG_INFO("Running on-the-fly synthesis...");
 
-    int num_outputs = pool.num_outputs();
-    int num_inputs = pool.num_inputs();
-
-    if (num_outputs == 0 && num_inputs == 0) {
-        num_outputs = static_cast<int>(Formula::collect_variables(phi).size());
-    }
-
-    OnTheFlyGameSolver solver(phi, pool, num_outputs, num_inputs);
+    OnTheFlyGameSolver solver(phi, pool);
 
     if (!config.trace_dir.empty()) {
         solver.enable_trace(config.trace_dir);
-        LOG_DEBUG("Trace recording enabled...");
+        NOP_LOG_INFO("Trace recording enabled...");
     }
 
     return solver.is_realizable();

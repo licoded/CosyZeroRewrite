@@ -240,7 +240,7 @@ public:
                     // Declare variables and run synthesis
                     pool.declare_variables(outputs, inputs);
 
-                    synthesis::OnTheFlyGameSolver solver(f, pool, outputs.size(), inputs.size());
+                    synthesis::OnTheFlyGameSolver solver(f, pool);
                     bool realizable = solver.is_realizable();
 
                     auto end = std::chrono::high_resolution_clock::now();

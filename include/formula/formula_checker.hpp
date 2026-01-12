@@ -160,7 +160,6 @@ private:
     static bool check_xnf_recursive(Formula* f, std::unordered_set<Formula*>& visited, bool inside_next);
 
     // Analysis helpers
-    static void collect_variables(Formula* f, std::unordered_set<int>& vars);
     static void collect_literals(Formula* f, std::vector<Formula*>& literals);
     static void collect_primitives(Formula* f, std::unordered_set<Formula*>& primitives);
     static size_t compute_depth(Formula* f);

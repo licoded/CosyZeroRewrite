@@ -218,9 +218,7 @@ size_t FormulaChecker::formula_depth(Formula* f) {
 }
 
 std::unordered_set<int> FormulaChecker::get_variables(Formula* f) {
-    std::unordered_set<int> vars;
-    collect_variables(f, vars);
-    return vars;
+    return Formula::collect_variables(f);
 }
 
 std::vector<Formula*> FormulaChecker::get_literals(Formula* f) {
@@ -320,22 +318,6 @@ void FormulaChecker::generate_assignments(const std::unordered_set<int>& vars,
     current.true_vars.insert(var);
     generate_assignments(vars, index + 1, var_list, current, result);
     current.true_vars.erase(var);
-}
-
-void FormulaChecker::collect_variables(Formula* f, std::unordered_set<int>& vars) {
-    if (!f) return;
-
-    if (f->is_literal()) {
-        vars.insert(f->var_id());
-        return;
-    }
-
-    if (f->left()) {
-        collect_variables(f->left(), vars);
-    }
-    if (f->right()) {
-        collect_variables(f->right(), vars);
-    }
 }
 
 void FormulaChecker::collect_literals(Formula* f, std::vector<Formula*>& literals) {

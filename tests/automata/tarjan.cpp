@@ -83,7 +83,7 @@ TEST_CASE("Tarjan SCC: Single Node", "[tarjan][scc][basic]") {
     // Expected: 1 SCC of size 1
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     // Manually build a simple graph with one state
     auto s0 = make_state(0, Player::System);
@@ -104,7 +104,7 @@ TEST_CASE("Tarjan SCC: Linear Chain", "[tarjan][scc][basic]") {
     // Expected: 4 SCCs of size 1 (each node is its own SCC)
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto s0 = make_state(0, Player::System);
     auto s1 = make_state(1, Player::Environment);
@@ -132,7 +132,7 @@ TEST_CASE("Tarjan SCC: Simple Cycle", "[tarjan][scc][cycle]") {
     // Expected: 1 SCC of size 3
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto s0 = make_state(0, Player::System);
     auto s1 = make_state(1, Player::Environment);
@@ -162,7 +162,7 @@ TEST_CASE("Tarjan SCC: Two Connected Cycles", "[tarjan][scc][cycle]") {
     // Expected: 2 SCCs of size 2
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto s0 = make_state(0, Player::System);    // a
     auto s1 = make_state(1, Player::Environment); // b
@@ -200,7 +200,7 @@ TEST_CASE("Tarjan SCC: Self-Loop", "[tarjan][scc][basic]") {
     // Expected: 1 SCC of size 1
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto s0 = make_state(0, Player::System);
     solver.add_test_transition(s0, {s0});
@@ -223,7 +223,7 @@ TEST_CASE("Tarjan SCC: Complex DAG", "[tarjan][scc][dag]") {
     // Expected: 5 SCCs of size 1 (no cycles)
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sa = make_state(0, Player::System);
     auto sb = make_state(1, Player::Environment);
@@ -256,7 +256,7 @@ TEST_CASE("Tarjan SCC: Cross Pattern", "[tarjan][scc][dag]") {
     // Expected: 4 SCCs of size 1
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sa = make_state(0, Player::System);
     auto sb = make_state(1, Player::Environment);
@@ -294,7 +294,7 @@ TEST_CASE("Tarjan SCC: Diamond with Cycle Inside", "[tarjan][scc][complex]") {
     // Total: 3 SCCs
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sa = make_state(0, Player::System);
     auto sb = make_state(1, Player::Environment);
@@ -332,7 +332,7 @@ TEST_CASE("Tarjan SCC: Multiple Roots", "[tarjan][scc][basic]") {
     // Expected: 6 SCCs of size 1
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sa = make_state(0, Player::System);
     auto sb = make_state(1, Player::Environment);
@@ -361,7 +361,7 @@ TEST_CASE("Tarjan SCC: Large Cycle", "[tarjan][scc][cycle]") {
     // Expected: 1 SCC of size 6
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     std::vector<GameState> states;
     for (int i = 0; i < 6; i++) {
@@ -393,7 +393,7 @@ TEST_CASE("Tarjan SCC: SCC with Incoming and Outgoing Edges", "[tarjan][scc][com
     // Expected: 3 SCCs: {a}, {b, c}, {d}
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sa = make_state(0, Player::System);
     auto sb = make_state(1, Player::Environment);
@@ -424,7 +424,7 @@ TEST_CASE("Tarjan SCC: Empty Graph", "[tarjan][scc][edge]") {
     // Expected: 0 SCCs
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto sccs = solver.find_sccs_for_testing();
 
@@ -440,7 +440,7 @@ TEST_CASE("Tarjan SCC: Topological Order Property", "[tarjan][scc][property]") {
     // Found order should be: SCC3, SCC2, SCC1
 
     FormulaPool pool;
-    OnTheFlyGameSolver solver(pool.create_true(), pool, 0, 0);
+    OnTheFlyGameSolver solver(pool.create_true(), pool);
 
     auto s1 = make_state(1, Player::System);
     auto s2 = make_state(2, Player::Environment);

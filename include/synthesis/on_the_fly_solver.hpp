@@ -276,9 +276,7 @@ public:
      * @param num_inputs Number of input variables
      */
     OnTheFlyGameSolver(formula::Formula* phi,
-                       formula::FormulaPool& pool,
-                       int num_outputs,
-                       int num_inputs);
+                       formula::FormulaPool& pool);
 
     /**
      * @brief Destructor (needed for unique_ptr<TraceExporter>)
@@ -553,11 +551,6 @@ private:
                                 const automata::Assignment& out) {
         return GameState(q, Player::Environment, out);
     }
-
-    /**
-     * @brief Count variables in formula
-     */
-    static int count_variables(formula::Formula* phi);
 };
 
 } // namespace synthesis

@@ -69,14 +69,12 @@ std::unordered_set<int> collect_variables(formula::Formula* phi) {
 } // namespace
 
 OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
-                                       formula::FormulaPool& pool,
-                                       int num_outputs,
-                                       int num_inputs)
+                                       formula::FormulaPool& pool)
     : pool_(pool),
       original_formula_(phi),
       dfa_(phi, pool),
-      output_gen_(num_outputs > 0 ? num_outputs : count_variables(phi)),
-      input_gen_(num_inputs > 0 ? num_inputs : 0),  // No inputs if not specified
+      output_gen_(pool.num_outputs()),
+      input_gen_(pool.num_inputs()),  // No inputs if not specified
       num_sccs_found_(0),
       initial_state_(dfa_.initial_state(), Player::System),
       enable_bdd_filtering_(false)
@@ -98,11 +96,6 @@ OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
 OnTheFlyGameSolver::~OnTheFlyGameSolver() {
     // Destructor defined here for unique_ptr<TraceExporter> to work with forward declaration
     // Trace exporter will be automatically finalized by its own destructor
-}
-
-int OnTheFlyGameSolver::count_variables(formula::Formula* phi) {
-    auto vars = collect_variables(phi);
-    return static_cast<int>(vars.size());
 }
 
 bool OnTheFlyGameSolver::is_realizable() {
