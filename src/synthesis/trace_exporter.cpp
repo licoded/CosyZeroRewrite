@@ -290,6 +290,7 @@ void TraceExporter::begin_sub_step(const std::string& description) {
 }
 
 void TraceExporter::end_sub_step(bool include_graph) {
+    (void)include_graph;  // Reserved for future graph export option
     if (!enabled_) return;
 
     // Record duration using cached pointer

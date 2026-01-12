@@ -29,7 +29,8 @@ static bool is_wrapped_in_parens(const std::string& s) {
 
 // Returns operator precedence for output formatting (HIGHER number = HIGHER precedence = binds tighter)
 // Parser order (low to high): Or(1) < And(2) < Until/Release(3) < Not/Next(4) < Primary(5)
-static int get_precedence(Formula::OpType op) {
+// Note: Currently unused but kept for future precedence-based formatting
+[[maybe_unused]] static int get_precedence(Formula::OpType op) {
     switch (op) {
         case Formula::OpType::Or:
             return 1;
@@ -54,6 +55,8 @@ static int get_precedence(Formula::OpType op) {
 // Rule: Binary operators (And/Or/Until/Release) as children always get parentheses
 // This ensures clarity and correct roundtrip parsing
 static bool needs_parentheses(Formula* child, Formula::OpType parent_op, bool is_left_child) {
+    (void)parent_op;  // Reserved for future precedence-based logic
+    (void)is_left_child;  // Reserved for future left/right associativity logic
     if (!child) return false;
 
     // Literals, true, false never need parentheses

@@ -43,6 +43,7 @@ bool FormulaChecker::are_equivalent(FormulaPool& pool, Formula* f1, Formula* f2)
 
 bool FormulaChecker::likely_equivalent(FormulaPool& pool, Formula* f1,
                                        Formula* f2, size_t samples) {
+    (void)pool;  // Reserved for future variable lookups
     // Collect all variables from both formulas
     std::unordered_set<int> vars = get_variables(f1);
     std::unordered_set<int> vars2 = get_variables(f2);
