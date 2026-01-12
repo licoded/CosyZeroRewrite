@@ -93,8 +93,8 @@ struct SubStepMetrics {
  */
 struct StateData {
     std::string id;                  // e.g., "S0", "E1"
-    std::string classification;      // "Swin", "Ewin", "Unknown"
-    std::string type;                // "System" or "Environment"
+    StateClass classification = StateClass::Unknown;  // Swin, Ewin, Unknown
+    Player type = Player::System;    // System or Environment
     bool is_initial = false;
     std::string phi;                 // Formula string
     std::string xnf_phi;             // XNF Formula string

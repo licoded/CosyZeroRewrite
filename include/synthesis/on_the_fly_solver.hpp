@@ -60,6 +60,17 @@ inline const char* to_string(StateClass cls) {
 }
 
 /**
+ * @brief Convert Player to string
+ */
+inline const char* to_string(Player player) {
+    switch (player) {
+        case Player::System: return "System";
+        case Player::Environment: return "Environment";
+    }
+    return "?";
+}
+
+/**
  * @brief Game state in the synthesis game
  *
  * A game state consists of:

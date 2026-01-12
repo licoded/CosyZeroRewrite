@@ -776,8 +776,8 @@ void TraceExporter::write_json() {
                     const StateData& data = pair.second;
                     json data_obj;
                     data_obj["id"] = data.id;
-                    data_obj["classification"] = data.classification;
-                    data_obj["type"] = data.type;
+                    data_obj["classification"] = to_string(data.classification);
+                    data_obj["type"] = to_string(data.type);
                     data_obj["is_initial"] = data.is_initial;
                     data_obj["phi"] = data.phi;
                     data_obj["xnf_phi"] = data.xnf_phi;
@@ -889,15 +889,15 @@ void TraceExporter::collect_state_data(SubStepGraphData& graph_data,
 
         StateData data;
         data.id = state_id;
-        data.type = (state.player == Player::System) ? "System" : "Environment";
+        data.type = state.player;
         data.is_initial = (state == initial_state);
 
         // Get classification
         auto cls_it = classification.find(state);
         if (cls_it != classification.end()) {
-            data.classification = to_string(cls_it->second);
+            data.classification = cls_it->second;
         } else {
-            data.classification = "Unknown";
+            data.classification = StateClass::Unknown;
         }
 
         // Get formula information from dfa_state
