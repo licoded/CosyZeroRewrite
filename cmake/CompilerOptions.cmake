@@ -39,3 +39,12 @@ message(STATUS "Include directories configured")
 # Define PROJECT_SOURCE_DIR for C++ code (for finding resources at runtime)
 add_compile_definitions(PROJECT_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 message(STATUS "PROJECT_SOURCE_DIR defined for C++: ${PROJECT_SOURCE_DIR}")
+
+# Make __FILE__ show paths relative to project root (helps locate assertion failures)
+# macOS assert.h uses __FILE_NAME__ (basename only) by default, so we undefine it
+# to force use of __FILE__ with our prefix mapping
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -U__FILE_NAME__")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fmacro-prefix-map=${PROJECT_SOURCE_DIR}/=")
+    message(STATUS "File paths will be relative to project root")
+endif()
