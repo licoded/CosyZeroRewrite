@@ -33,6 +33,7 @@
       <div v-else class="no-data">
         <label for="fileInput" class="file-label">Load Trace JSON</label>
         <input
+          style="display: none;"
           id="fileInput"
           type="file"
           accept=".json"
