@@ -21,7 +21,7 @@ void test_rm_next_basic() {
 
     // Test: X(p0) → True
     Formula* phi = pool.create_next(pool.create_variable("p0"));
-    Formula* rm = apply_rm_next(phi, pool);
+    Formula* rm = phi->replaceNext2True(pool);
 
     assert(rm->is_true());
     std::cout << "X(p0) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
@@ -31,7 +31,7 @@ void test_rm_next_basic() {
         pool.create_variable("p0"),
         pool.create_next(pool.create_variable("p1"))
     );
-    Formula* rm2 = apply_rm_next(phi2, pool);
+    Formula* rm2 = phi2->replaceNext2True(pool);
 
     assert(rm2->is_literal());
     assert(rm2->var_id() == 0);
@@ -42,7 +42,7 @@ void test_rm_next_basic() {
         pool.create_next(pool.create_variable("p0")),
         pool.create_variable("p1")
     );
-    Formula* rm3 = apply_rm_next(phi3, pool);
+    Formula* rm3 = phi3->replaceNext2True(pool);
 
     assert(rm3->is_true());
     std::cout << "X(p0) | p1 rm_next → " << rm3->to_string(pool) << " ✓" << std::endl;
@@ -51,141 +51,11 @@ void test_rm_next_basic() {
     Formula* phi4 = pool.create_not(
         pool.create_next(pool.create_variable("p0"))
     );
-    Formula* rm4 = apply_rm_next(phi4, pool);
+    Formula* rm4 = phi4->replaceNext2True(pool);
 
     assert(rm4->is_false());
     std::cout << "!X(p0) rm_next → " << rm4->to_string(pool) << " ✓" << std::endl;
 
-    std::cout << std::endl;
-}
-
-void test_bdd_manager_basic() {
-    std::cout << "=== Test: BddManager basic ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"s1"}, {"e1"});
-
-    // Test with simple formula: s1 (no Next operators)
-    Formula* phi = pool.create_variable("s1");
-
-    BddManager bdd(2, 1);  // 2 vars total, 1 output
-
-    bool built = bdd.build_from_formula_rmnext(phi, pool);
-    assert(built);
-
-    // The build_from_formula_rmnext stores the result internally
-    // We can verify it worked by checking the function succeeded
-    assert(built);
-
-    std::cout << "BDD manager basic test passed ✓" << std::endl;
-    std::cout << std::endl;
-}
-
-void test_enumeration() {
-    std::cout << "=== Test: Safe move enumeration ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"s1"}, {"e1"});
-
-    // Formula: s1 (s1 must be true)
-    // Only s1=true should be safe
-    Formula* phi = pool.create_variable("s1");
-
-    BddManager bdd(2, 1);  // 2 vars total, 1 output
-
-    // Build the rm_next formula
-    bool built = bdd.build_from_formula_rmnext(phi, pool);
-    assert(built);
-
-    std::cout << "Safe move enumeration test passed ✓" << std::endl;
-    std::cout << std::endl;
-}
-
-void test_conjunction_rm_next() {
-    std::cout << "=== Test: Conjunction with Next ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"s1"}, {"e1"});
-
-    // Example from the discussion:
-    // Formula: (s1 & X(!e1)) | (!s1 & X(e1))
-    // rm_next: (s1 & True) | (!s1 & True) = s1 | !s1 = True
-    // So all moves should be safe
-
-    Formula* phi = pool.create_or(
-        pool.create_and(
-            pool.create_variable("s1"),                    // s1
-            pool.create_next(                              // X(...)
-                pool.create_not(pool.create_variable("e1")) // !e1
-            )
-        ),
-        pool.create_and(
-            pool.create_not(pool.create_variable("s1")),   // !s1
-            pool.create_next(pool.create_variable("e1"))    // X(e1)
-        )
-    );
-
-    BddManager bdd(2, 1);
-    bool built = bdd.build_from_formula_rmnext(phi, pool);
-    assert(built);
-
-    // The rm_next result should simplify to True
-    // We can verify by checking that apply_rm_next on the same formula returns True
-    Formula* rm = apply_rm_next(phi, pool);
-    assert(rm->is_true());
-
-    std::cout << "Conjunction rm_next test: formula simplifies to True ✓" << std::endl;
-    std::cout << std::endl;
-}
-
-void test_statistics() {
-    std::cout << "=== Test: BDD Statistics ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"s1"}, {"e1"});
-
-    // Formula: s1 (s1 must be true)
-    Formula* phi = pool.create_variable("s1");
-
-    BddManager bdd(2, 1);
-    bdd.reset_stats();
-    bdd.build_from_formula_rmnext(phi, pool);
-
-    const auto& stats = bdd.get_stats();
-    std::cout << "Statistics: " << stats.num_safe_moves_generated << " safe moves, "
-              << stats.num_cache_hits << " cache hits, "
-              << stats.num_cache_misses << " cache misses" << std::endl;
-
-    std::cout << "BDD Statistics test passed ✓" << std::endl;
-    std::cout << std::endl;
-}
-
-void test_complex_formula() {
-    std::cout << "=== Test: Complex formula ===" << std::endl;
-
-    FormulaPool pool;
-    pool.declare_variables({"s1", "s2"}, {"e1"});
-
-    // Formula: (s1 & !e1) | (s2 & X(e1))
-    // rm_next: (s1 & !e1) | (s2 & True) = (s1 & !e1) | s2
-    Formula* phi = pool.create_or(
-        pool.create_and(
-            pool.create_variable("s1"),
-            pool.create_not(pool.create_variable("e1"))
-        ),
-        pool.create_and(
-            pool.create_variable("s2"),
-            pool.create_next(pool.create_variable("e1"))
-        )
-    );
-
-    Formula* rm = apply_rm_next(phi, pool);
-    std::cout << "Complex formula rm_next: " << rm->to_string(pool) << " ✓" << std::endl;
-
-    BddManager bdd(3, 2);
-    bdd.build_from_formula_rmnext(rm, pool);
-
-    std::cout << "Complex formula test passed ✓" << std::endl;
     std::cout << std::endl;
 }
 
@@ -209,7 +79,7 @@ void test_xnf_phi_vs_prop_atoms() {
         pool.create_variable("p2")
     );
 
-    Formula* rm = apply_rm_next(xnf_phi, pool);
+    Formula* rm = xnf_phi->replaceNext2True(pool);
 
     // Result should be p0 | p2 (or p2 | p0 depending on simplification)
     // Key point: it should be an OR, not AND
@@ -243,7 +113,7 @@ void test_nested_next() {
         pool.create_next(pool.create_variable("p0"))
     );
 
-    Formula* rm = apply_rm_next(phi, pool);
+    Formula* rm = phi->replaceNext2True(pool);
     assert(rm->is_true());
 
     std::cout << "X(X(p0)) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
@@ -269,7 +139,7 @@ void test_mixed_boolean_temporal() {
         )
     );
 
-    Formula* rm = apply_rm_next(phi, pool);
+    Formula* rm = phi->replaceNext2True(pool);
     assert(rm->is_true());
 
     std::cout << "(a | X(b)) & (X(c) | !b) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
@@ -283,14 +153,9 @@ int main() {
     std::cout << std::endl;
 
     test_rm_next_basic();
-    test_bdd_manager_basic();
-    test_enumeration();
-    test_conjunction_rm_next();
-    test_complex_formula();
     test_xnf_phi_vs_prop_atoms();  // Bug fix verification
     test_nested_next();
     test_mixed_boolean_temporal();
-    test_statistics();
 
     std::cout << "========================================" << std::endl;
     std::cout << "All BDD tests passed! ✓" << std::endl;

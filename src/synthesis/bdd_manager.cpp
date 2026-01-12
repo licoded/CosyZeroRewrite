@@ -15,44 +15,8 @@
 namespace synthesis {
 
 //==============================================================================
-// apply_rm_next Operation
-//==============================================================================
-
-/**
- * @brief Apply rm_next transformation using Formula::replaceNext2True
- *
- * This is a wrapper around Formula::replaceNext2True() that also
- * applies simplify() for additional optimization.
- *
- * Rules:
- * - X[!] φ → True
- * - Other operators are recursively processed
- *
- * @param f The input formula (should be in XNF format)
- * @param pool Formula pool for creating new formulas
- * @return New formula with all X[!] replaced by True
- */
-formula::Formula* apply_rm_next(formula::Formula* f, formula::FormulaPool& pool) {
-    if (!f) {
-        return pool.create_false();
-    }
-
-    // Use the unified Formula::replaceNext2True() implementation
-    formula::Formula* result = f->replaceNext2True(pool);
-
-    // Apply simplify to handle cases like s1 | !s1 → True
-    result = result->simplify(pool);
-
-    LOG_DEBUG("rm_next: ", f->to_string(pool), " → ", result->to_string(pool));
-
-    return result;
-}
-
-//==============================================================================
 // BddManager Implementation
 //==============================================================================
-
-#ifdef FORMULA_USE_CUDD
 
 /**
  * @brief Internal wrapper for CUDD manager
@@ -152,15 +116,12 @@ DdNode* apply_binary_bdd_op(DdManager* mgr, DdNode* left, DdNode* right, BinOp&&
 
 } // anonymous namespace
 
-#endif // FORMULA_USE_CUDD
-
 BddManager::BddManager(int num_variables, int num_outputs)
     : num_variables_(num_variables)
     , num_outputs_(num_outputs)
     , current_formula_(nullptr)
     , stats_{}
 {
-#ifdef FORMULA_USE_CUDD
     try {
         cudd_ = std::make_unique<CuddManager>(num_variables);
         LOG_INFO("BddManager: CUDD BDD optimization available");
@@ -168,9 +129,6 @@ BddManager::BddManager(int num_variables, int num_outputs)
         LOG_WARN("BddManager: CUDD initialization failed: ", e.what());
         cudd_.reset();
     }
-#else
-    LOG_DEBUG("BddManager: using fallback enumeration (CUDD not available)");
-#endif
 }
 
 BddManager::~BddManager() {
@@ -178,16 +136,11 @@ BddManager::~BddManager() {
 }
 
 bool BddManager::is_available() const {
-#ifdef FORMULA_USE_CUDD
     return cudd_ != nullptr;
-#else
-    return false;
-#endif
 }
 
 void BddManager::clear_cache() {
     state_formula_cache_.clear();
-#ifdef FORMULA_USE_CUDD
     // Dereference and clear BDD cache
     if (cudd_) {
         for (auto& entry : state_bdd_cache_) {
@@ -197,7 +150,6 @@ void BddManager::clear_cache() {
         }
     }
     state_bdd_cache_.clear();
-#endif
     current_formula_ = nullptr;
 }
 
@@ -214,39 +166,12 @@ bool BddManager::get_or_build_bdd_for_state(automata::TableauState* state,
 
     stats_.num_cache_misses++;
 
-    // Build formula from xnf_phi and apply rm_next transformation
     formula::Formula* xnf_phi = state->xnf_phi();
-    if (!xnf_phi) {
-        // No constraints: all moves are safe
-        state_formula_cache_[state] = pool.create_true();
-        current_formula_ = pool.create_true();
-        LOG_DEBUG("BddManager: no xnf_phi, using True");
-        return true;
-    }
-
-    // Apply rm_next transformation directly to xnf_phi
-    // This correctly handles X(φ) → True substitution
-    formula::Formula* rmnext_formula = apply_rm_next(xnf_phi, pool);
-
-    // Cache the result
-    state_formula_cache_[state] = rmnext_formula;
-    current_formula_ = rmnext_formula;
+    current_formula_ = xnf_phi->replaceNext2True(pool);
+    current_formula_ = current_formula_->simplify(pool);
+    state_formula_cache_[state] = current_formula_;
 
     LOG_DEBUG("BddManager: built rm_next formula for state");
-    return true;
-}
-
-bool BddManager::build_from_formula_rmnext(formula::Formula* phi, formula::FormulaPool& pool) {
-    if (!phi) {
-        current_formula_ = pool.create_false();
-        return false;
-    }
-
-    // Apply rm_next transformation
-    current_formula_ = apply_rm_next(phi, pool);
-
-    // If result is True, all assignments are safe
-    // If result is False, no assignment is safe
     return true;
 }
 
@@ -268,63 +193,56 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
         return all_moves;
     }
 
-#ifdef FORMULA_USE_CUDD
-    if (is_available()) {
-        // Check BDD cache first
-        auto bdd_it = state_bdd_cache_.find(state);
-        DdNode* bdd = nullptr;
+    // Check BDD cache first
+    auto bdd_it = state_bdd_cache_.find(state);
+    DdNode* bdd = nullptr;
 
-        if (bdd_it != state_bdd_cache_.end()) {
-            bdd = bdd_it->second;
-            stats_.num_cache_hits++;
-        } else {
-            // Build BDD from rm_next formula
-            formula::Formula* rmnext_formula = get_rmnext_formula(state);
-            // get_or_build_bdd_for_state just returned true, so this must be non-null
-            assert(rmnext_formula != nullptr && "rmnext_formula should be in cache after successful build");
+    if (bdd_it != state_bdd_cache_.end()) {
+        bdd = bdd_it->second;
+        stats_.num_cache_hits++;
+    } else {
+        // Build BDD from rm_next formula
+        formula::Formula* rmnext_formula = get_rmnext_formula(state);
+        // get_or_build_bdd_for_state just returned true, so this must be non-null
+        assert(rmnext_formula != nullptr && "rmnext_formula should be in cache after successful build");
 
-            // Build BDD from formula
-            bdd = build_bdd_from_formula(rmnext_formula, pool);
+        // Build BDD from formula
+        bdd = build_bdd_from_formula(rmnext_formula, pool);
 
-            // Cache the BDD
-            state_bdd_cache_[state] = bdd;
-            stats_.num_cache_misses++;
-            stats_.num_bdd_calls++;
-        }
-
-        // Apply universal quantification on INPUT variables
-        // safe(sys_output) = ∀ env_input. formula(sys_output, env_input)
-        //
-        // Build cube of input variables for universal abstraction
-        // env_cube = e1 ∨ e2 ∨ ... ∨ em (OR of all input variables)
-        // Note: CUDD's cube for abstraction uses OR
-        std::vector<int> input_var_ids;
-        for (int i = num_outputs_; i < num_variables_; ++i) {
-            input_var_ids.push_back(i);
-        }
-        DdNode* env_cube = build_or_cube(cudd_->mgr, input_var_ids);
-
-        // Apply universal abstraction: ∀ env_vars. phi(sys, env)
-        // Result is a BDD over sys variables only
-        DdNode* safe_sys = Cudd_bddUnivAbstract(cudd_->mgr, bdd, env_cube);
-        Cudd_Ref(safe_sys);
-        Cudd_RecursiveDeref(cudd_->mgr, env_cube);
-
-        // Enumerate all satisfying assignments for output variables
-        std::vector<Assignment> safe_moves =
-            enumerate_bdd_satisfying_assignments(safe_sys, relevant_output_var_ids);
-
-        Cudd_RecursiveDeref(cudd_->mgr, safe_sys);
-
-        stats_.num_safe_moves_generated += safe_moves.size();
-
-        LOG_DEBUG("BddManager: enumerated ", safe_moves.size(), " safe sys moves using BDD");
-        return safe_moves;
+        // Cache the BDD
+        state_bdd_cache_[state] = bdd;
+        stats_.num_cache_misses++;
+        stats_.num_bdd_calls++;
     }
-#endif
 
-    // Fallback: use formula evaluation (when CUDD is not available)
-    return enumerate_safe_moves_fallback(current_formula_, relevant_output_var_ids);
+    // Apply universal quantification on INPUT variables
+    // safe(sys_output) = ∀ env_input. formula(sys_output, env_input)
+    //
+    // Build cube of input variables for universal abstraction
+    // env_cube = e1 ∨ e2 ∨ ... ∨ em (OR of all input variables)
+    // Note: CUDD's cube for abstraction uses OR
+    std::vector<int> input_var_ids;
+    for (int i = num_outputs_; i < num_variables_; ++i) {
+        input_var_ids.push_back(i);
+    }
+    DdNode* env_cube = build_or_cube(cudd_->mgr, input_var_ids);
+
+    // Apply universal abstraction: ∀ env_vars. phi(sys, env)
+    // Result is a BDD over sys variables only
+    DdNode* safe_sys = Cudd_bddUnivAbstract(cudd_->mgr, bdd, env_cube);
+    Cudd_Ref(safe_sys);
+    Cudd_RecursiveDeref(cudd_->mgr, env_cube);
+
+    // Enumerate all satisfying assignments for output variables
+    std::vector<Assignment> safe_moves =
+        enumerate_bdd_satisfying_assignments(safe_sys, relevant_output_var_ids);
+
+    Cudd_RecursiveDeref(cudd_->mgr, safe_sys);
+
+    stats_.num_safe_moves_generated += safe_moves.size();
+
+    LOG_DEBUG("BddManager: enumerated ", safe_moves.size(), " safe sys moves using BDD");
+    return safe_moves;
 }
 
 std::vector<Assignment> BddManager::enumerate_all_output_assignments(
@@ -349,95 +267,6 @@ std::vector<Assignment> BddManager::enumerate_all_output_assignments(
         }
     }
     return all_moves;
-}
-
-std::vector<Assignment> BddManager::enumerate_safe_moves_fallback(
-    formula::Formula* rmnext_formula,
-    const std::set<int>& relevant_output_var_ids) const {
-
-    // This should never happen if get_or_build_bdd_for_state was called correctly
-    // apply_rm_next() always returns a valid Formula*, never nullptr
-    assert(rmnext_formula != nullptr && "rmnext_formula should never be nullptr");
-
-    std::vector<Assignment> safe_moves;
-
-    if (rmnext_formula->is_true()) {
-        // Enumerate all possible assignments for relevant variables
-        std::vector<int> output_vars(relevant_output_var_ids.begin(),
-                                     relevant_output_var_ids.end());
-
-        // Generate all 2^k assignments
-        int n = output_vars.size();
-        if (n == 0) {
-            safe_moves.push_back({});
-        } else {
-            for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
-                Assignment assignment;
-                for (int i = 0; i < n; ++i) {
-                    if (mask & (1u << i)) {
-                        assignment.insert(output_vars[i]);
-                    }
-                }
-                safe_moves.push_back(std::move(assignment));
-            }
-        }
-        return safe_moves;
-    }
-
-    if (rmnext_formula->is_false()) {
-        // No safe moves
-        return {};
-    }
-
-    // For other formulas, enumerate and check each
-    std::vector<int> output_vars(relevant_output_var_ids.begin(),
-                                 relevant_output_var_ids.end());
-    int n = output_vars.size();
-
-    // Enumerate all output assignments
-    for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
-        Assignment sys_output;
-        for (int i = 0; i < n; ++i) {
-            if (mask & (1u << i)) {
-                sys_output.insert(output_vars[i]);
-            }
-        }
-
-        // Check if ALL env moves satisfy the formula (universal quantification)
-        // safe(sys_output) = ∀ env_input. evaluate(rmnext_formula, sys_output ∪ env_input)
-        bool all_env_safe = true;
-        int num_inputs = num_variables_ - num_outputs_;
-
-        if (num_inputs == 0) {
-            // No input variables, check directly
-            if (!evaluate_formula(rmnext_formula, sys_output)) {
-                all_env_safe = false;
-            }
-        } else {
-            // Enumerate all input assignments
-            for (uint32_t env_mask = 0; env_mask < static_cast<uint32_t>(1 << num_inputs); ++env_mask) {
-                Assignment combined = sys_output;
-                for (int i = 0; i < num_inputs; ++i) {
-                    if (env_mask & (1u << i)) {
-                        combined.insert(num_outputs_ + i);
-                    }
-                }
-
-                // If ANY env input makes formula false, sys_output is NOT safe
-                if (!evaluate_formula(rmnext_formula, combined)) {
-                    all_env_safe = false;
-                    break;
-                }
-            }
-        }
-
-        if (all_env_safe) {
-            safe_moves.push_back(std::move(sys_output));
-        }
-    }
-
-    LOG_DEBUG("BddManager fallback: enumerated ", safe_moves.size(), " safe moves");
-    return safe_moves;
 }
 
 bool BddManager::evaluate_formula(formula::Formula* f, const Assignment& assignment) const {
@@ -492,8 +321,6 @@ bool BddManager::evaluate_formula(formula::Formula* f, const Assignment& assignm
 //==============================================================================
 // BDD-based Implementation (CUDD)
 //==============================================================================
-
-#ifdef FORMULA_USE_CUDD
 
 DdNode* BddManager::build_bdd_from_formula(formula::Formula* f, formula::FormulaPool& pool) {
     if (!f || !cudd_) {
@@ -674,7 +501,5 @@ std::vector<Assignment> BddManager::enumerate_bdd_satisfying_assignments(
 
     return assignments;
 }
-
-#endif // FORMULA_USE_CUDD
 
 } // namespace synthesis

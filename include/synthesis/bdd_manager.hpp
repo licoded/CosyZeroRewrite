@@ -19,15 +19,12 @@
 #include "formula/formula.hpp"
 #include "formula/formula_pool.hpp"
 #include "automata/tableau.hpp"
+#include <cudd.h>
 #include <memory>
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#ifdef FORMULA_USE_CUDD
-#include <cudd.h>
-#endif
 
 namespace synthesis {
 
@@ -84,15 +81,6 @@ public:
                                     formula::FormulaPool& pool);
 
     /**
-     * @brief Get or build BDD for a formula
-     *
-     * @param phi The formula
-     * @param pool Formula pool for creating intermediate formulas
-     * @return true if BDD is ready for use
-     */
-    bool build_from_formula_rmnext(formula::Formula* phi, formula::FormulaPool& pool);
-
-    /**
      * @brief Directly enumerate all safe system moves for a state
      *
      * This is the PRIMARY method to use. It directly enumerates only
@@ -136,13 +124,11 @@ public:
     void reset_stats() { stats_ = {}; }
 
 private:
-#ifdef FORMULA_USE_CUDD
     /**
      * @brief CUDD manager (opaque pointer, defined in cpp)
      */
     struct CuddManager;
     std::unique_ptr<CuddManager> cudd_;
-#endif
 
     /**
      * @brief Total number of variables
@@ -167,7 +153,6 @@ private:
      */
     formula::Formula* current_formula_;
 
-#ifdef FORMULA_USE_CUDD
     /**
      * @brief BDD cache per TableauState (actual BDD nodes)
      *
@@ -194,7 +179,6 @@ private:
     std::vector<Assignment> enumerate_bdd_satisfying_assignments(
         DdNode* bdd,
         const std::set<int>& relevant_var_ids) const;
-#endif
 
     /**
      * @brief Statistics
@@ -211,15 +195,6 @@ private:
         const std::set<int>& relevant_output_var_ids) const;
 
     /**
-     * @brief Fallback: Enumerate safe moves using formula evaluation
-     *
-     * Used when CUDD is not available or BDD construction is complex.
-     */
-    std::vector<Assignment> enumerate_safe_moves_fallback(
-        formula::Formula* rmnext_formula,
-        const std::set<int>& relevant_output_var_ids) const;
-
-    /**
      * @brief Evaluate a formula on an assignment
      *
      * @param f The formula to evaluate
@@ -228,25 +203,6 @@ private:
      */
     bool evaluate_formula(formula::Formula* f, const Assignment& assignment) const;
 };
-
-/**
- * @brief Apply rm_next transformation to a formula
- *
- * Wrapper around Formula::replaceNext2True() that also applies simplify().
- * Removes all Strong Next (X[!]) operators by replacing X[!](φ) with True.
- * This extracts the boolean constraints from a temporal formula.
- *
- * Examples:
- *   X[!](p) → True
- *   p & X[!](q) → p & True → p
- *   X[!](p) | q → True | q → True
- *   !(X[!](p)) → !True → False
- *
- * @param f The input formula (should be in XNF format)
- * @param pool Formula pool for creating new formulas
- * @return New formula with all X[!] replaced by True
- */
-formula::Formula* apply_rm_next(formula::Formula* f, formula::FormulaPool& pool);
 
 } // namespace synthesis
 
