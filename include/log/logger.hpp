@@ -237,7 +237,7 @@ private:
 // User-facing output macro (no prefix, just the message)
 // This logs to both console (clean) and file (with timestamp for debugging)
 #define NOP_LOG_INFO(...) do { if (auto lg = logger::Logger::instance().no_perfix_logger()) { lg->info(__VA_ARGS__); } } while(0)
-#define NOP_LOG_ERROR(...) do { if (auto lg = logger::Logger::instance().no_perfix_logger()) { lg->info(__VA_ARGS__); } } while(0)
+#define NOP_LOG_ERROR(...) do { if (auto lg = logger::Logger::instance().no_perfix_logger()) { lg->error(__VA_ARGS__); } } while(0)
 
 // Flush log
 #define LOG_FLUSH() do { \

@@ -140,7 +140,7 @@ std::string read_formula(const Config& config) {
 // Load partition from file
 tl::expected<Partition, std::string> load_partition(const Config& config) {
     if (config.partition_file.empty()) {
-        return Partition{};  // Empty partition is valid
+        return tl::unexpected(fmt::format("Must specify partition file!"));
     }
 
     auto part_result = parse_partition_file(config.partition_file);
@@ -156,7 +156,6 @@ tl::expected<Partition, std::string> load_partition(const Config& config) {
 // Parse formula and prepare formula pool (pool must be kept alive)
 Formula* parse_formula(const std::string& formula_str,
                         FormulaPool& pool,
-                        const Partition& partition,
                         const Config& config) {
     FormulaParser parser(pool);
     Formula* phi = parser.parse(formula_str);
@@ -167,32 +166,9 @@ Formula* parse_formula(const std::string& formula_str,
         return nullptr;
     }
 
-    if (partition.outputs.empty() && partition.inputs.empty()) {
-        // No partition provided: collect variables from formula
-        auto var_ids = Formula::collect_variables(phi);
-
-        std::vector<std::string> outputs;
-        outputs.reserve(var_ids.size());
-        std::transform(var_ids.begin(), var_ids.end(),
-                       std::back_inserter(outputs),
-                       [&](int id)
-                       { return pool.get_variable_name(id); });
-
-        pool.declare_variables(outputs, {});
-    } else {
-        pool.declare_variables(partition.outputs, partition.inputs);
-    }
-    NOP_LOG_INFO("Variables declared: {} outputs, {} inputs", pool.num_outputs(), pool.num_inputs());
-
     if (!config.quiet) {
         LOG_DEBUG("Parsed: {}", phi->to_string());
         LOG_DEBUG("Parsed (with names): {}", phi->to_string_with_names(pool));
-        LOG_DEBUG("Variable mapping:");
-        for (int i = 0; i < pool.num_outputs() + pool.num_inputs(); ++i) {
-            std::string var_name = pool.get_variable_name(i);
-            std::string type = (i < pool.num_outputs()) ? "output" : "input";
-            LOG_DEBUG("  v{} = {} ({})", i, var_name, type);
-        }
     }
 
     return phi;
@@ -256,9 +232,11 @@ int main(int argc, char* argv[]) {
     }
     Partition partition = *partition_result;
 
-    // Parse formula (pool must stay alive)
     FormulaPool pool;
-    Formula* phi = parse_formula(formula_str, pool, partition, *config);
+    pool.declare_variables(partition.outputs, partition.inputs);
+
+    // Parse formula (pool must stay alive)
+    Formula* phi = parse_formula(formula_str, pool, *config);
     if (!phi) return 1;
 
     // Run synthesis
