@@ -28,6 +28,7 @@
 #include "parallel/thread_pool.hpp"
 #include "log/logger.hpp"
 #include "io/file_utils.hpp"
+#include <tl/expected.hpp>
 
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
@@ -114,16 +115,16 @@ struct Benchmark {
 
 /**
  * @brief Read benchmark file (formula + partition) from specific directory
- * @return Benchmark with error message in formula on failure
+ * @return tl::expected<Benchmark, std::string> - Benchmark on success, error message on failure
  */
-Benchmark read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num) {
+tl::expected<Benchmark, std::string> read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num) {
     std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
     std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
 
     // Read formula
     auto formula_content = read_file_opt(ltlf_file);
     if (!formula_content) {
-        return Benchmark{/*formula=*/"ERROR: Cannot read " + ltlf_file, /*partition=*/{}};
+        return tl::unexpected("Cannot read formula file: " + ltlf_file);
     }
 
     // Read partition (optional - missing partition file is ok)
@@ -365,24 +366,22 @@ public:
             auto start = std::chrono::high_resolution_clock::now();
 
             // Read benchmark
-            Benchmark benchmark = read_benchmark_from_dir(base_dir_, bench_dir, formula_index);
-
-            // Check for error (formula starts with "ERROR:")
-            if (benchmark.formula.substr(0, 5) == "ERROR") {
+            auto benchmark = read_benchmark_from_dir(base_dir_, bench_dir, formula_index);
+            if (!benchmark) {
                 result.success = false;
-                result.error_msg = benchmark.formula;
+                result.error_msg = benchmark.error();
             } else {
-                const auto& outputs = benchmark.partition.outputs;
-                const auto& inputs = benchmark.partition.inputs;
+                const auto& outputs = benchmark->partition.outputs;
+                const auto& inputs = benchmark->partition.inputs;
 
                 // Parse formula
                 FormulaPool pool;
-                Formula* f = parse_formula(benchmark.formula, pool);
+                Formula* f = parse_formula(benchmark->formula, pool);
 
                 if (!f) {
                     auto end = std::chrono::high_resolution_clock::now();
                     result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                    result.formula_str = benchmark.formula;
+                    result.formula_str = benchmark->formula;
                     result.partition_str = make_partition_string(inputs, outputs);
                     result.success = false;
                     result.error_msg = "parse error";
@@ -395,7 +394,7 @@ public:
 
                     auto end = std::chrono::high_resolution_clock::now();
                     result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
-                    result.formula_str = benchmark.formula;
+                    result.formula_str = benchmark->formula;
                     result.partition_str = make_partition_string(inputs, outputs);
                     result.success = true;
                     result.realizable = realizable;
