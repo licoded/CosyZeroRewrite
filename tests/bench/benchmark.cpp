@@ -154,26 +154,16 @@ struct TaskResult {
 // Helper functions
 // ============================================================================
 
-static std::string join(const std::vector<std::string>& vec, const std::string& delim) {
-    if (vec.empty()) return "";
-    std::ostringstream oss;
-    for (size_t i = 0; i < vec.size(); ++i) {
-        if (i > 0) oss << delim;
-        oss << vec[i];
-    }
-    return oss.str();
-}
-
 static std::string make_partition_string(
     const std::vector<std::string>& inputs,
     const std::vector<std::string>& outputs)
 {
     if (!inputs.empty() && !outputs.empty()) {
-        return "inputs: [" + join(inputs, ", ") + "], outputs: [" + join(outputs, ", ") + "]";
+        return fmt::format("inputs: [{}], outputs: [{}]", fmt::join(inputs, ", "), fmt::join(outputs, ", "));
     } else if (!outputs.empty()) {
-        return "outputs: [" + join(outputs, ", ") + "]";
+        return fmt::format("outputs: [{}]", fmt::join(outputs, ", "));
     } else if (!inputs.empty()) {
-        return "inputs: [" + join(inputs, ", ") + "]";
+        return fmt::format("inputs: [{}]", fmt::join(inputs, ", "));
     }
     return "(no partition)";
 }
