@@ -338,8 +338,11 @@ public:
 
     /**
      * @brief Convert assignment to string for debugging
+     * @param a The assignment
+     * @param pool Formula pool for variable name lookup
+     * @return String representation with actual variable names (e.g., "{p1=1, p2=0}")
      */
-    static std::string to_string(const Assignment& a, int num_variables);
+    static std::string to_string(const Assignment& a, const formula::FormulaPool& pool);
 
     /**
      * @brief Number of variables

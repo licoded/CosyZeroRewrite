@@ -442,15 +442,20 @@ Assignment AssignmentGenerator::from_bitset(int i, int num_variables) {
     return result;
 }
 
-std::string AssignmentGenerator::to_string(const Assignment& a, int num_variables) {
-    std::ostringstream oss;
-    oss << "{";
-    for (int v = 0; v < num_variables; ++v) {
-        if (v > 0) oss << ", ";
-        oss << "x" << v << "=" << (a.count(v) ? "1" : "0");
+std::string AssignmentGenerator::to_string(
+    const Assignment &a,
+    const formula::FormulaPool &pool)
+{
+    const auto &names = pool.get_all_variable_names();
+
+    std::vector<std::string> items;
+    items.reserve(names.size());
+
+    for (int v = 0; v < static_cast<int>(names.size()); ++v) {
+        items.emplace_back(fmt::format("{}={}", names[v], a.count(v) ? 1 : 0));
     }
-    oss << "}";
-    return oss.str();
+
+    return fmt::format("{{{}}}", fmt::join(items, ", "));
 }
 
 std::vector<Assignment> AssignmentGenerator::all_assignments_for_subset(const std::vector<int>& var_indices) const {
