@@ -45,29 +45,6 @@ std::string GameState::to_string() const {
 // OnTheFlyGameSolver
 //==============================================================================
 
-namespace {
-
-// Count unique variables in a formula
-std::unordered_set<int> collect_variables(formula::Formula* phi) {
-    std::unordered_set<int> vars;
-
-    std::function<void(formula::Formula*)> visit = [&](formula::Formula* f) {
-        if (!f) return;
-
-        if (f->op() == formula::Formula::OpType::Literal) {
-            vars.insert(f->var_id());
-        } else {
-            visit(f->left());
-            visit(f->right());
-        }
-    };
-
-    visit(phi);
-    return vars;
-}
-
-} // namespace
-
 OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
                                        formula::FormulaPool& pool)
     : pool_(pool),
