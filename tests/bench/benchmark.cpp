@@ -33,9 +33,8 @@
 // CLI11 - command line parsing
 #include <CLI/CLI.hpp>
 
-// fmt + termcolor for clean, colored output
+// fmt for clean output
 #include <fmt/core.h>
-#include "indicators/termcolor.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -156,128 +155,8 @@ struct TaskResult {
 };
 
 // ============================================================================
-// Progress display
-// ============================================================================
-
-class ProgressDisplay {
-public:
-    ProgressDisplay(size_t total, bool show_progress, bool show_active)
-        : total_(total)
-        , show_progress_(show_progress)
-        , show_active_(show_active)
-        , completed_(0)
-        , failed_(0)
-        , last_update_count_(0)
-        , last_output_len_(0)
-    {
-        if (show_progress_) {
-            std::cout << std::flush;
-        }
-    }
-
-    ~ProgressDisplay() {
-        if (show_progress_) {
-            std::cout << std::endl;
-        }
-    }
-
-    void update(int completed, int failed, const std::set<int>& active_tasks) {
-        if (!show_progress_) return;
-
-        // Update every 5 items or every 100ms
-        auto now = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_update_time_).count();
-
-        if (completed - last_update_count_ < 5 && elapsed < 100) {
-            return;
-        }
-
-        std::lock_guard<std::mutex> lock(mutex_);
-        last_update_time_ = now;
-        last_update_count_ = completed;
-
-        // Calculate progress bar width
-        const int bar_width = 40;
-        int filled = (completed * bar_width) / static_cast<int>(total_);
-        if (filled > bar_width) filled = bar_width;
-
-        // Build progress bar with fixed width: [===>     ]
-        std::string bar;
-        if (filled < bar_width) {
-            bar = std::string(filled, '=') + ">" + std::string(bar_width - filled - 1, ' ');
-        } else {
-            bar = std::string(bar_width, '=');
-        }
-
-        // Build active tasks string (limit to 5 items)
-        std::string active_str;
-        if (show_active_ && !active_tasks.empty()) {
-            active_str = " | ";
-            int count = 0;
-            for (int task : active_tasks) {
-                if (count > 0) active_str += ", ";
-                active_str += "f" + std::to_string(task);
-                if (++count >= 5) break;
-            }
-            if (active_tasks.size() > 5) {
-                active_str += "...";
-            }
-        }
-
-        // Print with carriage return to update in place
-        // Build the output string
-        std::ostringstream oss;
-        oss << "[" << bar << "] "
-            << completed << "/" << total_
-            << " (" << failed << " failed)"
-            << active_str;
-
-        std::string output = oss.str();
-
-        // Clear any leftover characters from previous longer output
-        if (output.length() < last_output_len_) {
-            output += std::string(last_output_len_ - output.length(), ' ');
-        }
-
-        last_output_len_ = output.length();
-        std::cout << "\r" << output << std::flush;
-    }
-
-    void finish() {
-        if (show_progress_) {
-            std::cout << "\r[" << std::string(40, '=') << "] "
-                      << total_ << "/" << total_
-                      << " (" << failed_ << " failed)"
-                      << " Done!" << std::endl;
-        }
-    }
-
-private:
-    size_t total_;
-    bool show_progress_;
-    bool show_active_;
-    std::atomic<int> completed_;
-    std::atomic<int> failed_;
-    int last_update_count_;
-    size_t last_output_len_;
-    std::chrono::steady_clock::time_point last_update_time_;
-    std::mutex mutex_;
-};
-
-// ============================================================================
 // Helper functions
 // ============================================================================
-
-// fmt_print_with_color: fmt formatting + termcolor in one call
-// Usage: fmt_print_with_color(termcolor::red, "FAIL: {}\n", error_msg);
-template<typename... Args>
-static void fmt_print_with_color(std::ostream& (*color)(std::ostream&),
-                                 fmt::format_string<Args...> fmt_str,
-                                 Args&&... args) {
-    std::cout << color;
-    fmt::print(fmt_str, std::forward<Args>(args)...);
-    std::cout << termcolor::reset;
-}
 
 static std::string join(const std::vector<std::string>& vec, const std::string& delim) {
     if (vec.empty()) return "";
@@ -314,26 +193,15 @@ public:
         const std::vector<int>& bench_dirs,
         int start_num,
         int end_num,
-        size_t num_jobs,
-        bool show_progress,
-        bool show_active,
-        int sleep_per_task)
+        size_t num_jobs)
         : base_dir_(base_dir)
         , bench_dirs_(bench_dirs)
         , start_num_(start_num)
         , end_num_(end_num)
         , num_jobs_(num_jobs)
-        , show_progress_(show_progress)
-        , show_active_(show_active)
-        , sleep_per_task_(sleep_per_task)
     {
         // Calculate total tasks
         total_tasks_ = bench_dirs_.size() * (end_num - start_num + 1);
-
-        // Initialize progress display
-        if (show_progress) {
-            progress_ = std::make_unique<ProgressDisplay>(total_tasks_, show_progress, show_active);
-        }
     }
 
     std::vector<TaskResult> run() {
@@ -412,15 +280,6 @@ public:
                 ++failed;
             }
 
-            if (progress_) {
-                std::set<int> active_copy;
-                if (show_active_) {
-                    std::lock_guard<std::mutex> lock(active_mutex);
-                    active_copy = active_formula_indexs;
-                }
-                progress_->update(c, failed.load(), active_copy);
-            }
-
             return result;
         };
 
@@ -439,10 +298,6 @@ public:
             results.push_back(future.get());
         }
 
-        if (progress_) {
-            progress_->finish();
-        }
-
         return results;
     }
 
@@ -452,11 +307,7 @@ private:
     int start_num_;
     int end_num_;
     size_t num_jobs_;
-    bool show_progress_;
-    bool show_active_;
-    int sleep_per_task_;
     size_t total_tasks_;
-    std::unique_ptr<ProgressDisplay> progress_;
 };
 
 // ============================================================================
@@ -474,12 +325,9 @@ struct BenchmarkConfig {
 
     // Execution
     size_t num_jobs = std::thread::hardware_concurrency();
-    int sleep_per_task = 0;  // For testing progress bar (0 = disabled)
 
     // Output options
-    bool verbose = false;           // Print all cases (not just failures)
-    bool show_progress = true;      // Show progress bar
-    bool show_active_tasks = true;  // Show active tasks in progress bar
+    bool verbose = false;  // Print all cases (not just failures)
 };
 
 // ============================================================================
@@ -508,10 +356,6 @@ static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
     app.add_option("-j,--jobs", config.num_jobs, "Number of parallel jobs")
         ->check(CLI::PositiveNumber);
     app.add_flag("-v,--verbose", config.verbose, "Print all cases (not just failures)");
-    app.add_flag("--no-progress", config.show_progress, "Disable progress bar")->capture_default_str();
-    app.add_flag("--no-active", config.show_active_tasks, "Don't show active tasks")->capture_default_str();
-    app.add_option("--sleep", config.sleep_per_task, "Average random sleep per task (seconds, for testing)")
-        ->check(CLI::Range(0, 60));
 
     // Parse
     try {
@@ -525,10 +369,6 @@ static bool parse_arguments(int argc, char* argv[], BenchmarkConfig& config) {
         std::cerr << "Error: start number cannot be greater than end number" << std::endl;
         return false;
     }
-
-    // Invert flags for --no-* options
-    config.show_progress = !config.show_progress;
-    config.show_active_tasks = !config.show_active_tasks;
 
     return true;
 }
@@ -583,9 +423,9 @@ static void print_summary(const BenchmarkStats& stats) {
               stats.total_count > 0 ? stats.total_time_ms / stats.total_count : 0);
 
     if (failed == 0) {
-        fmt_print_with_color(termcolor::green, "Status: ALL TESTS PASSED\n");
+        fmt::print("Status: ALL TESTS PASSED\n");
     } else {
-        fmt_print_with_color(termcolor::red, "Status: SOME TESTS FAILED\n");
+        fmt::print("Status: SOME TESTS FAILED\n");
     }
 }
 
@@ -612,8 +452,7 @@ int main(int argc, char* argv[]) {
 
     // Run benchmarks
     BenchmarkRunner runner(
-        config.base_dir, bench_dirs, config.start_num, config.end_num,
-        config.num_jobs, config.show_progress, config.show_active_tasks, config.sleep_per_task
+        config.base_dir, bench_dirs, config.start_num, config.end_num, config.num_jobs
     );
 
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -657,11 +496,11 @@ int main(int argc, char* argv[]) {
             if (r.realizable.has_value()) {
                 result_str = r.realizable.value() ? "REALIZABLE" : "UNREALIZABLE";
             }
-            fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms) {}\n",
-                                 r.bench_dir, r.formula_index, r.elapsed_ms, result_str);
+            fmt::print("OK: bench{}/f{} ({}ms) {}\n",
+                       r.bench_dir, r.formula_index, r.elapsed_ms, result_str);
         } else {
-            fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n",
-                                 r.bench_dir, r.formula_index, r.error_msg);
+            fmt::print("FAIL: bench{}/f{} ({})\n",
+                       r.bench_dir, r.formula_index, r.error_msg);
         }
         fmt::print("  Formula: {}\n", r.formula_str);
         fmt::print("  Partition: {}\n\n", r.partition_str);
