@@ -127,32 +127,32 @@ void print_banner()
     NOP_LOG_INFO("========================================");
 }
 
-// Read formula from file or use provided string
-std::string read_formula(const Config &config)
+// Read formula from file (-f) or command line argument
+tl::expected<std::string, std::string> read_formula(const Config &config)
 {
-    std::string formula_str;
-
     if (!config.formula_file.empty())
     {
-        std::string raw = read_file(config.formula_file);
-        if (raw.empty())
+        auto read_file_res = read_file_expected(config.formula_file);
+        if (!read_file_res)
         {
-            NOP_LOG_ERROR("Error: Failed to read formula file: {}", config.formula_file);
-            return "";
+            return tl::unexpected(fmt::format("Failed to read formula file: {}", read_file_res.error()));
         }
-        formula_str = clean_formula(raw);
+
+        std::string formula_str = clean_formula(*read_file_res);
+        if (formula_str.empty())
+        {
+            return tl::unexpected(fmt::format("Formula file is empty after cleaning: {}", config.formula_file));
+        }
+
         NOP_LOG_INFO("Formula from file: {}", config.formula_file);
-    }
-    else
-    {
-        formula_str = config.formula_str;
+        NOP_LOG_INFO("Formula: {}", formula_str);
+        return formula_str;
     }
 
+    const std::string &formula_str = config.formula_str;
     if (formula_str.empty())
     {
-        NOP_LOG_ERROR("Error: No formula provided");
-        NOP_LOG_ERROR("Run 'Cosy2 --help' for usage information.");
-        return "";
+        return tl::unexpected("No formula provided. Use -f <file> or provide formula as argument");
     }
 
     NOP_LOG_INFO("Formula: {}", formula_str);
@@ -254,9 +254,13 @@ int main(int argc, char *argv[])
         print_banner();
 
     // Read formula
-    std::string formula_str = read_formula(*config);
-    if (formula_str.empty())
+    auto formula_result = read_formula(*config);
+    if (!formula_result)
+    {
+        NOP_LOG_ERROR("{}", formula_result.error());
         return 1;
+    }
+    std::string formula_str = *formula_result;
 
     // Load partition
     auto partition_result = load_partition(*config);

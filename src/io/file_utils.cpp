@@ -20,31 +20,24 @@ namespace io {
 // File Reading
 //==============================================================================
 
-std::string read_file(const std::string &filename)
+tl::expected<std::string, std::string> read_file_expected(const std::string &filename)
 {
     std::ifstream file(filename);
     if (!file.is_open())
     {
-        LOG_ERROR("Cannot open file: {}", filename);
-        return "";
+        return tl::unexpected(fmt::format("Cannot open file: {}", filename));
     }
 
     std::stringstream buffer;
     buffer << file.rdbuf();
-    return buffer.str();
-}
+    std::string content = buffer.str();
 
-std::optional<std::string> read_file_opt(const std::string &filename)
-{
-    std::ifstream file(filename);
-    if (!file.is_open())
+    if (content.empty())
     {
-        return std::nullopt;
+        return tl::unexpected(fmt::format("File is empty: {}", filename));
     }
 
-    std::stringstream buffer;
-    buffer << file.rdbuf();
-    return buffer.str();
+    return content;
 }
 
 std::vector<std::string> read_lines(const std::string &filename)

@@ -23,18 +23,11 @@ namespace io {
 //==============================================================================
 
 /**
- * @brief Read entire file content into a string
+ * @brief Read entire file content, returning expected with error message
  * @param filename Path to the file
- * @return File content as string, or empty string on error
+ * @return File content, or error message on failure
  */
-std::string read_file(const std::string &filename);
-
-/**
- * @brief Read entire file content, returning optional
- * @param filename Path to the file
- * @return File content, or std::nullopt on error
- */
-std::optional<std::string> read_file_opt(const std::string &filename);
+tl::expected<std::string, std::string> read_file_expected(const std::string &filename);
 
 /**
  * @brief Read file line by line

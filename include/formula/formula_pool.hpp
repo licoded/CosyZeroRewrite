@@ -346,7 +346,7 @@ class FormulaPool
                                                                  "G",
                                                                  "F",
                                                                  "W", // Single-letter operators
-                                                                 // Special
+                                                                      // Special
                                                                  "end",
                                                                  "End",
                                                                  "END",

@@ -76,13 +76,14 @@ Formula *parse_formula(const std::string &formula_str, FormulaPool &pool)
 std::optional<bool> read_expected_result(const std::string &base_dir, int bench_num)
 {
     std::string results_file = base_dir + "/results.csv";
-    auto content_opt = read_file_opt(results_file);
-    if (!content_opt)
+    auto read_file_res = read_file_expected(results_file);
+    if (!read_file_res)
     {
+        NOP_LOG_ERROR(read_file_res.error());
         return std::nullopt;
     }
 
-    std::istringstream iss(*content_opt);
+    std::istringstream iss(*read_file_res);
     std::string line;
     // Skip header
     std::getline(iss, line);
@@ -131,10 +132,10 @@ tl::expected<Benchmark, std::string> read_benchmark_from_dir(const std::string &
     std::string part_file = fmt::format("{}/bench{}/f{}.part", base_dir, bench_dir, bench_num);
 
     // Read formula
-    auto formula_content = read_file_opt(ltlf_file);
-    if (!formula_content)
+    auto read_file_res = read_file_expected(ltlf_file);
+    if (!read_file_res)
     {
-        return tl::unexpected(fmt::format("Cannot read formula file: {}", ltlf_file));
+        return tl::unexpected(fmt::format("Cannot read formula file: {}; {}", ltlf_file, read_file_res.error()));
     }
 
     // Read partition (required)
@@ -144,7 +145,7 @@ tl::expected<Benchmark, std::string> read_benchmark_from_dir(const std::string &
         return tl::unexpected(fmt::format("Cannot read partition file: {} - {}", part_file, partition.error()));
     }
 
-    return Benchmark {trim(*formula_content), *partition};
+    return Benchmark {trim(*read_file_res), *partition};
 }
 
 } // anonymous namespace
