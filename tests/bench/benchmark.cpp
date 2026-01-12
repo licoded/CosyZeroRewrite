@@ -118,20 +118,19 @@ struct Benchmark {
  * @return tl::expected<Benchmark, std::string> - Benchmark on success, error message on failure
  */
 tl::expected<Benchmark, std::string> read_benchmark_from_dir(const std::string& base_dir, int bench_dir, int bench_num) {
-    std::string ltlf_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".ltlf";
-    std::string part_file = base_dir + "/bench" + std::to_string(bench_dir) + "/f" + std::to_string(bench_num) + ".part";
+    std::string ltlf_file = fmt::format("{}/bench{}/f{}.ltlf", base_dir, bench_dir, bench_num);
+    std::string part_file = fmt::format("{}/bench{}/f{}.part", base_dir, bench_dir, bench_num);
 
     // Read formula
     auto formula_content = read_file_opt(ltlf_file);
     if (!formula_content) {
-        return tl::unexpected("Cannot read formula file: " + ltlf_file);
+        return tl::unexpected(fmt::format("Cannot read formula file: {}", ltlf_file));
     }
 
-    // Read partition (optional - missing partition file is ok)
+    // Read partition (required)
     auto partition = parse_partition_file(part_file);
     if (!partition) {
-        // Missing partition is not an error - use empty partition
-        return Benchmark{trim(*formula_content), {}};
+        return tl::unexpected(fmt::format("Cannot read partition file: {}", part_file));
     }
 
     return Benchmark{trim(*formula_content), *partition};
