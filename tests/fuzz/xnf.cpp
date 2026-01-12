@@ -407,7 +407,7 @@ int main(int argc, char* argv[]) {
         if (config.print_count > 0 && i < config.print_count) {
             std::cout << "\n[" << (i + 1) << "]" << std::endl;
             std::cout << "  Input:  " << formula_str << std::endl;
-            std::cout << "  XNF:    " << xnf_result->to_string_with_names(pool) << std::endl;
+            std::cout << "  XNF:    " << xnf_result->to_string(pool) << std::endl;
             if (!is_valid) {
                 std::cout << "  Error:  " << error_msg << std::endl;
             }
@@ -420,7 +420,7 @@ int main(int argc, char* argv[]) {
             if (config.verbose) {
                 std::cerr << "\n[" << i << "] XNF VALIDATION FAILED" << std::endl;
                 std::cerr << "  Original:  " << formula_str << std::endl;
-                std::cerr << "  XNF:       " << xnf_result->to_string_with_names(pool) << std::endl;
+                std::cerr << "  XNF:       " << xnf_result->to_string(pool) << std::endl;
                 std::cerr << "  Error:     " << error_msg << std::endl;
             } else {
                 // Print first few failures for visibility

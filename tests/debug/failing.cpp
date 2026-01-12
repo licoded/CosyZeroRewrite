@@ -26,7 +26,7 @@ int main() {
         pool.declare_variables({"p1"}, {});
         Formula* p1 = pool.create_variable("p1");
         Formula* next_p1 = pool.create_next(p1);
-        std::cout << "Formula: " << next_p1->to_string() << std::endl;
+        std::cout << "Formula: " << next_p1->to_string(pool) << std::endl;
         bool result = check_realizable(next_p1, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: YES" << std::endl;
@@ -41,7 +41,7 @@ int main() {
         Formula* p1 = pool.create_variable("p1");
         Formula* false_f = pool.create_false();
         Formula* gp1 = pool.create_release(false_f, p1);
-        std::cout << "Formula: " << gp1->to_string() << std::endl;
+        std::cout << "Formula: " << gp1->to_string(pool) << std::endl;
         bool result = check_realizable(gp1, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: YES" << std::endl;
@@ -56,7 +56,7 @@ int main() {
         Formula* p1 = pool.create_variable("p1");
         Formula* not_p1 = pool.create_not(p1);
         Formula* and_f = pool.create_and(p1, not_p1);
-        std::cout << "Formula: " << and_f->to_string() << std::endl;
+        std::cout << "Formula: " << and_f->to_string(pool) << std::endl;
         std::cout << "  p1 op=" << (int)p1->op() << ", var_id=" << p1->var_id() << std::endl;
         std::cout << "  not_p1 op=" << (int)not_p1->op() << std::endl;
         if (not_p1->op() == formula::Formula::OpType::Not && not_p1->left()) {
@@ -83,7 +83,7 @@ int main() {
         Formula* and_f = pool.create_and(p1, not_p1);
         Formula* true_f = pool.create_true();
         Formula* fand = pool.create_until(true_f, and_f);
-        std::cout << "Formula: " << fand->to_string() << std::endl;
+        std::cout << "Formula: " << fand->to_string(pool) << std::endl;
         bool result = check_realizable(fand, pool);
         std::cout << "Result: " << (result ? "YES" : "NO") << std::endl;
         std::cout << "Expected: NO" << std::endl;

@@ -20,7 +20,7 @@ void test_parser_input(const std::string& input) {
 
     if (f && !parser.has_error()) {
         // Exercise various operations
-        std::string str = f->to_string();
+        std::string str = f->to_string(pool);
         Formula* nnf = f->nnf(pool);
         Formula* xnf = f->xnf_with_end_marker(pool);
         Formula* simp = f->simplify(pool);

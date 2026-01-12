@@ -38,7 +38,7 @@ struct PropAtomsInfo {
         PropAtomsInfo info;
         info.count = static_cast<int>(set.size());
         for (auto* f : set) {
-            info.formulas.push_back(f->to_string_with_names(pool));
+            info.formulas.push_back(f->to_string(pool));
         }
         std::sort(info.formulas.begin(), info.formulas.end());
         return info;

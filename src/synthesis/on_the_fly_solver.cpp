@@ -56,7 +56,7 @@ OnTheFlyGameSolver::OnTheFlyGameSolver(formula::Formula* phi,
       initial_state_(dfa_.initial_state(), Player::System),
       enable_bdd_filtering_(false)
 {
-    LOG_DEBUG("OnTheFlyGameSolver: initialized with formula: ", phi->to_string());
+    LOG_DEBUG("OnTheFlyGameSolver: initialized with formula: ", phi->to_string(pool_));
 
     // Initialize BDD manager for Safe System Move optimization (Rule B)
     // Check if BDD filtering is enabled via environment variable
@@ -629,7 +629,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState>& scc) {
 
         bool esa = is_empty_string_accepting(s.dfa_state);
         LOG_DEBUG("classify_scc: state={}, phi={}, esa={}", s.to_string(),
-                  (s.dfa_state ? s.dfa_state->phi()->to_string() : "null"),
+                  (s.dfa_state ? s.dfa_state->phi()->to_string(pool_) : "null"),
                   esa);
         if (esa) {
             // Only System states in swin_states

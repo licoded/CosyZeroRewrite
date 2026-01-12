@@ -371,7 +371,7 @@ TEST_CASE("NNF: nnf(nnf(φ)) = nnf(φ)", "[nnf][idempotent]") {
     Formula* nnf2 = nnf1->nnf(pool);
 
     // Second NNF should be equivalent to first
-    REQUIRE(nnf2->to_string() == nnf1->to_string());
+    REQUIRE(nnf2->to_string(pool) == nnf1->to_string(pool));
 }
 
 //==============================================================================

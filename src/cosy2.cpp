@@ -167,8 +167,7 @@ Formula* parse_formula(const std::string& formula_str,
     }
 
     if (!config.quiet) {
-        LOG_DEBUG("Parsed: {}", phi->to_string());
-        LOG_DEBUG("Parsed (with names): {}", phi->to_string_with_names(pool));
+        LOG_DEBUG("Parsed: {}", phi->to_string(pool));
     }
 
     return phi;

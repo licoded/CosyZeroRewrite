@@ -131,8 +131,9 @@ public:
 
     /**
      * @brief String representation for debugging
+     * @param pool Formula pool for variable name lookup
      */
-    std::string to_string() const;
+    std::string to_string(formula::FormulaPool& pool) const;
 
     /**
      * @brief Check if a formula is purely temporal (starts with Next/Until/Release)

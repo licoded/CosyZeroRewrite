@@ -43,7 +43,7 @@ formula::Formula* apply_rm_next(formula::Formula* f, formula::FormulaPool& pool)
     // Apply simplify to handle cases like s1 | !s1 → True
     result = result->simplify(pool);
 
-    LOG_DEBUG("rm_next: ", f->to_string(), " → ", result->to_string());
+    LOG_DEBUG("rm_next: ", f->to_string(pool), " → ", result->to_string(pool));
 
     return result;
 }

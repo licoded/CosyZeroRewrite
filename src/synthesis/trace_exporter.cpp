@@ -818,7 +818,7 @@ nlohmann::json TraceExporter::summary_to_json() const {
 void TraceExporter::write_json() {
     nlohmann::json root;
 
-    root["formula"] = formula_ ? formula_->to_string_with_names(pool_) : nullptr;
+    root["formula"] = formula_ ? formula_->to_string(pool_) : nullptr;
     root["timestamp"] = get_timestamp();
 
     auto [outputs, inputs] = pool_.get_variable_partition();
@@ -870,15 +870,15 @@ void TraceExporter::collect_state_data(SubStepGraphData& graph_data,
         // Get formula information from dfa_state
         if (state.dfa_state) {
             formula::Formula* phi = state.dfa_state->phi();
-            data.phi = phi ? phi->to_string_with_names(pool_) : "null";
+            data.phi = phi ? phi->to_string(pool_) : "null";
 
             formula::Formula* xnf_phi = state.dfa_state->xnf_phi();
-            data.xnf_phi = xnf_phi ? xnf_phi->to_string_with_names(pool_) : "null";
+            data.xnf_phi = xnf_phi ? xnf_phi->to_string(pool_) : "null";
 
             // Get propositional atoms
             const auto& prop_atoms = state.dfa_state->prop_atoms();
             for (auto* f : prop_atoms) {
-                data.prop_atoms.push_back(f ? f->to_string_with_names(pool_) : "null");
+                data.prop_atoms.push_back(f ? f->to_string(pool_) : "null");
             }
         } else {
             data.phi = "null";

@@ -78,7 +78,7 @@ void run_parser_tests() {
 
             if (f && !parser.has_error()) {
                 // Exercise operations
-                std::string str = f->to_string();
+                std::string str = f->to_string(pool);
                 Formula* nnf = f->nnf(pool);
                 Formula* xnf = f->xnf_with_end_marker(pool);
                 Formula* simp = f->simplify(pool);

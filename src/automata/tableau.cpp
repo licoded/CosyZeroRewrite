@@ -262,16 +262,16 @@ formula::Formula* formula_progression(
 formula::Formula* TableauState::next_phi(const Assignment& assignment,
                                           formula::FormulaPool& pool) const {
     // DEBUG: Log input
-    LOG_DEBUG("next_phi: xnf_phi_={}", xnf_phi_ ? xnf_phi_->to_string() : "null");
+    LOG_DEBUG("next_phi: xnf_phi_={}", xnf_phi_ ? xnf_phi_->to_string(pool) : "null");
     LOG_DEBUG("  assignment={{{}}}", fmt::join(assignment, " "));
 
     // Apply formula progression: next_phi = fp(xnf_phi_, assignment)
     formula::Formula* next_phi = formula_progression(xnf_phi_, assignment, pool);
-    LOG_DEBUG("  next_phi={}", next_phi ? next_phi->to_string() : "null");
+    LOG_DEBUG("  next_phi={}", next_phi ? next_phi->to_string(pool) : "null");
 
     // Simplify the result
     formula::Formula* next_phi_simplified = next_phi->simplify(pool);
-    LOG_DEBUG("  next_phi_simp={}", next_phi_simplified ? next_phi_simplified->to_string() : "null");
+    LOG_DEBUG("  next_phi_simp={}", next_phi_simplified ? next_phi_simplified->to_string(pool) : "null");
 
     return next_phi_simplified;
 }
@@ -287,16 +287,16 @@ bool TableauState::operator==(const TableauState& other) const {
     return phi_->hash() == other.phi_->hash();
 }
 
-std::string TableauState::to_string() const {
+std::string TableauState::to_string(formula::FormulaPool& pool) const {
     std::ostringstream oss;
-    oss << "{phi: " << (phi_ ? phi_->to_string() : "null");
+    oss << "{phi: " << (phi_ ? phi_->to_string(pool) : "null");
     oss << ", atoms: [";
 
     // Collect strings first, then join (eliminates 'first' flag)
     std::vector<std::string> strs;
     strs.reserve(prop_atoms_.size());
     for (formula::Formula* f : prop_atoms_) {
-        strs.push_back(f ? f->to_string() : "null");
+        strs.push_back(f ? f->to_string(pool) : "null");
     }
 
     for (size_t i = 0; i < strs.size(); ++i) {
@@ -326,7 +326,7 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     if (!phi) return nullptr;
 
     // DEBUG: Log input
-    LOG_DEBUG("get_or_create: phi={}", phi->to_string());
+    LOG_DEBUG("get_or_create: phi={}", phi->to_string(pool));
 
     // Create a temporary state to check for existence
     // We need the xnf and prop_atoms, but for checking existence we just need phi hash
@@ -345,8 +345,8 @@ TableauState* TableauStatePool::get_or_create(formula::Formula* phi, formula::Fo
     formula::Formula* xnf_phi = nnf_phi->xnf_with_end_marker(pool);
 
     // DEBUG: Log NNF and XNF
-    LOG_DEBUG("  nnf_phi={}", nnf_phi->to_string());
-    LOG_DEBUG("  xnf_phi={}", xnf_phi->to_string());
+    LOG_DEBUG("  nnf_phi={}", nnf_phi->to_string(pool));
+    LOG_DEBUG("  xnf_phi={}", xnf_phi->to_string(pool));
 
     // Compute PA(xnf_phi)
     TableauState::FormulaSet prop_atoms;
@@ -379,14 +379,14 @@ void TableauStatePool::clear() {
 
 OnTheFlyDFA::OnTheFlyDFA(formula::Formula* phi, formula::FormulaPool& pool)
     : pool_(pool), state_pool_(), initial_state_(nullptr) {
-    LOG_DEBUG("OnTheFlyDFA: constructing from formula: ", phi->to_string());
+    LOG_DEBUG("OnTheFlyDFA: constructing from formula: ", phi->to_string(pool));
 
     // Create initial state using TableauState::initial
     auto init_state = TableauState::initial(phi, pool_);
     // Get or create from pool (uses phi for hash consing)
     initial_state_ = state_pool_.get_or_create(init_state->phi(), pool_);
 
-    LOG_DEBUG("OnTheFlyDFA: initial state: ", initial_state_->to_string());
+    LOG_DEBUG("OnTheFlyDFA: initial state: ", initial_state_->to_string(pool_));
 }
 
 TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignment) const {
@@ -407,7 +407,7 @@ TableauState* OnTheFlyDFA::successor(TableauState* q, const Assignment& assignme
     transition_cache_[key] = result;
     expanded_states_.insert(q);
 
-    LOG_DEBUG("OnTheFlyDFA: successor = ", result->to_string());
+    LOG_DEBUG("OnTheFlyDFA: successor = ", result->to_string(pool_));
 
     return result;
 }

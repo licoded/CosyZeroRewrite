@@ -182,8 +182,8 @@ std::vector<std::string> generate_test_formulas() {
     };
 }
 
-// ========== Test 1: Parse → to_string_with_names → Re-parse Equivalence ==========
-TEST_CASE("Transformation: Parse → to_string_with_names → Re-parse", "[transformation][string_roundtrip]") {
+// ========== Test 1: Parse → to_string → Re-parse Equivalence ==========
+TEST_CASE("Transformation: Parse → to_string → Re-parse", "[transformation][string_roundtrip]") {
     FormulaPool pool;
     FormulaParser parser(pool);
 
@@ -203,7 +203,7 @@ TEST_CASE("Transformation: Parse → to_string_with_names → Re-parse", "[trans
             Formula* f1 = parser.parse(formula_str);
 
             // Convert to string with variable names and parse again
-            std::string f1_str = f1->to_string_with_names(pool);
+            std::string f1_str = f1->to_string(pool);
             Formula* f2 = parser.parse(f1_str);
 
             // Check equivalence using FormulaChecker
@@ -290,7 +290,7 @@ TEST_CASE("Transformation: NNF preserves semantics", "[transformation][nnf]") {
                 failed++;
                 stats.failed++;
                 LOG_DEBUG("FAIL: {} → NNF (NOT EQUIV) ({}ms)", formula_str, elapsed);
-                log_failure("NNF_Transform", formula_str, f2->to_string(),
+                log_failure("NNF_Transform", formula_str, f2->to_string(pool),
                           "equivalent", "not-equivalent", elapsed);
             }
 
@@ -357,7 +357,7 @@ TEST_CASE("Transformation: XNF preserves semantics", "[transformation][xnf]") {
                 failed++;
                 stats.failed++;
                 LOG_DEBUG("FAIL: {} → XNF (NOT EQUIV) ({}ms)", formula_str, elapsed);
-                log_failure("XNF_Transform", formula_str, f2->to_string(),
+                log_failure("XNF_Transform", formula_str, f2->to_string(pool),
                           "equivalent", "not-equivalent", elapsed);
             }
 
@@ -426,9 +426,9 @@ TEST_CASE("Transformation: Full pipeline (NNF → Simplify → XNF)", "[transfor
                 failed++;
                 stats.failed++;
                 LOG_DEBUG("FAIL: {} → Full Pipeline (NOT EQUIV) ({}ms)", formula_str, elapsed);
-                std::string pipeline_desc = "NNF: " + f_nnf->to_string() +
-                                           "\nSimplify: " + f_simp->to_string() +
-                                           "\nXNF: " + f_xnf->to_string();
+                std::string pipeline_desc = "NNF: " + f_nnf->to_string(pool) +
+                                           "\nSimplify: " + f_simp->to_string(pool) +
+                                           "\nXNF: " + f_xnf->to_string(pool);
                 log_failure("Full_Pipeline", formula_str, pipeline_desc,
                           "equivalent", "not-equivalent", elapsed);
             }

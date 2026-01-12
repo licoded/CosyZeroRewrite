@@ -200,14 +200,7 @@ std::string Formula::to_string_impl(const VarNameResolver& resolver,
     return "?";
 }
 
-std::string Formula::to_string() const {
-    return to_string_impl(
-        [](int var_id) { return "v" + std::to_string(var_id); },
-        "end"
-    );
-}
-
-std::string Formula::to_string_with_names(const FormulaPool& pool) const {
+std::string Formula::to_string(const FormulaPool& pool) const {
     return to_string_impl(
         [&pool](int var_id) { return pool.get_variable_name(var_id); },
         "End"

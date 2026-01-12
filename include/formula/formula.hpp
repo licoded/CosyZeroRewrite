@@ -178,17 +178,11 @@ public:
     // ========== String Representation ==========
 
     /**
-     * @brief Convert formula to string representation
-     * @return String representation of the formula
-     */
-    std::string to_string() const;
-
-    /**
-     * @brief Convert formula to string with original variable names
+     * @brief Convert formula to string representation with original variable names
      * @param pool The FormulaPool for variable name lookup
      * @return String representation with original variable names (e.g., "p1", "p2")
      */
-    std::string to_string_with_names(const FormulaPool& pool) const;
+    std::string to_string(const FormulaPool& pool) const;
 
     /**
      * @brief Get operator name as string
@@ -221,20 +215,16 @@ private:
     /**
      * @brief Type for resolving variable names to strings
      *
-     * Used by to_string_impl to avoid code duplication between
-     * to_string() and to_string_with_names().
+     * Used by to_string to convert var_id to variable name.
      */
     using VarNameResolver = std::function<std::string(int)>;
 
     /**
-     * @brief Internal implementation for to_string functions
+     * @brief Internal implementation for to_string
      *
-     * @param resolver Function to convert var_id to string (e.g., "v0" or "p1")
-     * @param end_marker String to use for End marker (e.g., "end" or "End")
+     * @param resolver Function to convert var_id to string (e.g., "p1", "p2")
+     * @param end_marker String to use for End marker (e.g., "End")
      * @return String representation of the formula
-     *
-     * This single implementation serves both to_string() and to_string_with_names()
-     * by using different resolver functions.
      */
     std::string to_string_impl(const VarNameResolver& resolver,
                                const char* end_marker) const;

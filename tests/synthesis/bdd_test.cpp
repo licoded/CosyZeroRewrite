@@ -24,7 +24,7 @@ void test_rm_next_basic() {
     Formula* rm = apply_rm_next(phi, pool);
 
     assert(rm->is_true());
-    std::cout << "X(p0) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "X(p0) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
 
     // Test: p0 & X(p1) → p0 & True → p0
     Formula* phi2 = pool.create_and(
@@ -35,7 +35,7 @@ void test_rm_next_basic() {
 
     assert(rm2->is_literal());
     assert(rm2->var_id() == 0);
-    std::cout << "p0 & X(p1) rm_next → " << rm2->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "p0 & X(p1) rm_next → " << rm2->to_string(pool) << " ✓" << std::endl;
 
     // Test: X(p0) | p1 → True | p1 → True
     Formula* phi3 = pool.create_or(
@@ -45,7 +45,7 @@ void test_rm_next_basic() {
     Formula* rm3 = apply_rm_next(phi3, pool);
 
     assert(rm3->is_true());
-    std::cout << "X(p0) | p1 rm_next → " << rm3->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "X(p0) | p1 rm_next → " << rm3->to_string(pool) << " ✓" << std::endl;
 
     // Test: !X(p0) → !True → False
     Formula* phi4 = pool.create_not(
@@ -54,7 +54,7 @@ void test_rm_next_basic() {
     Formula* rm4 = apply_rm_next(phi4, pool);
 
     assert(rm4->is_false());
-    std::cout << "!X(p0) rm_next → " << rm4->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "!X(p0) rm_next → " << rm4->to_string(pool) << " ✓" << std::endl;
 
     std::cout << std::endl;
 }
@@ -180,7 +180,7 @@ void test_complex_formula() {
     );
 
     Formula* rm = apply_rm_next(phi, pool);
-    std::cout << "Complex formula rm_next: " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "Complex formula rm_next: " << rm->to_string(pool) << " ✓" << std::endl;
 
     BddManager bdd(3, 2);
     bdd.build_from_formula_rmnext(rm, pool);
@@ -227,7 +227,7 @@ void test_xnf_phi_vs_prop_atoms() {
 
     assert(has_p0 && has_p2);
 
-    std::cout << "(p0 & X(p1)) | p2 rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "(p0 & X(p1)) | p2 rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
     std::cout << "Correctly preserved OR structure (not flattened to AND) ✓" << std::endl;
     std::cout << std::endl;
 }
@@ -246,7 +246,7 @@ void test_nested_next() {
     Formula* rm = apply_rm_next(phi, pool);
     assert(rm->is_true());
 
-    std::cout << "X(X(p0)) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "X(X(p0)) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
     std::cout << std::endl;
 }
 
@@ -272,7 +272,7 @@ void test_mixed_boolean_temporal() {
     Formula* rm = apply_rm_next(phi, pool);
     assert(rm->is_true());
 
-    std::cout << "(a | X(b)) & (X(c) | !b) rm_next → " << rm->to_string_with_names(pool) << " ✓" << std::endl;
+    std::cout << "(a | X(b)) & (X(c) | !b) rm_next → " << rm->to_string(pool) << " ✓" << std::endl;
     std::cout << std::endl;
 }
 

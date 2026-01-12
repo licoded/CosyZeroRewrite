@@ -156,9 +156,7 @@ public:
             std::cout << "\n========== MINIMAL FAILING CASE ==========" << std::endl;
             std::cout << "Type: " << failure_type_ << std::endl;
             std::cout << "Input: " << failing_input_ << std::endl;
-            if (failing_formula_) {
-                std::cout << "Formula: " << failing_formula_->to_string() << std::endl;
-            }
+            // Note: failing_formula_ is a dangling pointer (from destroyed pool), so we don't print it
             std::cout << "=========================================" << std::endl;
         }
     }
@@ -201,7 +199,7 @@ int main(int argc, char* argv[]) {
         try {
             // Generate random formula
             Formula* f = gen.generate(pool, max_depth);
-            std::string f_str = f->to_string_with_names(pool);
+            std::string f_str = f->to_string(pool);
 
             auto start = std::chrono::high_resolution_clock::now();
 

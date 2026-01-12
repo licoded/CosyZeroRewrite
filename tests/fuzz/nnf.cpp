@@ -87,7 +87,7 @@ bool is_nnf(Formula* f, FormulaPool& pool, std::string* error_msg = nullptr) {
             // Negation before anything else is NOT NNF
             if (error_msg) {
                 std::ostringstream oss;
-                oss << "Negation before non-literal: !(" << child->to_string() << ")";
+                oss << "Negation before non-literal: !(" << child->to_string(pool) << ")";
                 *error_msg = oss.str();
             }
             return false;
@@ -316,7 +316,7 @@ int main(int argc, char* argv[]) {
         if (config.print_count > 0 && i < config.print_count) {
             std::cout << "\n[" << (i + 1) << "]" << std::endl;
             std::cout << "  Input:  " << formula_str << std::endl;
-            std::cout << "  NNF:    " << nnf_result->to_string_with_names(pool) << std::endl;
+            std::cout << "  NNF:    " << nnf_result->to_string(pool) << std::endl;
             if (!is_valid) {
                 std::cout << "  Error:  " << error_msg << std::endl;
             }
@@ -329,7 +329,7 @@ int main(int argc, char* argv[]) {
             if (config.verbose) {
                 std::cerr << "\n[" << i << "] NNF VALIDATION FAILED" << std::endl;
                 std::cerr << "  Original:  " << formula_str << std::endl;
-                std::cerr << "  NNF:       " << nnf_result->to_string_with_names(pool) << std::endl;
+                std::cerr << "  NNF:       " << nnf_result->to_string(pool) << std::endl;
                 std::cerr << "  Error:     " << error_msg << std::endl;
             } else {
                 // Print first few failures for visibility

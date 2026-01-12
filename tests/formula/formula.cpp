@@ -87,9 +87,9 @@ TEST_CASE("Formula: Create constants", "[formula][creation]") {
     REQUIRE(f->is_false());
     REQUIRE(e->is_end());
 
-    REQUIRE(t->to_string() == "true");
-    REQUIRE(f->to_string() == "false");
-    REQUIRE(e->to_string() == "end");
+    REQUIRE(t->to_string(pool) == "true");
+    REQUIRE(f->to_string(pool) == "false");
+    REQUIRE(e->to_string(pool) == "End");
 }
 
 TEST_CASE("Formula: Create unary operators", "[formula][creation]") {
@@ -105,8 +105,8 @@ TEST_CASE("Formula: Create unary operators", "[formula][creation]") {
     REQUIRE(not_a->left() == a);
     REQUIRE(next_a->left() == a);
 
-    REQUIRE(not_a->to_string() == "!v0");
-    REQUIRE(next_a->to_string() == "X[!](v0)");
+    REQUIRE(not_a->to_string(pool) == "!a");
+    REQUIRE(next_a->to_string(pool) == "X[!](a)");
 }
 
 TEST_CASE("Formula: Create binary operators", "[formula][creation]") {
@@ -487,8 +487,8 @@ TEST_CASE("Simplify: Determinism - single formula multiple times", "[simplify][d
     // All results should be identical (same pointer due to hash consing)
     REQUIRE(result1 == result2);
     REQUIRE(result2 == result3);
-    REQUIRE(result1->to_string() == result2->to_string());
-    REQUIRE(result2->to_string() == result3->to_string());
+    REQUIRE(result1->to_string(pool) == result2->to_string(pool));
+    REQUIRE(result2->to_string(pool) == result3->to_string(pool));
 }
 
 TEST_CASE("Simplify: Determinism - complex AND chain", "[simplify][determinism]") {
@@ -514,7 +514,7 @@ TEST_CASE("Simplify: Determinism - complex AND chain", "[simplify][determinism]"
     // All results should have same pointer
     for (size_t i = 1; i < results.size(); ++i) {
         REQUIRE(results[0] == results[i]);
-        REQUIRE(results[0]->to_string() == results[i]->to_string());
+        REQUIRE(results[0]->to_string(pool) == results[i]->to_string(pool));
     }
 }
 
@@ -536,10 +536,10 @@ TEST_CASE("Simplify: Determinism - OR with duplicates", "[simplify][determinism]
         Formula* result = or_xxx->simplify(pool);
         if (i == 0) {
             first_result = result;
-            expected_str = result->to_string();
+            expected_str = result->to_string(pool);
         } else {
             REQUIRE(result == first_result);
-            REQUIRE(result->to_string() == expected_str);
+            REQUIRE(result->to_string(pool) == expected_str);
         }
     }
 
@@ -562,7 +562,7 @@ TEST_CASE("Simplify: Determinism - re-parse and simplify same formula", "[simpli
         Formula* f = parser.parse(formula_str);
         Formula* simplified = f->simplify(pool);
         results.push_back(simplified);
-        strings.push_back(simplified->to_string_with_names(pool));
+        strings.push_back(simplified->to_string(pool));
     }
 
     // All string results should be identical
@@ -645,7 +645,7 @@ TEST_CASE("Simplify: Determinism - nested AND-OR structure", "[simplify][determi
     std::vector<std::string> results;
     for (int i = 0; i < 20; ++i) {
         Formula* simplified = final->simplify(pool);
-        results.push_back(simplified->to_string());
+        results.push_back(simplified->to_string(pool));
     }
 
     // All string outputs should be identical
@@ -664,12 +664,12 @@ TEST_CASE("Simplify: Determinism - parse-simplify-parse roundtrip", "[simplify][
     // Parse → simplify → to_string → parse → simplify → to_string
     Formula* f1 = parser.parse(original);
     Formula* s1 = f1->simplify(pool);
-    std::string str1 = s1->to_string_with_names(pool);
+    std::string str1 = s1->to_string(pool);
 
     // Do it again
     Formula* f2 = parser.parse(str1);  // Parse the simplified result
     Formula* s2 = f2->simplify(pool);
-    std::string str2 = s2->to_string_with_names(pool);
+    std::string str2 = s2->to_string(pool);
 
     // String should stabilize
     REQUIRE(str1 == str2);
@@ -677,7 +677,7 @@ TEST_CASE("Simplify: Determinism - parse-simplify-parse roundtrip", "[simplify][
     // Third iteration should also be same
     Formula* f3 = parser.parse(str2);
     Formula* s3 = f3->simplify(pool);
-    std::string str3 = s3->to_string_with_names(pool);
+    std::string str3 = s3->to_string(pool);
 
     REQUIRE(str2 == str3);
 }
@@ -699,13 +699,13 @@ TEST_CASE("Simplify: Determinism - Until rules consistency", "[simplify][determi
     // All results should have same pointer
     for (size_t i = 1; i < results.size(); ++i) {
         REQUIRE(results[0] == results[i]);
-        REQUIRE(results[0]->to_string() == results[i]->to_string());
+        REQUIRE(results[0]->to_string(pool) == results[i]->to_string(pool));
     }
 
     // Check structure: should be Next(Until(a, b))
     // Note: This tests the determinism of the Next extraction rule
     // The exact simplified form depends on simplify_until implementation
-    REQUIRE(results[0]->to_string() == results[0]->to_string());  // Self-consistency check
+    REQUIRE(results[0]->to_string(pool) == results[0]->to_string(pool));  // Self-consistency check
 }
 
 // =============================================================================
