@@ -37,42 +37,9 @@
 | 语言 | C++17 |
 | 构建 | CMake 3.10+ |
 | 测试 | Catch2 |
-| SMT 求解器 | Z3 |
 | 日志 | spdlog (内嵌) |
 
 详见: [外部依赖](./docs/ARCHITECTURE/dependencies.md)
-
----
-
-## 当前状态
-
-### 实现进度
-
-```
-✅ Formula 模块 (100%)
-✅ Parser 模块  (100%)
-✅ DFA/Tableau  (100%)
-✅ Synthesis 核心 (85%)
-🔄 策略提取      (30%)
-```
-
-详见: [实现路线图](./docs/ARCHITECTURE/roadmap.md)
-
-### 测试覆盖
-
-| 测试套件 | 断言数 | 状态 |
-|---------|-------|------|
-| formula_tests | 66 | ✅ 全部通过 |
-| parser_checker_tests | 171 | ✅ 全部通过 |
-| transformation_tests | 4 (196 公式) | ✅ 全部通过 |
-| dfa_tests | 22 | ✅ 全部通过 |
-| tableau_state_tests | 36 | ✅ 全部通过 |
-| synthesis_tests | 20 | ✅ 全部通过 |
-| random_formula_test | 50000 (10000 公式) | ✅ 全部通过 |
-
-详见: [测试策略](./docs/WORKFLOWS/testing_strategy.md)
-
----
 
 ## 工作流程
 
@@ -289,44 +256,7 @@ FormulaPool:
 
 **历史**: 原 `to_verbose_string()` 于 2026-01-04 改名为 `to_string_with_names()` 以提高语义清晰度。
 
-### 括号输出规则 (2026-01-04)
-
-**核心原则**: 括号的添加确保 `to_string → parse → to_string` 的 roundtrip 正确性。
-
-**Parser 优先级**（从低到高）：
-- Or (最低)
-- And
-- Until/Release
-- Not/Next
-- Primary (Literal, True, False) (最高)
-
-**括号规则**：
-
-| 子节点类型 | 是否加括号 | 示例 |
-|-----------|-----------|------|
-| Literal/True/False | 否 | `v0`, `true` |
-| Not | 否 | `!v0` |
-| Next | 否（Next 自己加括号） | `X(v0)` |
-| 二元操作符 (And/Or/U/R) | **是** | `(p1 \| p2) & p3` |
-
-**Next 特殊处理**: 检查子结果是否已有括号，避免重复
-- `X(p0)` → `X(p0)`
-- `X(p0 & p1)` → `X(p0 & p1)`
-- `X((p0 R p2))` → `X(p0 R p2)`（去重）
-
-**输出示例**：
-
-| 输入 | 输出 | 说明 |
-|------|------|------|
-| `(p1 \| p2) & p3` | `(p1 \| p2) & p3` | 保留括号 |
-| `(p1 & p2) \| p3` | `(p1 & p2) \| p3` | 保留括号（清晰） |
-| `(p1 U p2) & p3` | `(p1 U p2) & p3` | 保留括号（清晰） |
-| `(p1 \| p2) U p3` | `(p1 \| p2) U p3` | 保留括号 |
-| `X(p0)` | `X(p0)` | Next 保持括号 |
-| `X(p0 & p1)` | `X(p0 & p1)` | Next + 无重复 |
-| `X((p0 R p2))` | `X(p0 R p2)` | 去重复括号 |
-
-**交流语言偏好**：
+### 交流语言偏好
 
 - **主要使用中文**进行交流
 - **专业术语保留英文**（如 REALIZABLE, SCC, tableau）
@@ -378,19 +308,16 @@ FormulaPool:
 - 简单的日志输出调整 → 可以直接修改
 - 其他情况一律先讨论！
 
-### ⚠️ Git 提交规范（编译通过后）
+### ⚠️ Git 提交规范
 
-**重要：每次代码修改能编译通过后，必须立即提交到 git！**
-
-**原因**：
 - 每次编译通过都是一个可回退的稳定点
 - 便于理解每个改动的效果
 - 出问题时可以快速回滚到正确的版本
 
 **提交流程**：
 1. 代码修改完成
-2. `cd build && make` 编译通过
-3. `git add -A && git commit -m "..."`
+2. `git add -A && git commit -m "..."`
+3. `cd build && make` 编译通过
 4. 然后进行测试和调试
 
 **示例**：
@@ -421,39 +348,16 @@ git add -A && git commit -m "refactor: xxx"
    - 确保所有单元测试通过
    - 确保没有引入回归问题
 
-2. **小范围抽查** (20-50 个随机案例)
+2. **全量 Benchmark** (1000 个案例)
    ```bash
-   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 50
-   ```
-   - 验证基本逻辑在大范围内的稳定性
-   - 发现问题立即修复，不要继续
-
-3. **全量 Benchmark** (1000 个案例)
-   ```bash
-   ./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1000
+   ./build/tests/bench/benchmark_test -b all
    ```
    - 只有在前面阶段通过后才运行
    - 避免浪费时间在明显有问题的代码上
 
 **重要提醒**：
-- ❌ **不要**修改代码后直接跑全量 benchmark
 - ❌ **不要**跳过单元测试直接跑 benchmark
-- ✅ **必须**按顺序：单元测试 → 小范围抽查 → 全量测试
-
-**⚠️ Benchmark 超时问题解决方案**（2026-01-03 记录）：
-
-当 benchmark_runner 出现超时问题时，可能是并发执行导致的。解决方案：
-1. **使用串行/单线程模式运行测试**
-   - 修改测试代码使用单线程执行
-   - 或者一次只测试一个公式
-2. **逐步增加测试数量**
-   - 先测试 1-2 个用例确认功能正常
-   - 再逐步增加到 10、50、100...
-
-```bash
-# 串行测试示例（一次只测一个公式）
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1  # 测试1个
-```
+- ✅ **必须**按顺序：单元测试 → 全量测试
 
 **⚠️ Benchmark 调试优先级**（2026-01-04 记录）：
 
@@ -501,20 +405,17 @@ git add -A && git commit -m "refactor: xxx"
 # 1. 修改代码
 vim src/synthesis/xxx.cpp
 
-# 2. 编译
-cd build && make
-
-# 3. 先提交！
+# 2. 先提交！
 git add -A && git commit -m "fix: xxx"
 
-# 4. 运行单元测试
-make test
+# 3. 编译
+rm -rf build && cmake -S . -B build && cmake --build build --target all -j
 
-# 5. 小范围测试
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 50
+# 4. 运行单元测试
+cmake --build build --target test
 
 # 6. 全量测试（只有前面通过后）
-./build/tests/bench/benchmark_test tools/benchmarks/sm1000 1 1000
+./build/tests/bench/benchmark_test -b all
 ```
 
 ### Bug 处理
@@ -532,7 +433,7 @@ make test
 
 ```bash
 # 确保编译成功
-cd build && make 2>&1 | tail -5
+rm -rf build && cmake -S . -B build && cmake --build build --target all -j
 ```
 
 **使用 Cosy 参考实现验证**：
@@ -584,11 +485,7 @@ Cosy 对 `.part` 文件有严格的格式要求：
    - 测试基本逻辑正确性
    - 全部通过后才进入下一步
 
-2. **小范围抽查** (20-50 个随机案例)
-   - 验证基本逻辑在大范围内的稳定性
-   - 平均正确率超过 70% 后才进入下一步
-
-3. **全量 Benchmark** (1000 个案例)
+2. **全量 Benchmark** (1000 个案例)
    - 只有在前面阶段通过后才运行
    - 避免浪费时间在明显有问题的代码上
 
@@ -637,62 +534,6 @@ git config --global --unset https.proxy
    - 测试结果
 3. **同步进展**: 每次有新进展时更新 `BUG_REPORT.md`
 4. **完成后归档**: 问题解决后移至 `docs/BUGS/fixed.md`
-
-**当前进行中的问题**:
-- `docs/working_issues/2026-01-02_PM_BenchmarkAccuracy/` - Benchmark 准确率问题 (22% → 待改进)
-
-### 提交规范
-
-```
-<type>: <简短描述>
-
-<详细说明>
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-
-Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
-```
-
-**⚠️ 重要：CHANGELOG 占位符必须替换！**
-
-每次 git commit 后，系统会自动生成 CHANGELOG 文件（在 `docs/CHANGELOG/` 目录下）。
-**必须立即手动替换占位符**：
-
-```markdown
-## AI Analysis
-
-### 📝 Change Summary
-<!-- TODO: Add a brief summary of the change in Chinese or English -->
-```
-
-**替换为**（用中文或英文填写）：
-
-```markdown
-## AI Analysis
-
-### 📝 Change Summary
-这里用一两句话描述这次修改做了什么
-
-### 🔍 Technical Details
-- 关键技术点 1
-- 关键技术点 2
-
-### 📊 Impact Analysis
-- 影响范围/组件
-- 性能影响（如有）
-```
-
-**检查方法**：
-```bash
-# 查看 latest CHANGELOG
-ls -lt docs/CHANGELOG/2026-*/ | head -5
-# 打开最新文件，搜索 TODO
-grep -r "<!-- TODO:" docs/CHANGELOG/
-```
-
-详见: [提交规范](./docs/WORKFLOWS/commit_practice.md)
-
----
 
 ## 文档结构
 
