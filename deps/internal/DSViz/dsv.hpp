@@ -236,7 +236,23 @@ public:
  * @brief A class representing a node in graphviz dot file
  */
 class Node {
+protected:
+    IViz &viz;
+    bool isDone = false;
+    std::stringstream ss;
+    std::map<std::string, std::string> other_attrs;
+
+    virtual void genAttr(std::string name, const std::string &attr) {
+        if (!attr.empty()) ss << " " << name << "=\"" << attr << "\"";
+    }
+
+    virtual void genLabel() { genAttr("label", label); }
+    virtual void genShape() { genAttr("shape", shape); }
+    virtual void genStyle() { genAttr("style", style); }
+
 public:
+    std::string name, label, shape, style;
+
     Node(IViz &viz, std::string name = "", std::string shape = "",
          std::string style = "")
         : viz(viz), shape(shape), style(style) {
@@ -273,22 +289,6 @@ public:
     virtual void addAttr(std::string attr, std::string value) {
         other_attrs[attr] = value;
     }
-
-    std::string name, label, shape, style;
-
-protected:
-    virtual void genAttr(std::string name, const std::string &attr) {
-        if (!attr.empty()) ss << " " << name << "=\"" << attr << "\"";
-    }
-
-    virtual void genLabel() { genAttr("label", label); }
-    virtual void genShape() { genAttr("shape", shape); }
-    virtual void genStyle() { genAttr("style", style); }
-
-    IViz &viz;
-    bool isDone = false;
-    std::stringstream ss;
-    std::map<std::string, std::string> other_attrs;
 };
 
 /**
@@ -325,12 +325,14 @@ public:
 
     inline void attr_value(std::string value, std::string attr,
                            std::string pt_name = "") {
+        (void)attr;  // Reserved for future use
         tss << "<td port=\"" << IViz::encode(pt_name) << "\">"
             << IViz::encode(value) << "</td>" << std::endl;
     }
 
     inline void attr_value_nospan(std::string value, std::string attr,
                                    std::string pt_name = "") {
+        (void)attr;  // Reserved for future use
         tss << "<td colspan=\"" << span << "\" port=\"" << IViz::encode(pt_name) << "\">"
             << IViz::encode(value) << "</td>" << std::endl;
     }
