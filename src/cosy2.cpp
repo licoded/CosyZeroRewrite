@@ -267,5 +267,5 @@ int main(int argc, char* argv[]) {
     // Print result
     print_result(realizable, *config);
 
-    return realizable ? 0 : 1;
+    return 0;
 }
