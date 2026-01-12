@@ -63,11 +63,6 @@ public:
     ~BddManager();
 
     /**
-     * @brief Check if BDD is available (CUDD found)
-     */
-    bool is_available() const;
-
-    /**
      * @brief Get or build BDD for a TableauState
      *
      * Caches the BDD per state to avoid rebuilding.
@@ -184,24 +179,6 @@ private:
      * @brief Statistics
      */
     mutable Stats stats_;
-
-    /**
-     * @brief Enumerate all possible output assignments
-     *
-     * @param relevant_output_var_ids Variables to enumerate
-     * @return All 2^k possible assignments
-     */
-    std::vector<Assignment> enumerate_all_output_assignments(
-        const std::set<int>& relevant_output_var_ids) const;
-
-    /**
-     * @brief Evaluate a formula on an assignment
-     *
-     * @param f The formula to evaluate
-     * @param assignment Set of variables set to TRUE
-     * @return true if formula evaluates to true
-     */
-    bool evaluate_formula(formula::Formula* f, const Assignment& assignment) const;
 };
 
 } // namespace synthesis

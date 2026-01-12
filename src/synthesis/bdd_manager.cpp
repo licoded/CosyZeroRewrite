@@ -135,10 +135,6 @@ BddManager::~BddManager() {
     clear_cache();
 }
 
-bool BddManager::is_available() const {
-    return cudd_ != nullptr;
-}
-
 void BddManager::clear_cache() {
     state_formula_cache_.clear();
     // Dereference and clear BDD cache
@@ -243,79 +239,6 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(
 
     LOG_DEBUG("BddManager: enumerated ", safe_moves.size(), " safe sys moves using BDD");
     return safe_moves;
-}
-
-std::vector<Assignment> BddManager::enumerate_all_output_assignments(
-    const std::set<int>& relevant_output_var_ids) const {
-
-    std::vector<Assignment> all_moves;
-    std::vector<int> output_vars(relevant_output_var_ids.begin(),
-                                 relevant_output_var_ids.end());
-
-    int n = output_vars.size();
-    if (n == 0) {
-        all_moves.push_back({});
-    } else {
-        for (uint32_t mask = 0; mask < static_cast<uint32_t>(1 << n); ++mask) {
-            Assignment assignment;
-            for (int i = 0; i < n; ++i) {
-                if (mask & (1u << i)) {
-                    assignment.insert(output_vars[i]);
-                }
-            }
-            all_moves.push_back(std::move(assignment));
-        }
-    }
-    return all_moves;
-}
-
-bool BddManager::evaluate_formula(formula::Formula* f, const Assignment& assignment) const {
-    if (!f) return false;
-
-    using OpType = formula::Formula::OpType;
-
-    switch (f->op()) {
-        case OpType::True:
-            return true;
-        case OpType::False:
-            return false;
-
-        case OpType::Literal:
-            return assignment.count(f->var_id()) > 0;
-
-        case OpType::Not:
-            return !evaluate_formula(f->left(), assignment);
-
-        case OpType::And:
-            return evaluate_formula(f->left(), assignment) &&
-                   evaluate_formula(f->right(), assignment);
-
-        case OpType::Or:
-            return evaluate_formula(f->left(), assignment) ||
-                   evaluate_formula(f->right(), assignment);
-
-        case OpType::Until: {
-            // Boolean Until: φ U ψ ≡ ψ ∨ φ
-            return evaluate_formula(f->right(), assignment) ||
-                   evaluate_formula(f->left(), assignment);
-        }
-
-        case OpType::Release: {
-            // Boolean Release: φ R ψ ≡ ψ ∧ φ
-            return evaluate_formula(f->right(), assignment) &&
-                   evaluate_formula(f->left(), assignment);
-        }
-
-        case OpType::Next:
-            // Should have been removed by rm_next
-            return true;
-
-        case OpType::End:
-            return false;
-
-        default:
-            return false;
-    }
 }
 
 //==============================================================================
