@@ -1,0 +1,105 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+ColumnLimit: 120
+PointerAlignment: Right
+ReferenceAlignment: Right
+
+# --- 核心对齐配置 ---
+# 强制参数对齐到左括号之后
+AlignAfterOpenBracket: Align
+# 参数不换行，保持紧凑（只有超出列宽时才换行）
+BinPackParameters: false
+BinPackArguments: false
+
+# --- 函数返回类型不单独换行 ---
+AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterDefinitionReturnType: None
+PenaltyReturnTypeOnItsOwnLine: 1000
+
+# --- 其他常规配置 ---
+SpaceBeforeCpp11BracedList: true
+BreakBeforeBinaryOperators: All
+Cpp11BracedListStyle: true
+
+# --- 单行风格控制 ---
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortLambdasOnASingleLine: Empty
+
+# --- 大括号换行风格 ---
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  BeforeElse: true
+  AfterEnum: true
+  AfterFunction: true
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: true
+  BeforeLambdaBody: false
+  IndentBraces: false
+
+# --- 构造函数初始化列表 ---
+PackConstructorInitializers: NextLine
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+
+# --- 命名空间缩进 ---
+NamespaceIndentation: None
+
+# --- include 排序 ---
+SortIncludes: true
+IncludeBlocks: Regroup
+IncludeCategories:
+  # 匹配项目头文件: include/xxx
+  - Regex:           '^("[^"]+|"include/)'
+    Priority:        1
+  # 匹配外部库头文件
+  - Regex:           '^<spdlog/'
+    Priority:        2
+  # 其他系统头文件
+  - Regex:           '^<'
+    Priority:        3
+
+# --- 对齐 ---
+AlignConsecutiveAssignments: false
+AlignConsecutiveDeclarations: false
+AlignEscapedNewlines: Left
+AlignOperands: true
+AlignTrailingComments: true
+
+# --- 空格和空行 ---
+KeepEmptyLinesAtTheStartOfBlocks: false
+MaxEmptyLinesToKeep: 1
+ReflowComments: true
+SpaceAfterCStyleCast: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpacesInAngles: false
+SpacesInContainerLiterals: false
+SpacesInCStyleCastParentheses: false
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# --- 缩进 ---
+IndentCaseLabels: true
+IndentPPDirectives: None
+IndentWrappedFunctionNames: false
+IndentWidth: 4
+ContinuationIndentWidth: 4
+
+# --- 换行 ---
+AllowAllConstructorInitializersOnNextLine: true
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeColon
+BreakInheritanceList: BeforeColon
+...

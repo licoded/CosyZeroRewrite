@@ -76,6 +76,11 @@ include(cmake/LibraryTargets.cmake)
 include(cmake/Tests.cmake)
 
 # ============================================================
+# Code Formatting
+# ============================================================
+include(cmake/ClangFormat.cmake)
+
+# ============================================================
 # Fuzzing
 # ============================================================
 include(cmake/Fuzzing.cmake)
