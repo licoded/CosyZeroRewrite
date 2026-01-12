@@ -14,6 +14,7 @@
 #include <sstream>
 #include <unordered_set>
 #include <spdlog/fmt/fmt.h>
+#include <cppitertools/imap.hpp>  // for iter::imap
 
 namespace synthesis {
 
@@ -882,9 +883,8 @@ void TraceExporter::collect_state_data(SubStepGraphData& graph_data,
     const auto& classification = solver.get_classification();
     const GameState& initial_state = solver.get_initial_state();
 
-    // Build state data map
-    for (const auto& pair : successors) {
-        const GameState& state = pair.first;
+    // Build state data map - iterate only over keys (states), not values (successor lists)
+    for (const GameState& state : iter::imap([](const auto& p) { return p.first; }, successors)) {
         std::string state_id = id_map_.get_id(state);
 
         StateData data;
