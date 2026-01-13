@@ -212,7 +212,6 @@ class BenchmarkRunner
         parallel::ThreadPool pool(num_jobs_);
 
         // Mutex for protecting shared access
-        std::mutex results_mutex;
         std::mutex active_mutex;
         std::set<int> active_formula_indexs;
         std::atomic<int> completed {0};
@@ -262,14 +261,13 @@ class BenchmarkRunner
                     pool.declare_variables(outputs, inputs);
 
                     synthesis::OnTheFlyGameSolver solver(f, pool);
-                    bool realizable = solver.is_realizable();
+                    result.realizable = solver.is_realizable();
 
                     auto end = std::chrono::high_resolution_clock::now();
                     result.elapsed_ms = std::chrono::duration<double, std::milli>(end - start).count();
                     result.formula_str = benchmark->formula;
                     result.partition_str = make_partition_string(inputs, outputs);
                     result.success = true;
-                    result.realizable = realizable;
                 }
             }
 
@@ -406,9 +404,8 @@ static void print_banner(const BenchmarkConfig &config)
 // ============================================================================
 
 struct BenchmarkStats {
-    int parsed = 0;
-    int realizable = 0;
-    int unrealizable = 0;
+    int parsed_cnt = 0;
+    int realizable_cnt = 0;
     int timeout = 0;
     int found_results = 0; // matched with results.csv
     double total_time_ms = 0;
@@ -418,16 +415,15 @@ struct BenchmarkStats {
 
 static void print_summary(const BenchmarkStats &stats)
 {
-    const int failed = stats.total_count - stats.parsed;
-    const int not_found = stats.total_count - stats.found_results;
+    const int failed_cnt = stats.total_count - stats.parsed_cnt;
 
     NOP_LOG_INFO("========== Summary ==========");
-    NOP_LOG_INFO("Parsed: {}", stats.parsed);
-    NOP_LOG_INFO("Failed parse: {}", failed);
-    NOP_LOG_INFO("Realizable: {}", stats.realizable);
-    NOP_LOG_INFO("Unrealizable: {}", stats.unrealizable);
+    NOP_LOG_INFO("Parsed: {}", stats.parsed_cnt);
+    NOP_LOG_INFO("Failed parse: {}", failed_cnt);
+    NOP_LOG_INFO("Realizable: {}", stats.realizable_cnt);
+    NOP_LOG_INFO("Unrealizable: {}", stats.found_results - stats.realizable_cnt);
     NOP_LOG_INFO("Results found: {}", stats.found_results);
-    NOP_LOG_INFO("Results not found: {}", not_found);
+    NOP_LOG_INFO("Results not found: {}", stats.total_count - stats.found_results);
     NOP_LOG_INFO("Total formulas: {}", stats.total_count);
     NOP_LOG_INFO("Wall time: {:.2f}ms", stats.wall_time_ms);
     NOP_LOG_INFO("CPU time: {:.2f}ms", stats.total_time_ms);
@@ -437,7 +433,7 @@ static void print_summary(const BenchmarkStats &stats)
     }
     NOP_LOG_INFO("Avg time per formula: {:.3f}ms", stats.total_count > 0 ? stats.total_time_ms / stats.total_count : 0);
 
-    if (failed == 0)
+    if (failed_cnt == 0)
     {
         NOP_LOG_INFO("Status: ALL TESTS PASSED");
     }
@@ -488,18 +484,11 @@ int main(int argc, char *argv[])
     for (const auto &r : results)
     {
         stats.total_time_ms += r.elapsed_ms;
-        stats.parsed += r.success ? 1 : 0;
+        stats.parsed_cnt += r.success ? 1 : 0;
 
         if (r.realizable.has_value())
         {
-            if (r.realizable.value())
-            {
-                stats.realizable++;
-            }
-            else
-            {
-                stats.unrealizable++;
-            }
+            stats.realizable_cnt += r.realizable.value();
         }
 
         // Check expected result
@@ -544,5 +533,5 @@ int main(int argc, char *argv[])
     logger::Logger::instance().logger()->flush();
     spdlog::shutdown();
 
-    return (static_cast<int>(stats.total_count) > stats.parsed) ? 1 : 0;
+    return (static_cast<int>(stats.total_count) > stats.parsed_cnt) ? 1 : 0;
 }
