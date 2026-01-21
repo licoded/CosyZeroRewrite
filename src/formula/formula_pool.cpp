@@ -422,8 +422,7 @@ bool FormulaPool::has_variable(const std::string &name) const
 
 int FormulaPool::get_or_create_variable(const std::string &name)
 {
-    auto it = var_ids_.find(name);
-    if (it != var_ids_.end())
+    if (auto it = var_ids_.find(name); it != var_ids_.end())
     {
         return it->second;
     }
@@ -464,8 +463,7 @@ Formula *FormulaPool::create(Formula::OpType op, Formula *left, Formula *right, 
     Formula key(op, left, right, var_id, h, 0);
 
     // Search in unique table
-    auto it = unique_table_.find(&key);
-    if (it != unique_table_.end())
+    if (auto it = unique_table_.find(&key); it != unique_table_.end())
     {
         return *it; // Found existing, return it
     }

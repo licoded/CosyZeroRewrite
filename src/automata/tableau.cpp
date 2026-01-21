@@ -371,8 +371,7 @@ TableauState *TableauStatePool::get_or_create(formula::Formula *phi, formula::Fo
     auto temp = std::unique_ptr<TableauState>(new TableauState(phi, phi, {}));
 
     // Check if equivalent state exists (based on phi hash)
-    auto it = states_.find(temp.get());
-    if (it != states_.end())
+    if (auto it = states_.find(temp.get()); it != states_.end())
     {
         LOG_DEBUG("  -> found existing state");
         return *it;
@@ -433,8 +432,7 @@ TableauState *OnTheFlyDFA::successor(TableauState *q, const Assignment &assignme
 {
     // Check cache
     auto key = std::make_pair(q, assignment);
-    auto it = transition_cache_.find(key);
-    if (it != transition_cache_.end())
+    if (auto it = transition_cache_.find(key); it != transition_cache_.end())
     {
         return it->second;
     }

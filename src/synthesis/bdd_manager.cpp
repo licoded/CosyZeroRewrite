@@ -167,8 +167,7 @@ void BddManager::clear_cache()
 bool BddManager::get_or_build_bdd_for_state(automata::TableauState *state, formula::FormulaPool &pool)
 {
     // Check cache first
-    auto it = state_formula_cache_.find(state);
-    if (it != state_formula_cache_.end())
+    if (auto it = state_formula_cache_.find(state); it != state_formula_cache_.end())
     {
         current_formula_ = it->second;
         stats_.num_cache_hits++;
@@ -207,10 +206,9 @@ std::vector<Assignment> BddManager::enumerate_safe_sys_moves(automata::TableauSt
     }
 
     // Check BDD cache first
-    auto bdd_it = state_bdd_cache_.find(state);
     DdNode *bdd = nullptr;
 
-    if (bdd_it != state_bdd_cache_.end())
+    if (auto bdd_it = state_bdd_cache_.find(state); bdd_it != state_bdd_cache_.end())
     {
         bdd = bdd_it->second;
         stats_.num_cache_hits++;

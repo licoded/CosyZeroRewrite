@@ -184,7 +184,6 @@ TraceExporter::TraceExporter(formula::Formula *formula, formula::FormulaPool &po
     : formula_(formula),
       pool_(pool),
       output_dir_(output_dir),
-      output_path_(),
       enabled_(true),
       finalized_(false),
       stage_counter_(0),
@@ -992,8 +991,7 @@ void TraceExporter::collect_state_data(SubStepGraphData &graph_data, const OnThe
         data.is_initial = (state == initial_state);
 
         // Get classification
-        auto cls_it = classification.find(state);
-        if (cls_it != classification.end())
+        if (auto cls_it = classification.find(state); cls_it != classification.end())
         {
             data.classification = cls_it->second;
         }

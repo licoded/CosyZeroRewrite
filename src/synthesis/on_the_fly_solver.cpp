@@ -122,16 +122,14 @@ bool OnTheFlyGameSolver::is_realizable()
         // Trace: record expansion
         if (trace_exporter_)
         {
-            auto succ_it = successors_.find(state);
-            if (succ_it != successors_.end())
+            if (auto succ_it = successors_.find(state); succ_it != successors_.end())
             {
                 trace_exporter_->record_expansion(state, succ_it->second, *this);
             }
         }
 
         // Add all unexpanded successors to worklist
-        auto succ_it = successors_.find(state);
-        if (succ_it != successors_.end())
+        if (auto succ_it = successors_.find(state); succ_it != successors_.end())
         {
             for (const GameState &succ : succ_it->second)
             {
@@ -213,8 +211,7 @@ bool OnTheFlyGameSolver::is_realizable()
     size_t swin_count = 0, ewin_count = 0, unknown_count = 0;
     for (const auto &pair : successors_)
     {
-        auto it = classification_.find(pair.first);
-        if (it == classification_.end())
+        if (auto it = classification_.find(pair.first); it == classification_.end())
         {
             unknown_count++;
         }
@@ -402,26 +399,23 @@ std::vector<GameState> OnTheFlyGameSolver::get_full_round_successors(const GameS
     std::vector<GameState> result;
 
     // First level: sys move → env states
-    auto sys_succ_it = successors_.find(sys_state);
-    if (sys_succ_it == successors_.end())
+    if (auto sys_succ_it = successors_.find(sys_state); sys_succ_it == successors_.end())
     {
         expand_state(sys_state);
         sys_succ_it = successors_.find(sys_state);
     }
 
     // Second level: for each env state, get env move → sys states
-    for (const auto &env_state : sys_succ_it->second)
+    for (const auto &env_state : successors_.find(sys_state)->second)
     {
         assert(env_state.player == Player::Environment);
-        auto env_succ_it = successors_.find(env_state);
-        if (env_succ_it == successors_.end())
+        if (auto env_succ_it = successors_.find(env_state); env_succ_it != successors_.end())
         {
-            continue; // Should not happen if expansion is correct
-        }
-        for (const auto &next_sys_state : env_succ_it->second)
-        {
-            assert(next_sys_state.player == Player::System);
-            result.push_back(next_sys_state);
+            for (const auto &next_sys_state : env_succ_it->second)
+            {
+                assert(next_sys_state.player == Player::System);
+                result.push_back(next_sys_state);
+            }
         }
     }
 
@@ -523,8 +517,7 @@ std::vector<std::vector<GameState>> OnTheFlyGameSolver::find_sccs_for_testing()
         on_stack[v] = true;
 
         // Directly access successors_ map - don't trigger expand_state()
-        auto succ_it = successors_.find(v);
-        if (succ_it != successors_.end())
+        if (auto succ_it = successors_.find(v); succ_it != successors_.end())
         {
             for (const GameState &w : succ_it->second)
             {
@@ -681,16 +674,15 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState> &scc)
         for (const auto &e : succ_it->second)
         { // env states
             // Second level: env move → sys states
-            auto env_succ_it = successors_.find(e);
-            if (env_succ_it == successors_.end())
-                continue;
-
-            for (const auto &s_prime : env_succ_it->second)
-            { // sys states
-                // s → s' is a complete sys+env move
-                // Assert: both s and s_prime are System states
-                assert(s_prime.player == Player::System);
-                predecessors[s_prime].insert(s);
+            if (auto env_succ_it = successors_.find(e); env_succ_it != successors_.end())
+            {
+                for (const auto &s_prime : env_succ_it->second)
+                { // sys states
+                    // s → s' is a complete sys+env move
+                    // Assert: both s and s_prime are System states
+                    assert(s_prime.player == Player::System);
+                    predecessors[s_prime].insert(s);
+                }
             }
         }
     }
@@ -744,8 +736,7 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState> &scc)
     {
         const GameState &key = pair.first;
         assert(key.player == Player::System); // Key must be System state
-        auto cls_it = classification_.find(key);
-        if (cls_it != classification_.end() && cls_it->second == StateClass::Swin)
+        if (auto cls_it = classification_.find(key); cls_it != classification_.end() && cls_it->second == StateClass::Swin)
         {
             swin_states.insert(key);
         }
@@ -766,16 +757,15 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState> &scc)
         {
             assert(swin.player == Player::System); // swin_states only contains System states
 
-            auto pred_it = predecessors.find(swin);
-            if (pred_it == predecessors.end())
-                continue;
-
-            for (const GameState &pred : pred_it->second)
+            if (auto pred_it = predecessors.find(swin); pred_it != predecessors.end())
             {
-                assert(pred.player == Player::System); // Predecessors are System states
-                if (!classification_.count(pred))
+                for (const GameState &pred : pred_it->second)
                 {
-                    tmpSet.insert(pred);
+                    assert(pred.player == Player::System); // Predecessors are System states
+                    if (!classification_.count(pred))
+                    {
+                        tmpSet.insert(pred);
+                    }
                 }
             }
         }
@@ -803,19 +793,18 @@ bool OnTheFlyGameSolver::classify_scc(const std::vector<GameState> &scc)
 
                 for (const auto &s_prime : env_succ_it->second)
                 { // env move → sys states
-                    auto cls_it = classification_.find(s_prime);
-                    if (cls_it == classification_.end())
+                    if (auto cls_it = classification_.find(s_prime); cls_it == classification_.end())
                     {
                         // This sys move leads to an unclassified state
                         all_env_moves_swin = false;
                         break;
                     }
-                    if (cls_it->second == StateClass::Swin)
+                    else if (cls_it->second == StateClass::Swin)
                     {
                         // This env move leads to a Swin state
                         continue;
                     }
-                    if (cls_it->second == StateClass::Ewin)
+                    else if (cls_it->second == StateClass::Ewin)
                     {
                         classification_[e] = StateClass::Ewin;
                         LOG_DEBUG("  [has_env_moves_ewin] Classified env state as Ewin: {}", e.to_string());
@@ -911,8 +900,7 @@ size_t OnTheFlyGameSolver::check_propagation_consistency() const
                 bool has_swin_succ = false;
                 for (const auto &succ : succs)
                 {
-                    auto succ_cls = classification_.find(succ);
-                    if (succ_cls != classification_.end() && succ_cls->second == StateClass::Swin)
+                    if (auto succ_cls = classification_.find(succ); succ_cls != classification_.end() && succ_cls->second == StateClass::Swin)
                     {
                         has_swin_succ = true;
                         break;
