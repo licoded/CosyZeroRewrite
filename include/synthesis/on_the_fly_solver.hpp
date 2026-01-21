@@ -614,6 +614,37 @@ class OnTheFlyGameSolver
     {
         return GameState(q, Player::Environment, out);
     }
+
+    //==========================================================================
+    // Private helper methods for is_realizable() phases
+    //==========================================================================
+
+    /**
+     * @brief Phase 1: Expand all reachable states
+     * @return Number of states expanded
+     */
+    size_t expand_all_reachable_states();
+
+    /**
+     * @brief Phase 2: SCC decomposition and classification
+     * @return Number of SCCs found
+     */
+    size_t decompose_and_classify_sccs();
+
+    /**
+     * @brief Log classification summary (debug)
+     */
+    void log_classification_summary() const;
+
+    /**
+     * @brief Check if debug propagation consistency is enabled
+     */
+    bool is_consistency_check_enabled() const;
+
+    /**
+     * @brief Run propagation consistency check (if enabled) and report violations
+     */
+    void run_consistency_check_if_enabled() const;
 };
 
 } // namespace synthesis

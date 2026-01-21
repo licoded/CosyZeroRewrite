@@ -81,13 +81,31 @@ bool OnTheFlyGameSolver::is_realizable()
 {
     LOG_DEBUG("OnTheFlyGameSolver: starting realizability check");
 
-    // Debug mode: Set COSY_DEBUG_PROPAGATION=1 to enable consistency checking
-    const char *debug_prop = std::getenv("COSY_DEBUG_PROPAGATION");
-    bool enable_consistency_check = (debug_prop && std::string(debug_prop) == "1");
+    size_t num_expanded = expand_all_reachable_states();
+    LOG_DEBUG("Phase 1 complete: expanded ", num_expanded, " states");
 
-    // ========================================================================
-    // PHASE 1: Expand ALL reachable states (no early SCC/classify/propagate)
-    // ========================================================================
+    size_t num_sccs = decompose_and_classify_sccs();
+    LOG_DEBUG("Phase 2 complete: found ", num_sccs, " SCCs");
+
+    StateClass result = get_initial_classification();
+
+    log_classification_summary();
+    run_consistency_check_if_enabled();
+
+    if (trace_exporter_)
+    {
+        trace_exporter_->finalize(result == StateClass::Swin, *this);
+    }
+
+    return result == StateClass::Swin;
+}
+
+//==============================================================================
+// Phase 1: State Expansion
+//==============================================================================
+
+size_t OnTheFlyGameSolver::expand_all_reachable_states()
+{
     LOG_DEBUG("=== PHASE 1: Expanding all reachable states ===");
 
     if (trace_exporter_)
@@ -99,27 +117,17 @@ bool OnTheFlyGameSolver::is_realizable()
     worklist_.clear();
     worklist_.push_back(initial_state_);
 
-    int expand_iteration = 0;
+    int iteration = 0;
     while (!worklist_.empty())
     {
-        expand_iteration++;
-
-        // Pop a state to expand
         GameState state = worklist_.back();
         worklist_.pop_back();
 
-        // Skip if already expanded
         if (expanded_.count(state))
-        {
             continue;
-        }
 
-        // Expand state (compute successors)
         expand_state(state);
 
-        LOG_DEBUG("Phase 1: expanded state #", expanded_.size(), " (worklist remaining: ", worklist_.size(), ")");
-
-        // Trace: record expansion
         if (trace_exporter_)
         {
             if (auto succ_it = successors_.find(state); succ_it != successors_.end())
@@ -128,7 +136,6 @@ bool OnTheFlyGameSolver::is_realizable()
             }
         }
 
-        // Add all unexpanded successors to worklist
         if (auto succ_it = successors_.find(state); succ_it != successors_.end())
         {
             for (const GameState &succ : succ_it->second)
@@ -140,24 +147,27 @@ bool OnTheFlyGameSolver::is_realizable()
             }
         }
 
-        // Safety limit
-        if (expand_iteration > 100000)
+        if (++iteration > 100000)
         {
             LOG_WARN("Phase 1: expansion limit reached");
             break;
         }
     }
 
-    LOG_DEBUG("Phase 1 complete: expanded ", expanded_.size(), " states");
-
     if (trace_exporter_)
     {
         trace_exporter_->end_stage();
     }
 
-    // ========================================================================
-    // PHASE 2: SCC decomposition, classification, and propagation
-    // ========================================================================
+    return expanded_.size();
+}
+
+//==============================================================================
+// Phase 2: SCC Decomposition and Classification
+//==============================================================================
+
+size_t OnTheFlyGameSolver::decompose_and_classify_sccs()
+{
     LOG_DEBUG("=== PHASE 2: SCC decomposition and classification ===");
 
     if (trace_exporter_)
@@ -166,9 +176,7 @@ bool OnTheFlyGameSolver::is_realizable()
         trace_exporter_->capture_state("Before SCC", *this);
     }
 
-    // Run SCC decomposition on the COMPLETE graph
     auto sccs = find_sccs();
-    LOG_DEBUG("Phase 2: found ", sccs.size(), " SCCs in complete graph");
     num_sccs_found_ = sccs.size();
 
     if (trace_exporter_)
@@ -176,16 +184,12 @@ bool OnTheFlyGameSolver::is_realizable()
         trace_exporter_->capture_state("Found " + std::to_string(sccs.size()) + " SCCs", *this);
     }
 
-    // Classify each SCC using fixed-point iteration
     for (size_t i = 0; i < sccs.size(); ++i)
     {
         const auto &scc = sccs[i];
         if (scc.empty())
             continue;
 
-        LOG_DEBUG("Phase 2: processing SCC with ", scc.size(), " states");
-
-        // Trace: record SCC
         if (trace_exporter_)
         {
             std::ostringstream oss;
@@ -201,13 +205,15 @@ bool OnTheFlyGameSolver::is_realizable()
         trace_exporter_->end_stage();
     }
 
-    // ========================================================================
-    // FINAL: Check consistency and return result
-    // ========================================================================
-    StateClass result = get_initial_classification();
+    return num_sccs_found_;
+}
 
-    // DEBUG: Log detailed classification summary
-    size_t total_states = successors_.size();
+//==============================================================================
+// Debug Logging
+//==============================================================================
+
+void OnTheFlyGameSolver::log_classification_summary() const
+{
     size_t swin_count = 0, ewin_count = 0, unknown_count = 0;
     for (const auto &pair : successors_)
     {
@@ -226,12 +232,21 @@ bool OnTheFlyGameSolver::is_realizable()
     }
 
     LOG_DEBUG("=== Classification Summary ===");
-    LOG_DEBUG("  Total states: {}", total_states);
-    LOG_DEBUG("  Swin: {} | Ewin: {} | Unknown: ", swin_count, ewin_count, unknown_count);
-    LOG_DEBUG("  Initial state player: {}", initial_state_.player == Player::System ? "Sys" : "Env");
-    LOG_DEBUG("  Initial state classification: {}", to_string(result));
+    LOG_DEBUG("  Total states: {}", successors_.size());
+    LOG_DEBUG("  Swin: {} | Ewin: {} | Unknown: {}", swin_count, ewin_count, unknown_count);
+    LOG_DEBUG("  Initial state: {} ({})", initial_state_.player == Player::System ? "Sys" : "Env",
+              to_string(get_initial_classification()));
+}
 
-    if (enable_consistency_check)
+bool OnTheFlyGameSolver::is_consistency_check_enabled() const
+{
+    const char *debug_prop = std::getenv("COSY_DEBUG_PROPAGATION");
+    return debug_prop && std::string(debug_prop) == "1";
+}
+
+void OnTheFlyGameSolver::run_consistency_check_if_enabled() const
+{
+    if (is_consistency_check_enabled())
     {
         LOG_DEBUG("=== Running propagation consistency check ===");
         size_t violations = check_propagation_consistency();
@@ -240,14 +255,6 @@ bool OnTheFlyGameSolver::is_realizable()
             LOG_WARN("OnTheFlyGameSolver: ", violations, " propagation violations detected!");
         }
     }
-
-    // Finalize trace before returning
-    if (trace_exporter_)
-    {
-        trace_exporter_->finalize(result == StateClass::Swin, *this);
-    }
-
-    return result == StateClass::Swin;
 }
 
 //==============================================================================
