@@ -37,12 +37,6 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>
 - `chore` - 构建/工具
 - `perf` - 性能优化
 
-### 提交前检查
-
-- [ ] `make` 编译通过
-- [ ] 所有测试通过
-- [ ] 新代码有测试覆盖
-
 ---
 
 ## Bug 修复流程

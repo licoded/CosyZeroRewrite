@@ -84,10 +84,53 @@ if (str.starts_with("prefix")) { ... }
 
 ---
 
+## 字符串格式化
+
+> **注意**：日志输出使用 `LOG_*` 宏（内置 fmt 支持）。这里说的是**非日志输出**场景的字符串格式化。
+
+使用 **spdlog 内置的 fmt 库** (`spdlog/fmt/fmt.h`) 进行字符串格式化：
+
+### 常用场景
+
+| 场景 | 代码示例 | 代码位置 |
+|------|---------|----------|
+| 错误消息 | `fmt::format("Failed to read: {}", error)` | cosy2.cpp, file_utils.cpp |
+| 文件路径 | `fmt::format("{}/bench{}/f{}.ltlf", base, dir, num)` | benchmark.cpp |
+| 集合连接 | `fmt::join(items, ", ")` | tableau.cpp, on_the_fly_solver.cpp |
+| ID/标签 | `fmt::format("scc_{:03d}", i)` (3位填充) | trace_exporter.cpp |
+| 数字格式 | `fmt::format("stage_{:03d}", counter)` | trace_exporter.cpp |
+
+```cpp
+#include <spdlog/fmt/fmt.h>
+
+// 错误消息
+return tl::unexpected(fmt::format("Cannot open file: {}", filename));
+
+// 文件路径
+auto ltlf_file = fmt::format("{}/bench{}/f{}.ltlf", base_dir, bench_dir, bench_num);
+
+// 集合连接（逗号分隔）
+auto inputs_str = fmt::format("inputs: [{}]", fmt::join(inputs, ", "));
+
+// 数字填充（3位，不足补0）
+auto scc_id = fmt::format("scc_{:03d}", i);  // scc_001, scc_002, ...
+```
+
+### 格式化选项
+
+| 选项 | 说明 | 示例 |
+|------|------|------|
+| `{:d}` | 整数 | `fmt::format("val={:d}", 42)` → `"val=42"` |
+| `{:.2f}` | 浮点数(2位小数) | `fmt::format("{:.2f}", 3.14159)` → `"3.14"` |
+| `{:03d}` | 整数(3位填充) | `fmt::format("{:03d}", 7)` → `"007"` |
+| `{:>10}` | 右对齐(10字符) | `fmt::format("{:>10}", "hi")` → `"        hi"` |
+
+---
+
 ## 检查清单
 
 - [ ] 所有文件 I/O 检查返回值
 - [ ] 错误消息有足够上下文
 - [ ] 命名准确反映语义
-- [ ] 使用 STL 设施而非手动实现
+- [ ] 使用 STL 或者流行实用的第三方库而非手动实现
 - [ ] 热点代码避免不必要的拷贝

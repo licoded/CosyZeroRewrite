@@ -1,67 +1,24 @@
-# Logging Standards
+# Logging Guide
 
-> 何时使用 `std::cout`/`std::cerr` vs `LOG_*` 宏
-
----
-
-## 核心原则
-
-| 输出类型 | 用途 | 方式 |
-|---------|------|------|
-| 程序输出 | 用户界面/结果 | `LOG_OUTPUT` |
-| 错误输出 | 错误信息 | `std::cerr` |
-| 日志输出 | 调试/追踪 | `LOG_*` 宏 |
-| 测试输出 | 格式化+颜色 | `fmt + termcolor` |
+> 日志系统使用规范
 
 ---
 
-## 1. 程序输出 → `LOG_OUTPUT`
+## 概述
 
-**用途**: 面向最终用户的输出，控制台无前缀，文件带时间戳
+项目使用 **spdlog** 作为日志后端，封装在 `include/log/logger.hpp` 中。
 
-```cpp
-// ✅ 正确
-LOG_OUTPUT("REALIZABLE");
-LOG_OUTPUT("Formula: {}", formula_str);
-LOG_OUTPUT("Variables: {} outputs, {} inputs", num_out, num_in);
-```
-
-**控制台输出** (无前缀):
-```
-REALIZABLE
-Formula: p0 && p1
-```
-
-**日志文件输出** (带时间戳):
-```
-[2026-01-07 12:34:56.789] [info] REALIZABLE
-```
+两套日志宏：
+- **`LOG_*`** - 带时间戳和日志级别前缀
+- **`NOP_LOG_*`** - 用户友好输出，控制台无前缀
 
 ---
 
-## 2. 错误输出 → `std::cerr`
+## 日志宏
 
-**用途**: 错误和警告信息，必须保证可见性
+### 带前缀日志 (LOG_*)
 
-```cpp
-// ✅ 正确：文件打开失败
-std::cerr << "Error: Cannot open file: " << filename << std::endl;
-
-// ✅ 正确：信号处理器（必须使用 std::cerr）
-void signal_handler(int signal) {
-    std::cerr << "[TIMEOUT] Received signal " << signal << std::endl;
-    std::cerr << std::flush;
-    _exit(124);
-}
-```
-
-**⚠️ 重要**: 信号处理器中**必须使用 `std::cerr` 和 `_exit()`**，不能使用 spdlog！
-
----
-
-## 3. 日志输出 → `LOG_*` 宏
-
-**用途**: 追踪程序执行、调试信息
+用于内部调试、追踪程序执行。
 
 | 宏 | 级别 | 用途 |
 |----|------|------|
@@ -73,36 +30,100 @@ void signal_handler(int signal) {
 | `LOG_CRITICAL(...)` | CRITICAL | 严重错误 |
 
 ```cpp
-// ✅ 正确：函数追踪
 LOG_DEBUG("OnTheFlyGameSolver: initialized with formula: {}", phi->to_string());
-
-// ✅ 正确：重要状态变化
 LOG_INFO("Phase 1 complete: expanded {} states", expanded_.size());
+LOG_ERROR("Failed to open file: {}", filename);
+```
+
+**控制台输出**:
+```
+[12:34:56.789] [debug] OnTheFlyGameSolver: initialized with formula: ...
+[12:34:57.123] [info] Phase 1 complete: expanded 42 states
+```
+
+**文件输出**:
+```
+[2026-01-07 12:34:56.789] [debug] [tid] OnTheFlyGameSolver: initialized with formula: ...
+[2026-01-07 12:34:57.123] [info] [tid] Phase 1 complete: expanded 42 states
+```
+
+### 无前缀日志 (NOP_LOG_*)
+
+用于面向用户的输出。
+
+| 宏 | 用途 |
+|----|------|
+| `NOP_LOG_INFO(...)` | 用户信息输出 |
+| `NOP_LOG_ERROR(...)` | 用户错误输出 |
+
+```cpp
+NOP_LOG_INFO("REALIZABLE");
+NOP_LOG_INFO("Variables: {} outputs, {} inputs", num_out, num_in);
+```
+
+**控制台输出** (无前缀):
+```
+REALIZABLE
+Variables: 3 outputs, 2 inputs
 ```
 
 ---
 
-## 4. 测试输出 → `fmt + termcolor`
+## 使用原则
 
-**用途**: benchmark 结果输出（颜色高亮）
+### 1. 尽量使用日志宏，避免 cout/cerr
 
 ```cpp
-// fmt + termcolor 组合
-fmt_print_with_color(termcolor::green, "OK: bench{}/f{} ({}ms)\n", bench_dir, n, ms);
-fmt_print_with_color(termcolor::red, "FAIL: bench{}/f{} ({})\n", bench_dir, n, err);
+// ❌ 避免
+std::cout << "Processing formula" << std::endl;
+std::cerr << "Error occurred" << std::endl;
 
-// 无颜色格式化
-fmt::print("Wall time: {:.2f}ms\n", elapsed_ms);
+// ✅ 推荐
+LOG_INFO("Processing formula");
+LOG_ERROR("Error occurred");
 ```
+
+### 2. 用户输出使用 NOP_LOG_*
+
+```cpp
+// ✅ 用户友好的结果输出
+NOP_LOG_INFO("UNREALIZABLE");
+NOP_LOG_ERROR("Cannot parse formula: {}", error_msg);
+```
+
+### 3. 特殊情况使用 cerr
+
+```cpp
+// ✅ 信号处理器中必须使用 std::cerr
+void signal_handler(int signal) {
+    std::cerr << "[TIMEOUT] Signal " << signal << std::endl;
+    _exit(124);
+}
+
+// ✅ 日志系统初始化失败时的兜底
+std::cerr << "Logger initialization failed, using stderr" << std::endl;
+```
+
+---
+
+## 日志文件
+
+日志文件位置：`logs/formula/YYYY-MM-DD/formula_YYYYMMDD_HHMMSS.log`
+
+- 文件大小限制：5MB
+- 最多保留：3 个文件
+- 自动滚动
 
 ---
 
 ## 决策流程
 
 ```
-需要输出信息？
+需要输出？
     │
-    面向用户？→ 是错误？→ 调试/追踪？→ 测试/benchmark？
-    │           │           │             │
-LOG_OUTPUT   std::cerr    LOG_* 宏    fmt + termcolor
+    面向用户？→ 调试/追踪？→ 错误？
+    │           │           │
+NOP_LOG_*   LOG_*       LOG_ERROR / std::cerr*
 ```
+
+*std::cerr 仅用于信号处理器或日志系统故障
