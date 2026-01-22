@@ -19,27 +19,6 @@
 
 ## 依赖详解
 
-### Z3 (Theorem Prover)
-
-**用途**: BMC (Bounded Model Checking) 等价性检查
-
-**使用场景**:
-- 验证转换前后公式等价性
-- 测试公式语义正确性
-- 随机公式测试
-
-**安装**:
-```bash
-sudo apt-get install libz3-dev  # Ubuntu/Debian
-brew install z3                   # macOS
-```
-
-**CMake 检测**:
-```cmake
-find_package(Z3 REQUIRED)
-target_link_libraries(formula PRIVATE Z3::Z3)
-```
-
 ### spdlog (Logging)
 
 **用途**: 结构化日志输出
@@ -144,12 +123,6 @@ CLI11_PARSE(app, argc, argv);
 - [ ] 评估 CUDD vs BuDDy
 - [ ] 设计 BDD 状态接口
 - [ ] 实现 BDD 版本的 SCC 算法
-
-### Lydia / AALTA (LTLf 工具)
-
-**用途**: 对比验证和替代实现
-
-**当前**: 代码在 `/home/lic/files/rewrite_ltlf_codes/Cosy_rewrite/`
 
 ---
 
