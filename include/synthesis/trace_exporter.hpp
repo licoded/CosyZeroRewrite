@@ -11,7 +11,6 @@
 #define SYNTHESIS_TRACE_EXPORTER_HPP
 
 #include "formula/formula_pool.hpp"
-#include "synthesis/on_the_fly_solver.hpp"
 
 #include <chrono>
 #include <fstream>
@@ -25,6 +24,16 @@
 #include <vector>
 
 namespace synthesis {
+
+// Forward declarations
+class OnTheFlyGameSolver;
+struct GameState;
+struct GameStateHash;
+struct GameStateEqual;
+struct StateIdMap;
+
+enum class Player : int;
+enum class StateClass : int;
 
 //==============================================================================
 // Trace Data Structures
@@ -96,9 +105,9 @@ struct SubStepMetrics {
  * Matches the format used in game_graph HTML visualization
  */
 struct StateData {
-    std::string id;                                  // e.g., "S0", "E1"
-    StateClass classification = StateClass::Unknown; // Swin, Ewin, Unknown
-    Player type = Player::System;                    // System or Environment
+    std::string id;       // e.g., "S0", "E1"
+    StateClass classification; // Swin, Ewin, Unknown
+    Player type;          // System or Environment
     bool is_initial = false;
     std::string phi;                     // Formula string
     std::string xnf_phi;                 // XNF Formula string
@@ -168,6 +177,14 @@ class TraceExporter
 {
   public:
     /**
+     * @brief Default constructor (disabled/null state)
+     *
+     * Creates a disabled TraceExporter that does nothing.
+     * All method calls will check enabled_ and return early.
+     */
+    TraceExporter();
+
+    /**
      * @brief Construct a trace exporter
      *
      * @param formula The original LTLf formula
@@ -181,11 +198,13 @@ class TraceExporter
      */
     ~TraceExporter();
 
-    // Disable copy/move
+    // Disable copy
     TraceExporter(const TraceExporter &) = delete;
     TraceExporter &operator=(const TraceExporter &) = delete;
-    TraceExporter(TraceExporter &&) = delete;
-    TraceExporter &operator=(TraceExporter &&) = delete;
+
+    // Enable move (for enable_trace() to replace disabled exporter)
+    TraceExporter(TraceExporter &&other) noexcept;
+    TraceExporter &operator=(TraceExporter &&other) noexcept;
 
     //==========================================================================
     // Stage Management
@@ -365,7 +384,7 @@ class TraceExporter
   private:
     // Configuration
     formula::Formula *formula_;
-    formula::FormulaPool &pool_;
+    formula::FormulaPool *pool_; // Pointer to support default constructor
     std::string output_dir_;
     std::string output_path_;
     bool enabled_;
@@ -395,7 +414,8 @@ class TraceExporter
     SubStep *current_sub_step_ = nullptr;
 
     // State ID mapping - uses shared StateIdMap definition
-    StateIdMap id_map_;
+    // Use unique_ptr to avoid needing complete type in header
+    std::unique_ptr<StateIdMap> id_map_;
 
     // Helper methods
     std::string generate_stage_id();

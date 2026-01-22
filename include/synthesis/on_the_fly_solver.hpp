@@ -13,6 +13,7 @@
 
 #include "automata/tableau.hpp"
 #include "formula/formula_pool.hpp"
+#include "synthesis/trace_exporter.hpp"
 
 #include <functional>
 #include <memory>
@@ -25,8 +26,7 @@
 
 namespace synthesis {
 
-// Forward declarations (to avoid circular dependency)
-class TraceExporter;
+// Forward declarations
 class BddManager;
 
 /**
@@ -517,7 +517,7 @@ class OnTheFlyGameSolver
     GameState initial_state_;
 
     // Trace exporter (for execution visualization)
-    std::unique_ptr<TraceExporter> trace_exporter_;
+    TraceExporter trace_exporter_;
 
     // BDD manager for Safe System Move optimization (Rule B)
     std::unique_ptr<BddManager> bdd_manager_;

@@ -4,6 +4,7 @@
  */
 
 #include "synthesis/trace_exporter.hpp"
+#include "synthesis/on_the_fly_solver.hpp" // For GameState, OnTheFlyGameSolver
 
 #include "DSViz/dsv.hpp" // For DOT generation
 #include "log/logger.hpp"
@@ -180,15 +181,29 @@ std::string get_trace_output_path()
 // TraceExporter Implementation
 //==============================================================================
 
+TraceExporter::TraceExporter()
+    : formula_(nullptr),
+      pool_(nullptr),
+      enabled_(false),
+      finalized_(true),  // Already "finalized" (no-op)
+      stage_counter_(0),
+      step_counter_(0),
+      current_stage_index_(-1),
+      id_map_(nullptr)
+{
+    // No-op: all method calls will check enabled_ and return early
+}
+
 TraceExporter::TraceExporter(formula::Formula *formula, formula::FormulaPool &pool, const std::string &output_dir)
     : formula_(formula),
-      pool_(pool),
+      pool_(&pool),
       output_dir_(output_dir),
       enabled_(true),
       finalized_(false),
       stage_counter_(0),
       step_counter_(0),
-      current_stage_index_(-1)
+      current_stage_index_(-1),
+      id_map_(std::make_unique<StateIdMap>())
 {
     start_time_ = std::chrono::steady_clock::now();
 
@@ -218,6 +233,9 @@ TraceExporter::TraceExporter(formula::Formula *formula, formula::FormulaPool &po
     oss << output_dir_ << "/trace_" << timestamp << ".json";
     output_path_ = oss.str();
 
+    // Initialize id_map pool pointer
+    id_map_->pool = pool_;
+
     LOG_DEBUG("TraceExporter: initialized, output: {}", output_path_);
 }
 
@@ -227,6 +245,69 @@ TraceExporter::~TraceExporter()
     {
         finalize(false);
     }
+}
+
+//==============================================================================
+// Move Constructor / Assignment
+//==============================================================================
+
+TraceExporter::TraceExporter(TraceExporter &&other) noexcept
+    : formula_(other.formula_),
+      pool_(other.pool_),
+      output_dir_(std::move(other.output_dir_)),
+      output_path_(std::move(other.output_path_)),
+      enabled_(other.enabled_),
+      finalized_(other.finalized_),
+      start_time_(other.start_time_),
+      stage_start_time_(other.stage_start_time_),
+      step_start_time_(other.step_start_time_),
+      stages_(std::move(other.stages_)),
+      stage_counter_(other.stage_counter_),
+      step_counter_(other.step_counter_),
+      current_stage_index_(other.current_stage_index_),
+      current_sub_step_(other.current_sub_step_),
+      id_map_(std::move(other.id_map_))
+{
+    // Mark other as disabled/moved
+    other.enabled_ = false;
+    other.finalized_ = true;
+    other.current_sub_step_ = nullptr;
+    other.id_map_ = nullptr;
+}
+
+TraceExporter &TraceExporter::operator=(TraceExporter &&other) noexcept
+{
+    if (this != &other)
+    {
+        // Finalize current state if needed
+        if (!finalized_ && enabled_)
+        {
+            finalize(false);
+        }
+
+        formula_ = other.formula_;
+        pool_ = other.pool_;
+        output_dir_ = std::move(other.output_dir_);
+        output_path_ = std::move(other.output_path_);
+        enabled_ = other.enabled_;
+        finalized_ = other.finalized_;
+        start_time_ = other.start_time_;
+        stage_start_time_ = other.stage_start_time_;
+        step_start_time_ = other.step_start_time_;
+        stages_ = std::move(other.stages_);
+        stage_counter_ = other.stage_counter_;
+        step_counter_ = other.step_counter_;
+        current_stage_index_ = other.current_stage_index_;
+        current_sub_step_ = other.current_sub_step_;
+        id_map_ = std::move(other.id_map_);
+
+        // Mark other as disabled/moved
+        other.enabled_ = false;
+        other.finalized_ = true;
+        other.current_sub_step_ = nullptr;
+        other.id_map_ = nullptr;
+    }
+    return *this;
 }
 
 //==============================================================================
@@ -424,7 +505,7 @@ void TraceExporter::capture_state(const std::string &description,
     begin_sub_step(description);
 
     // Get current DOT from solver (using shared StateIdMap)
-    std::string dot = solver_to_dot(solver, id_map_);
+    std::string dot = solver_to_dot(solver, *id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0); // edges count not readily available
 
     // Collect state data for tooltips (phi, xnf_phi, prop_atoms)
@@ -490,10 +571,10 @@ void TraceExporter::record_expansion(const GameState &state,
     if (!enabled_)
         return;
 
-    begin_sub_step("Expand state: " + id_map_.get_id(state));
+    begin_sub_step("Expand state: " + id_map_->get_id(state));
 
     // Get current DOT
-    std::string dot = solver_to_dot(solver, id_map_);
+    std::string dot = solver_to_dot(solver, *id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -503,19 +584,19 @@ void TraceExporter::record_expansion(const GameState &state,
     }
 
     // Highlight the expanded state and new successors
-    add_highlight_node(id_map_.get_id(state), HighlightType::NewNode);
+    add_highlight_node(id_map_->get_id(state), HighlightType::NewNode);
 
     // Mark successors as new
     for (const auto &succ : successors)
     {
-        std::string succ_id = id_map_.get_id(succ);
+        std::string succ_id = id_map_->get_id(succ);
         add_highlight_node(succ_id, HighlightType::NewNode);
 
         // Add edge highlight with label (show implicit false variables)
         std::string edge_type = (state.player == Player::System) ? "sys_move" : "env_move";
         std::string edge_label = format_assignment_label(state, succ);
 
-        add_highlight_edge(id_map_.get_id(state), succ_id, edge_label, edge_type);
+        add_highlight_edge(id_map_->get_id(state), succ_id, edge_label, edge_type);
     }
 
     // Get classification counts
@@ -545,7 +626,7 @@ void TraceExporter::record_scc(const std::vector<GameState> &scc,
     begin_sub_step("Found SCC: " + scc_id);
 
     // Get current DOT
-    std::string dot = solver_to_dot(solver, id_map_);
+    std::string dot = solver_to_dot(solver, *id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -558,7 +639,7 @@ void TraceExporter::record_scc(const std::vector<GameState> &scc,
     std::vector<std::string> scc_node_ids;
     for (const auto &state : scc)
     {
-        std::string state_id = id_map_.get_id(state);
+        std::string state_id = id_map_->get_id(state);
         scc_node_ids.push_back(state_id);
     }
     add_highlight_nodes(scc_node_ids, HighlightType::SCCNode);
@@ -590,13 +671,13 @@ void TraceExporter::record_classification_change(const GameState &state,
         return;
 
     std::ostringstream oss;
-    oss << "Classification change: " << id_map_.get_id(state) << " from " << to_string(old_class) << " to "
+    oss << "Classification change: " << id_map_->get_id(state) << " from " << to_string(old_class) << " to "
         << to_string(new_class);
 
     begin_sub_step(oss.str());
 
     // Get current DOT
-    std::string dot = solver_to_dot(solver, id_map_);
+    std::string dot = solver_to_dot(solver, *id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -606,7 +687,7 @@ void TraceExporter::record_classification_change(const GameState &state,
     }
 
     // Highlight the changed state
-    add_highlight_node(id_map_.get_id(state), HighlightType::UpdatedNode);
+    add_highlight_node(id_map_->get_id(state), HighlightType::UpdatedNode);
 
     // Get classification counts
     const auto &classification = solver.get_classification();
@@ -698,7 +779,7 @@ void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver &solver)
     begin_sub_step("Complete game graph with final classifications");
 
     // Get current DOT from solver
-    std::string dot = solver_to_dot(solver, id_map_);
+    std::string dot = solver_to_dot(solver, *id_map_);
     set_graph_dot(dot, solver.num_expanded_states(), 0);
 
     // Collect state data for tooltips
@@ -748,8 +829,8 @@ std::string TraceExporter::generate_step_id()
 
 std::string TraceExporter::format_assignment_label(const GameState &state, const GameState &succ)
 {
-    const auto &var_names = pool_.get_all_variable_names();
-    int num_outputs = pool_.num_outputs();
+    const auto &var_names = pool_->get_all_variable_names();
+    int num_outputs = pool_->num_outputs();
     bool is_sys_move = (state.player == Player::System);
 
     // Build set of true variables for quick lookup
@@ -942,10 +1023,10 @@ void TraceExporter::write_json()
 {
     nlohmann::json root;
 
-    root["formula"] = formula_ ? formula_->to_string(pool_) : nullptr;
+    root["formula"] = formula_ ? formula_->to_string(*pool_) : nullptr;
     root["timestamp"] = get_timestamp();
 
-    auto [outputs, inputs] = pool_.get_variable_partition();
+    auto [outputs, inputs] = pool_->get_variable_partition();
     root["partition"] = {{"outputs", outputs}, {"inputs", inputs}};
 
     nlohmann::json stages = nlohmann::json::array();
@@ -983,7 +1064,7 @@ void TraceExporter::collect_state_data(SubStepGraphData &graph_data, const OnThe
              },
              successors))
     {
-        std::string state_id = id_map_.get_id(state);
+        std::string state_id = id_map_->get_id(state);
 
         StateData data;
         data.id = state_id;
@@ -1004,16 +1085,16 @@ void TraceExporter::collect_state_data(SubStepGraphData &graph_data, const OnThe
         if (state.dfa_state)
         {
             formula::Formula *phi = state.dfa_state->phi();
-            data.phi = phi ? phi->to_string(pool_) : "null";
+            data.phi = phi ? phi->to_string(*pool_) : "null";
 
             formula::Formula *xnf_phi = state.dfa_state->xnf_phi();
-            data.xnf_phi = xnf_phi ? xnf_phi->to_string(pool_) : "null";
+            data.xnf_phi = xnf_phi ? xnf_phi->to_string(*pool_) : "null";
 
             // Get propositional atoms
             const auto &prop_atoms = state.dfa_state->prop_atoms();
             for (auto *f : prop_atoms)
             {
-                data.prop_atoms.push_back(f ? f->to_string(pool_) : "null");
+                data.prop_atoms.push_back(f ? f->to_string(*pool_) : "null");
             }
         }
         else
