@@ -14,10 +14,8 @@
 #include <algorithm>
 #include <fstream>
 #include <functional>
-#include <iomanip>
 #include <iostream>
 #include <set>
-#include <sstream>
 #include <vector>
 
 namespace synthesis {
@@ -168,9 +166,7 @@ void OnTheFlyGameSolver::decompose_and_classify_sccs()
         if (scc.empty())
             continue;
 
-        std::ostringstream oss;
-        oss << "scc_" << std::setfill('0') << std::setw(3) << i;
-        trace_exporter_.record_scc(scc, oss.str(), *this);
+        trace_exporter_.record_scc(scc, fmt::format("scc_{:03d}", i), *this);
 
         classify_scc(scc);
     }

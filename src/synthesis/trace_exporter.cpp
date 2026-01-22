@@ -14,10 +14,8 @@
 #include <algorithm>             // for std::sort
 #include <cppitertools/imap.hpp> // for iter::imap
 #include <filesystem>
-#include <iomanip>
 #include <iostream>
 #include <nlohmann/json.hpp>
-#include <sstream>
 #include <unordered_set>
 
 namespace synthesis {
@@ -37,10 +35,9 @@ std::string get_timestamp()
     auto time_t = std::chrono::system_clock::to_time_t(now);
     std::tm tm = *std::localtime(&time_t);
 
-    std::ostringstream oss;
-    oss << std::setfill('0');
-    oss << std::put_time(&tm, "%Y-%m-%dT%H:%M:%S");
-    return oss.str();
+    char buf[64];
+    std::strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &tm);
+    return std::string(buf);
 }
 
 } // anonymous namespace
@@ -171,10 +168,7 @@ std::string get_trace_output_path()
 
     // Build path: output/results/trace/YYYY-MM-DD/
     // Matches the game_graph directory structure
-    std::ostringstream path;
-    path << "output/results/trace/" << date_buf;
-
-    return path.str();
+    return fmt::format("output/results/trace/{}", date_buf);
 }
 
 //==============================================================================
@@ -551,7 +545,7 @@ void TraceExporter::record_expansion(const GameState &state,
     if (!enabled_)
         return;
 
-    begin_sub_step("Expand state: " + id_map_->get_id(state));
+    begin_sub_step(fmt::format("Expand state: {}", id_map_->get_id(state)));
 
     // Get current DOT
     std::string dot = solver_to_dot(solver, *id_map_);
@@ -603,7 +597,7 @@ void TraceExporter::record_scc(const std::vector<GameState> &scc,
     if (!enabled_)
         return;
 
-    begin_sub_step("Found SCC: " + scc_id);
+    begin_sub_step(fmt::format("Found SCC: {}", scc_id));
 
     // Get current DOT
     std::string dot = solver_to_dot(solver, *id_map_);
@@ -650,11 +644,8 @@ void TraceExporter::record_classification_change(const GameState &state,
     if (!enabled_)
         return;
 
-    std::ostringstream oss;
-    oss << "Classification change: " << id_map_->get_id(state) << " from " << to_string(old_class) << " to "
-        << to_string(new_class);
-
-    begin_sub_step(oss.str());
+    begin_sub_step(fmt::format("Classification change: {} from {} to {}", id_map_->get_id(state), to_string(old_class),
+                              to_string(new_class)));
 
     // Get current DOT
     std::string dot = solver_to_dot(solver, *id_map_);
@@ -795,16 +786,12 @@ void TraceExporter::finalize(bool realizable, const OnTheFlyGameSolver &solver)
 
 std::string TraceExporter::generate_stage_id()
 {
-    std::ostringstream oss;
-    oss << "stage_" << std::setfill('0') << std::setw(3) << stage_counter_++;
-    return oss.str();
+    return fmt::format("stage_{:03d}", stage_counter_++);
 }
 
 std::string TraceExporter::generate_step_id()
 {
-    std::ostringstream oss;
-    oss << "step_" << std::setfill('0') << std::setw(3) << step_counter_++;
-    return oss.str();
+    return fmt::format("step_{:03d}", step_counter_++);
 }
 
 std::string TraceExporter::format_assignment_label(const GameState &state, const GameState &succ)
@@ -1117,9 +1104,7 @@ std::string TraceExporter::generate_output_path(const std::string &dir)
     std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
     std::string timestamp = time_buf;
 
-    std::ostringstream oss;
-    oss << dir << "/trace_" << timestamp << ".json";
-    return oss.str();
+    return fmt::format("{}/trace_{}.json", dir, timestamp);
 }
 
 } // namespace synthesis
