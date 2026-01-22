@@ -510,6 +510,9 @@ class OnTheFlyGameSolver
     // Statistics
     size_t num_sccs_found_;
 
+    // SCCs found during decomposition (private, for internal use)
+    std::vector<std::vector<GameState>> sccs_;
+
     // Initial state
     GameState initial_state_;
 
@@ -621,15 +624,13 @@ class OnTheFlyGameSolver
 
     /**
      * @brief Phase 1: Expand all reachable states
-     * @return Number of states expanded
      */
-    size_t expand_all_reachable_states();
+    void expand_all_reachable_states();
 
     /**
      * @brief Phase 2: SCC decomposition and classification
-     * @return Number of SCCs found
      */
-    size_t decompose_and_classify_sccs();
+    void decompose_and_classify_sccs();
 
     /**
      * @brief Log classification summary (debug)

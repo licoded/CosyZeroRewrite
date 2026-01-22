@@ -81,11 +81,11 @@ bool OnTheFlyGameSolver::is_realizable()
 {
     LOG_DEBUG("OnTheFlyGameSolver: starting realizability check");
 
-    size_t num_expanded = expand_all_reachable_states();
-    LOG_DEBUG("Phase 1 complete: expanded ", num_expanded, " states");
+    expand_all_reachable_states();
+    LOG_DEBUG("Phase 1 complete: expanded ", expanded_.size(), " states");
 
-    size_t num_sccs = decompose_and_classify_sccs();
-    LOG_DEBUG("Phase 2 complete: found ", num_sccs, " SCCs");
+    decompose_and_classify_sccs();
+    LOG_DEBUG("Phase 2 complete: found ", sccs_.size(), " SCCs");
 
     StateClass result = get_initial_classification();
 
@@ -104,7 +104,7 @@ bool OnTheFlyGameSolver::is_realizable()
 // Phase 1: State Expansion
 //==============================================================================
 
-size_t OnTheFlyGameSolver::expand_all_reachable_states()
+void OnTheFlyGameSolver::expand_all_reachable_states()
 {
     LOG_DEBUG("=== PHASE 1: Expanding all reachable states ===");
 
@@ -158,15 +158,13 @@ size_t OnTheFlyGameSolver::expand_all_reachable_states()
     {
         trace_exporter_->end_stage();
     }
-
-    return expanded_.size();
 }
 
 //==============================================================================
 // Phase 2: SCC Decomposition and Classification
 //==============================================================================
 
-size_t OnTheFlyGameSolver::decompose_and_classify_sccs()
+void OnTheFlyGameSolver::decompose_and_classify_sccs()
 {
     LOG_DEBUG("=== PHASE 2: SCC decomposition and classification ===");
 
@@ -176,17 +174,16 @@ size_t OnTheFlyGameSolver::decompose_and_classify_sccs()
         trace_exporter_->capture_state("Before SCC", *this);
     }
 
-    auto sccs = find_sccs();
-    num_sccs_found_ = sccs.size();
+    sccs_ = find_sccs();
 
     if (trace_exporter_)
     {
-        trace_exporter_->capture_state("Found " + std::to_string(sccs.size()) + " SCCs", *this);
+        trace_exporter_->capture_state("Found " + std::to_string(sccs_.size()) + " SCCs", *this);
     }
 
-    for (size_t i = 0; i < sccs.size(); ++i)
+    for (size_t i = 0; i < sccs_.size(); ++i)
     {
-        const auto &scc = sccs[i];
+        const auto &scc = sccs_[i];
         if (scc.empty())
             continue;
 
@@ -204,8 +201,6 @@ size_t OnTheFlyGameSolver::decompose_and_classify_sccs()
     {
         trace_exporter_->end_stage();
     }
-
-    return num_sccs_found_;
 }
 
 //==============================================================================
