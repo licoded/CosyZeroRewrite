@@ -422,6 +422,20 @@ class TraceExporter
     std::string generate_step_id();
 
     /**
+     * @brief Create output directory if it doesn't exist
+     * @param dir Directory path to create
+     * @return true if successful, false otherwise
+     */
+    bool create_output_directory(const std::string &dir);
+
+    /**
+     * @brief Generate timestamped output file path
+     * @param dir Output directory
+     * @return Full path to trace file (e.g., "/dir/trace_20260122_143052.json")
+     */
+    std::string generate_output_path(const std::string &dir);
+
+    /**
      * @brief Collect state data from solver for tooltip display
      * Populates the state_data map in graph_data with phi, xnf_phi, prop_atoms
      */

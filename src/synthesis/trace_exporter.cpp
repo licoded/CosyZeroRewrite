@@ -207,33 +207,13 @@ TraceExporter::TraceExporter(formula::Formula *formula, formula::FormulaPool &po
 {
     start_time_ = std::chrono::steady_clock::now();
 
-    // Create output directory
-    namespace fs = std::filesystem;
-    std::error_code ec;
-    fs::create_directories(output_dir_, ec);
-    if (ec)
+    if (!create_output_directory(output_dir_))
     {
-        LOG_WARN("Failed to create trace output directory: ", output_dir_);
         enabled_ = false;
         return;
     }
 
-    // Generate output file path with timestamp
-    // Format: trace_YYYYMMDD_HHMMSS.json
-    auto now = std::chrono::system_clock::now();
-    auto time_t_now = std::chrono::system_clock::to_time_t(now);
-    std::tm tm_now;
-    localtime_r(&time_t_now, &tm_now);
-
-    char time_buf[64];
-    std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
-    std::string timestamp = time_buf;
-
-    std::ostringstream oss;
-    oss << output_dir_ << "/trace_" << timestamp << ".json";
-    output_path_ = oss.str();
-
-    // Initialize id_map pool pointer
+    output_path_ = generate_output_path(output_dir_);
     id_map_->pool = pool_;
 
     LOG_DEBUG("TraceExporter: initialized, output: {}", output_path_);
@@ -1105,6 +1085,41 @@ void TraceExporter::collect_state_data(SubStepGraphData &graph_data, const OnThe
 
         graph_data.state_data[state_id] = std::move(data);
     }
+}
+
+//==============================================================================
+// Helper Methods
+//==============================================================================
+
+bool TraceExporter::create_output_directory(const std::string &dir)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(dir, ec);
+    if (ec)
+    {
+        LOG_WARN("Failed to create trace output directory: {}", dir);
+        return false;
+    }
+    return true;
+}
+
+std::string TraceExporter::generate_output_path(const std::string &dir)
+{
+    // Generate output file path with timestamp
+    // Format: trace_YYYYMMDD_HHMMSS.json
+    auto now = std::chrono::system_clock::now();
+    auto time_t_now = std::chrono::system_clock::to_time_t(now);
+    std::tm tm_now;
+    localtime_r(&time_t_now, &tm_now);
+
+    char time_buf[64];
+    std::strftime(time_buf, sizeof(time_buf), "%Y%m%d_%H%M%S", &tm_now);
+    std::string timestamp = time_buf;
+
+    std::ostringstream oss;
+    oss << dir << "/trace_" << timestamp << ".json";
+    return oss.str();
 }
 
 } // namespace synthesis
